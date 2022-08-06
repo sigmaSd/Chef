@@ -1,5 +1,5 @@
 import { $$ } from "https://deno.land/x/simple_shell@0.10.0/mod.ts";
-import { Chef } from "./src/main.ts";
+import { Chef } from "./mod.ts";
 
 const chef = new Chef();
 chef.add(
