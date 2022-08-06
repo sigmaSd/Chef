@@ -14,7 +14,7 @@ With chef you can:
 
 ## Usage
 
-create a file for example **chef.ts** with:
+Create a file for example **chef.ts** with:
 
 ```ts
 import { Chef } from "https://deno.land/x/derchef/mod.ts";
@@ -29,7 +29,7 @@ chef.add({
     version: () => {
     // a function that returns the latest version of the binary
     }
-}
+})
 
 await chef.run()
 ```
