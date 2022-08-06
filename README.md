@@ -2,7 +2,7 @@
 
 Personal package manager
 
-# Why it exists
+## Why it exists
 
 This is useful for those binaries that are not packaged by a distro.
 
@@ -12,9 +12,9 @@ With chef you can:
 - Keep it up-to-date
 - Run it
 
-# Usage
+## Usage
 
-**chef.ts**
+create a file for example **chef.ts** with:
 
 ```ts
 import { Chef } from "TODO";
@@ -43,7 +43,7 @@ You can now use:
 
 - `chef` or `chef update` to update all binaries (or install it if it doesn't
   exist yet)
-- `chef list` to list currently
+- `chef list` to list currently binaries
 - `chef run ${binary}` to run one of the installed binaries
 
 Checkout `examples.ts` for more info.
