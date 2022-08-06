@@ -17,7 +17,7 @@ With chef you can:
 create a file for example **chef.ts** with:
 
 ```ts
-import { Chef } from "TODO";
+import { Chef } from "https://deno.land/x/derchef/mod.ts";
 
 const chef = new Chef();
 
