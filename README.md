@@ -16,22 +16,22 @@ With chef you can:
 
 Create a file for example **chef.ts** with:
 
-```ts
+```typescript
 import { Chef } from "https://deno.land/x/derchef/mod.ts";
 
 const chef = new Chef();
 
 chef.add({
-    name: "binary1",
-    cmd: () => {
+  name: "binary1",
+  cmd: () => {
     // a fuction that downloads the binary and return its relative path
-    },
-    version: () => {
+  },
+  version: () => {
     // a function that returns the latest version of the binary
-    }
-})
+  },
+});
 
-await chef.run()
+await chef.run();
 ```
 
 For a better experience install it with deno install (make sure `~/.deno/bin` is
