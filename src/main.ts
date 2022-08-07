@@ -14,6 +14,9 @@ export class Chef {
   recipes: Recipe[] = [];
 
   static list = () => {
+    Deno.spawnSync("deno", {
+      args: ["fmt", Chef.dbPath],
+    });
     try {
       console.log(Deno.readTextFileSync(Chef.dbPath));
     } catch {
@@ -30,7 +33,11 @@ export class Chef {
       case "run": {
         const binName = Deno.args[1];
         const db = Chef.readDb();
-        if (!binName || !db[binName]) {
+        if (!binName) {
+          Chef.list();
+          return;
+        }
+        if (!db[binName]) {
           console.error("trying to run an unknown binary ", binName);
           return;
         }
@@ -47,11 +54,11 @@ export class Chef {
         Chef.list();
         break;
       case "update":
+      case undefined:
         await this.update();
         break;
       default:
-        await this.update();
-        //console.error("unknown command ", cmd);
+        console.error("unknown command ", cmd);
     }
   };
   static readDb = (): Record<string, string> => {
