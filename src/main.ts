@@ -11,8 +11,15 @@ export class Chef {
   static Path = path.join(cache_dir()!, "chef");
   static BinPath = path.join(Chef.Path, "bin");
   static dbPath = path.join(Chef.Path, "db.json");
-  recipes: Recipe[] = [];
-
+  static readDb = (): Record<string, string> => {
+    let db;
+    try {
+      db = Deno.readTextFileSync(Chef.dbPath);
+    } catch {
+      db = "{}";
+    }
+    return JSON.parse(db);
+  };
   static list = () => {
     try {
       const dbData = JSON.parse(Deno.readTextFileSync(Chef.dbPath));
@@ -27,6 +34,9 @@ export class Chef {
       console.log("No db yet, add a new program for it to get created");
     }
   };
+
+  recipes: Recipe[] = [];
+
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
     return this;
@@ -69,15 +79,6 @@ export class Chef {
       default:
         console.error(`Unknown command %c${cmd}`, `color: ${Colors.lightRed}`);
     }
-  };
-  static readDb = (): Record<string, string> => {
-    let db;
-    try {
-      db = Deno.readTextFileSync(Chef.dbPath);
-    } catch {
-      db = "{}";
-    }
-    return JSON.parse(db);
   };
   update = async () => {
     console.log(`%cLooking for updates..`, `color: magenta`);
