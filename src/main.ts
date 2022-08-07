@@ -1,5 +1,5 @@
 import { cache_dir, ensureDirSync, path } from "./deps.ts";
-import { runInTempDir } from "./utils.ts";
+import { Colors, runInTempDir } from "./utils.ts";
 
 export interface Recipe {
   name: string;
@@ -15,13 +15,17 @@ export class Chef {
 
   static list = () => {
     try {
-      Deno.spawnSync("deno", {
-        args: ["fmt", Chef.dbPath],
-      });
-    } catch { /*ignore*/ }
-    try {
-      console.log(Deno.readTextFileSync(Chef.dbPath));
-    } catch {
+      const dbData = JSON.parse(Deno.readTextFileSync(Chef.dbPath));
+      for (const name of Object.keys(dbData)) {
+        console.log(
+          `%c${name} %c${dbData[name]}`,
+          `color: ${Colors.lightYellow}`,
+          `color: ${Colors.lightGreen}`,
+        );
+      }
+    } catch (e) {
+      console.error(e);
+
       console.log("No db yet, add a new program for it to get created");
     }
   };
@@ -40,7 +44,12 @@ export class Chef {
           return;
         }
         if (!db[binName]) {
-          console.error("trying to run an unknown binary ", binName);
+          console.error(
+            `Unknown binary: %c${binName}`,
+            `color: ${Colors.lightRed}`,
+          );
+          console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
+          Chef.list();
           return;
         }
         const binPath = path.join(Chef.BinPath, binName);
@@ -60,7 +69,7 @@ export class Chef {
         await this.update();
         break;
       default:
-        console.error("unknown command ", cmd);
+        console.error(`Unknown command %c${cmd}`, `color: ${Colors.lightRed}`);
     }
   };
   static readDb = (): Record<string, string> => {
@@ -73,10 +82,17 @@ export class Chef {
     return JSON.parse(db);
   };
   update = async () => {
+    console.log(`%cLooking for updates..`, `color: magenta`);
+    console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
+    Chef.list();
+    console.log("");
+
     ensureDirSync(Chef.BinPath);
     const currentDb = Chef.readDb();
 
     for (const recipe of this.recipes) {
+      console.log(`Updating %c${recipe.name}`, `color: ${Colors.lightYellow}`);
+
       const { name, cmd, version } = recipe;
       const latestVersion = await version();
       if (!latestVersion) {
@@ -86,10 +102,18 @@ export class Chef {
       }
       const currentVersion = currentDb[name];
       if (currentVersion === latestVersion) {
-        console.log(name, "is up to date");
+        console.log(
+          `%c${name}%c is %cuptodate`,
+          `color: ${Colors.lightYellow}`,
+          "",
+          `color: ${Colors.lightGreen}`,
+        );
         continue;
       }
-      console.log(`${name} is out of date, updating to ${latestVersion}`);
+      console.log(
+        `%c${name} is out of date, updating to ${latestVersion}`,
+        "color: #ffff00",
+      );
 
       runInTempDir(() => {
         const tempBin = cmd({ latestVersion });
@@ -98,7 +122,10 @@ export class Chef {
 
       currentDb[name] = latestVersion;
 
-      console.log(`${name} ${latestVersion} was successfully updated`);
+      console.log(
+        `%c${name} ${latestVersion} was successfully updated`,
+        "color: #00ff00",
+      );
     }
     Deno.writeTextFileSync(Chef.dbPath, JSON.stringify(currentDb));
   };
