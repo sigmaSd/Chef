@@ -1,6 +1,4 @@
-import cache_dir from "https://deno.land/x/dir@1.5.1/cache_dir/mod.ts";
-import { ensureDirSync } from "https://deno.land/std@0.145.0/fs/mod.ts";
-import * as path from "https://deno.land/std@0.145.0/path/mod.ts";
+import { cache_dir, ensureDirSync, path } from "./deps.ts";
 import { runInTempDir } from "./utils.ts";
 
 export interface Recipe {
