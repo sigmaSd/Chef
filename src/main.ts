@@ -23,9 +23,7 @@ export class Chef {
           `color: ${Colors.lightGreen}`,
         );
       }
-    } catch (e) {
-      console.error(e);
-
+    } catch {
       console.log("No db yet, add a new program for it to get created");
     }
   };
