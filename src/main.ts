@@ -14,9 +14,11 @@ export class Chef {
   recipes: Recipe[] = [];
 
   static list = () => {
-    Deno.spawnSync("deno", {
-      args: ["fmt", Chef.dbPath],
-    });
+    try {
+      Deno.spawnSync("deno", {
+        args: ["fmt", Chef.dbPath],
+      });
+    } catch { /*ignore*/ }
     try {
       console.log(Deno.readTextFileSync(Chef.dbPath));
     } catch {
@@ -100,8 +102,4 @@ export class Chef {
     }
     Deno.writeTextFileSync(Chef.dbPath, JSON.stringify(currentDb));
   };
-}
-
-if (import.meta.main) {
-  Chef.list();
 }
