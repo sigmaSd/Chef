@@ -5,6 +5,7 @@ export interface Recipe {
   name: string;
   cmd: ({ latestVersion }: { latestVersion: string }) => string;
   version: () => Promise<string | undefined>;
+  postInstall?: (binPath: string) => void;
 }
 
 export class Chef {
@@ -37,6 +38,9 @@ export class Chef {
 
   recipes: Recipe[] = [];
 
+  addMany = (recipes: Recipe[]) => {
+    recipes.forEach((recipe) => this.add(recipe));
+  };
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
     return this;
@@ -120,6 +124,10 @@ export class Chef {
       });
 
       currentDb[name] = latestVersion;
+
+      if (recipe.postInstall) {
+        recipe.postInstall(path.join(Chef.BinPath, name));
+      }
 
       console.log(
         `%c${name} ${latestVersion} was successfully updated`,
