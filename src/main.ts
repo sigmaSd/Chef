@@ -80,6 +80,9 @@ export class Chef {
       case undefined:
         await this.update();
         break;
+      case "edit":
+        this.edit();
+        break;
       default:
         console.error(`Unknown command %c${cmd}`, `color: ${Colors.lightRed}`);
     }
@@ -136,4 +139,14 @@ export class Chef {
     }
     Deno.writeTextFileSync(Chef.dbPath, JSON.stringify(currentDb));
   };
+  edit() {
+    const stack = new Error().stack!;
+    const lines = stack.split("\n");
+    const chef = lines[lines.length - 1];
+
+    let chefPath = chef.split("at ")[1];
+
+    chefPath = chefPath.slice(0, chefPath.lastIndexOf(":") - 3);
+    console.log(chefPath);
+  }
 }

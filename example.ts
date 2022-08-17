@@ -34,28 +34,6 @@ chef.addMany(
         ).then((res) => res.url.split("/").at(-1));
       },
     },
-    {
-      name: "imhex",
-      cmd: ({ latestVersion }) => {
-        // remove v from version
-        // v1.20.0 -> 1.20.0
-        latestVersion = latestVersion.slice(1);
-
-        $$(
-          `wget https://github.com/WerWolv/ImHex/releases/latest/download/imhex-${latestVersion}.AppImage`,
-        );
-        $$(`mv imhex-${latestVersion}.AppImage imhex`);
-        return `./imhex`;
-      },
-      version: async () => {
-        return await fetch(
-          "https://github.com/WerWolv/ImHex/releases/latest",
-        ).then((res) => res.url.split("/").at(-1));
-      },
-      postInstall(binPath) {
-        $$`chmod +x ${binPath}`;
-      },
-    },
   ],
 );
 
