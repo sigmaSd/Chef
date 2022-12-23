@@ -147,7 +147,7 @@ export class Chef {
     }
     Deno.writeTextFileSync(Chef.dbPath, JSON.stringify(currentDb));
   };
-  edit() {
+  edit = () => {
     const stack = new Error().stack!;
     const lines = stack.split("\n");
     const chef = lines[lines.length - 1];
@@ -156,5 +156,5 @@ export class Chef {
 
     chefPath = chefPath.slice(0, chefPath.lastIndexOf(":") - 3);
     console.log(chefPath);
-  }
+  };
 }
