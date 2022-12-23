@@ -1,25 +1,14 @@
 import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
 import { Colors, runInTempDir } from "./internal_utils.ts";
 
-export interface Recipe {
-  name: string;
-  cmd: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
-  version: () => Promise<string | undefined>;
-  postInstall?: (binPath: string) => void;
-  /**
-      Pre-defined args, the user cli args will be appened after these
-  **/
-  cmdPreDefinedArgs?: string[];
-}
-
-export class Chef {
+class ChefInternal {
   static Path = path.join(cache_dir()!, "chef");
-  static BinPath = path.join(Chef.Path, "bin");
-  static dbPath = path.join(Chef.Path, "db.json");
+  static BinPath = path.join(ChefInternal.Path, "bin");
+  static dbPath = path.join(ChefInternal.Path, "db.json");
   static readDb = (): Record<string, string> => {
     let db;
     try {
-      db = Deno.readTextFileSync(Chef.dbPath);
+      db = Deno.readTextFileSync(ChefInternal.dbPath);
     } catch {
       db = "{}";
     }
@@ -27,7 +16,7 @@ export class Chef {
   };
   static list = () => {
     try {
-      const dbData = JSON.parse(Deno.readTextFileSync(Chef.dbPath));
+      const dbData = JSON.parse(Deno.readTextFileSync(ChefInternal.dbPath));
       for (const name of Object.keys(dbData)) {
         console.log(
           `%c${name} %c${dbData[name]}`,
@@ -54,9 +43,9 @@ export class Chef {
     switch (cmd) {
       case "run": {
         const binName = Deno.args[1];
-        const db = Chef.readDb();
+        const db = ChefInternal.readDb();
         if (!binName) {
-          Chef.list();
+          ChefInternal.list();
           return;
         }
         if (!db[binName]) {
@@ -65,10 +54,10 @@ export class Chef {
             `color: ${Colors.lightRed}`,
           );
           console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
-          Chef.list();
+          ChefInternal.list();
           return;
         }
-        const binPath = path.join(Chef.BinPath, binName);
+        const binPath = path.join(ChefInternal.BinPath, binName);
         const recipe = this.recipes.find((recipe) => recipe.name === binName);
         assert(recipe, "Recipe for this binary doesn't exist");
 
@@ -82,7 +71,7 @@ export class Chef {
         break;
       }
       case "list":
-        Chef.list();
+        ChefInternal.list();
         break;
       case "update":
       case undefined:
@@ -98,11 +87,11 @@ export class Chef {
   update = async () => {
     console.log(`%cLooking for updates..`, `color: magenta`);
     console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
-    Chef.list();
+    ChefInternal.list();
     console.log("");
 
-    ensureDirSync(Chef.BinPath);
-    const currentDb = Chef.readDb();
+    ensureDirSync(ChefInternal.BinPath);
+    const currentDb = ChefInternal.readDb();
 
     for (const recipe of this.recipes) {
       console.log(`Updating %c${recipe.name}`, `color: ${Colors.lightYellow}`);
@@ -131,13 +120,13 @@ export class Chef {
 
       await runInTempDir(async () => {
         const tempBin = await cmd({ latestVersion });
-        Deno.copyFileSync(tempBin, path.join(Chef.BinPath, name));
+        Deno.copyFileSync(tempBin, path.join(ChefInternal.BinPath, name));
       });
 
       currentDb[name] = latestVersion;
 
       if (recipe.postInstall) {
-        recipe.postInstall(path.join(Chef.BinPath, name));
+        recipe.postInstall(path.join(ChefInternal.BinPath, name));
       }
 
       console.log(
@@ -145,7 +134,7 @@ export class Chef {
         "color: #00ff00",
       );
     }
-    Deno.writeTextFileSync(Chef.dbPath, JSON.stringify(currentDb));
+    Deno.writeTextFileSync(ChefInternal.dbPath, JSON.stringify(currentDb));
   };
   edit = () => {
     const stack = new Error().stack!;
@@ -157,4 +146,26 @@ export class Chef {
     chefPath = chefPath.slice(0, chefPath.lastIndexOf(":") - 3);
     console.log(chefPath);
   };
+}
+
+export class Chef {
+  #chefInternal: ChefInternal;
+  constructor() {
+    this.#chefInternal = new ChefInternal();
+  }
+
+  add = (recipe: Recipe) => this.#chefInternal.add(recipe);
+  addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
+  run = () => this.#chefInternal.run();
+}
+
+export interface Recipe {
+  name: string;
+  cmd: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
+  version: () => Promise<string | undefined>;
+  postInstall?: (binPath: string) => void;
+  /**
+      Pre-defined args, the user cli args will be appened after these
+  **/
+  cmdPreDefinedArgs?: string[];
 }
