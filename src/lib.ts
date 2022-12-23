@@ -1,4 +1,4 @@
-import { cache_dir, ensureDirSync, path } from "./deps.ts";
+import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
 import { Colors, runInTempDir } from "./internal_utils.ts";
 
 export interface Recipe {
@@ -6,6 +6,10 @@ export interface Recipe {
   cmd: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
   version: () => Promise<string | undefined>;
   postInstall?: (binPath: string) => void;
+  /**
+      Pre-defined args, the user cli args will be appened after these
+  **/
+  cmdPreDefinedArgs?: string[];
 }
 
 export class Chef {
@@ -65,8 +69,14 @@ export class Chef {
           return;
         }
         const binPath = path.join(Chef.BinPath, binName);
+        const recipe = this.recipes.find((recipe) => recipe.name === binName);
+        assert(recipe, "Recipe for this binary doesn't exist");
+
+        let args = recipe.cmdPreDefinedArgs ? recipe.cmdPreDefinedArgs : [];
+        args = args.concat(Deno.args.slice(2));
+
         await new Deno.Command(binPath, {
-          args: Deno.args.slice(2),
+          args,
           stdin: "inherit",
         }).spawn().status;
         break;
