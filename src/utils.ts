@@ -1,8 +1,8 @@
-export function runInTempDir<T>(fn: () => T) {
+export async function runInTempDir<T>(fn: () => Promise<T>) {
   const currentDir = Deno.cwd();
   const tempDir = Deno.makeTempDirSync();
   Deno.chdir(tempDir);
-  const ret = fn();
+  const ret = await fn();
   Deno.chdir(currentDir);
   return ret;
 }

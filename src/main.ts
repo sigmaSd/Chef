@@ -3,7 +3,7 @@ import { Colors, runInTempDir } from "./utils.ts";
 
 export interface Recipe {
   name: string;
-  cmd: ({ latestVersion }: { latestVersion: string }) => string;
+  cmd: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
   version: () => Promise<string | undefined>;
   postInstall?: (binPath: string) => void;
 }
@@ -65,12 +65,10 @@ export class Chef {
           return;
         }
         const binPath = path.join(Chef.BinPath, binName);
-        await Deno.spawn(binPath, {
+        await new Deno.Command(binPath, {
           args: Deno.args.slice(2),
-          stdout: "inherit",
-          stderr: "inherit",
           stdin: "inherit",
-        });
+        }).spawn().status;
         break;
       }
       case "list":
@@ -121,8 +119,8 @@ export class Chef {
         "color: #ffff00",
       );
 
-      runInTempDir(() => {
-        const tempBin = cmd({ latestVersion });
+      await runInTempDir(async () => {
+        const tempBin = await cmd({ latestVersion });
         Deno.copyFileSync(tempBin, path.join(Chef.BinPath, name));
       });
 
