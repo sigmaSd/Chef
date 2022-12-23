@@ -1,5 +1,5 @@
 import { $ } from "https://deno.land/x/dax@0.17.0/mod.ts";
-import { Chef } from "./mod.ts";
+import { Chef, utils } from "./mod.ts";
 
 const chef = new Chef();
 chef.addMany(
@@ -11,11 +11,7 @@ chef.addMany(
         await $`tar -xzf linux-x64.tar.gz`;
         return "./linux-x64/bin/CodeFormat";
       },
-      version: async () => {
-        return await fetch(
-          "https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest",
-        ).then((res) => res.url.split("/").at(-1));
-      },
+      version: () => utils.getLatestGithubRelease("CppCXY/EmmyLuaCodeStyle"),
     },
     {
       name: "irust",
@@ -24,11 +20,7 @@ chef.addMany(
         await $`tar -xzf irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
         return `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`;
       },
-      version: async () => {
-        return await fetch(
-          "https://github.com/sigmaSd/IRust/releases/latest",
-        ).then((res) => res.url.split("/").at(-1));
-      },
+      version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
     },
     {
       name: "cargo-llvm-cov",
@@ -38,11 +30,7 @@ chef.addMany(
         await $`tar -xzf cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
         return `./cargo-llvm-cov`;
       },
-      version: async () => {
-        return await fetch(
-          "https://github.com/taiki-e/cargo-llvm-cov/releases/latest",
-        ).then((res) => res.url.split("/").at(-1));
-      },
+      version: () => utils.getLatestGithubRelease("taiki-e/cargo-llvm-cov"),
     },
   ],
 );
