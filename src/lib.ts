@@ -1,5 +1,5 @@
 import { cache_dir, ensureDirSync, path } from "./deps.ts";
-import { Colors, runInTempDir } from "./utils.ts";
+import { Colors, runInTempDir } from "./internal_utils.ts";
 
 export interface Recipe {
   name: string;
