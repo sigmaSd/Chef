@@ -1,1 +1,1 @@
-export { Chef } from "./src/main.ts";
+export { Chef } from "./src/lib.ts";
