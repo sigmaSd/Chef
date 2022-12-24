@@ -3,7 +3,7 @@ import { Colors, runInTempDir } from "./internal_utils.ts";
 
 class ChefInternal {
   static Path = path.join(cache_dir()!, "chef");
-  static BinPath = path.join(ChefInternal.Path, "bin");
+  static binPath = path.join(ChefInternal.Path, "bin");
   static dbPath = path.join(ChefInternal.Path, "db.json");
   static readDb = (): Record<string, string> => {
     let db;
@@ -57,7 +57,7 @@ class ChefInternal {
           ChefInternal.list();
           return;
         }
-        const binPath = path.join(ChefInternal.BinPath, binName);
+        const binPath = path.join(ChefInternal.binPath, binName);
         const recipe = this.recipes.find((recipe) => recipe.name === binName);
         assert(recipe, "Recipe for this binary doesn't exist");
 
@@ -90,7 +90,7 @@ class ChefInternal {
     ChefInternal.list();
     console.log("");
 
-    ensureDirSync(ChefInternal.BinPath);
+    ensureDirSync(ChefInternal.binPath);
     const currentDb = ChefInternal.readDb();
 
     for (const recipe of this.recipes) {
@@ -120,13 +120,13 @@ class ChefInternal {
 
       await runInTempDir(async () => {
         const tempBin = await cmd({ latestVersion });
-        Deno.copyFileSync(tempBin, path.join(ChefInternal.BinPath, name));
+        Deno.copyFileSync(tempBin, path.join(ChefInternal.binPath, name));
       });
 
       currentDb[name] = latestVersion;
 
       if (recipe.postInstall) {
-        recipe.postInstall(path.join(ChefInternal.BinPath, name));
+        recipe.postInstall(path.join(ChefInternal.binPath, name));
       }
 
       console.log(
@@ -153,6 +153,9 @@ export class Chef {
   constructor() {
     this.#chefInternal = new ChefInternal();
   }
+
+  static dbPath = ChefInternal.dbPath;
+  static binPath = ChefInternal.binPath;
 
   add = (recipe: Recipe) => this.#chefInternal.add(recipe);
   addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
