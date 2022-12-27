@@ -6,7 +6,7 @@ chef.addMany(
   [
     {
       name: "codeFormat",
-      cmd: async () => {
+      download: async () => {
         await $`wget https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`;
         await $`tar -xzf linux-x64.tar.gz`;
         return "./linux-x64/bin/CodeFormat";
@@ -15,7 +15,7 @@ chef.addMany(
     },
     {
       name: "irust",
-      cmd: async ({ latestVersion }) => {
+      download: async ({ latestVersion }) => {
         await $`wget https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
         await $`tar -xzf irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
         return `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`;
@@ -24,7 +24,7 @@ chef.addMany(
     },
     {
       name: "cargo-llvm-cov",
-      cmd: async ({ latestVersion }) => {
+      download: async ({ latestVersion }) => {
         //cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz
         await $`wget https://github.com/taiki-e/cargo-llvm-cov/releases/download/${latestVersion}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
         await $`tar -xzf cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;

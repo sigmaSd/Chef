@@ -93,10 +93,13 @@ class ChefInternal {
     ensureDirSync(ChefInternal.BinPath);
     const currentDb = ChefInternal.readDb();
 
+    const maybeTarget = Deno.args[1];
     for (const recipe of this.recipes) {
+      if (maybeTarget && recipe.name !== maybeTarget) continue;
+
       console.log(`Updating %c${recipe.name}`, `color: ${Colors.lightYellow}`);
 
-      const { name, cmd, version } = recipe;
+      const { name, download, version } = recipe;
       const latestVersion = await version();
       if (!latestVersion) {
         console.warn("Chef was not able to get the latest version of", name);
@@ -119,7 +122,7 @@ class ChefInternal {
       );
 
       await runInTempDir(async () => {
-        const tempBin = await cmd({ latestVersion });
+        const tempBin = await download({ latestVersion });
         Deno.copyFileSync(tempBin, path.join(ChefInternal.BinPath, name));
       });
 
@@ -161,7 +164,7 @@ export class Chef {
 
 export interface Recipe {
   name: string;
-  cmd: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
+  download: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
   version: () => Promise<string | undefined>;
   postInstall?: (binPath: string) => void;
   /**
