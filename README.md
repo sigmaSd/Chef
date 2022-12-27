@@ -23,7 +23,7 @@ const chef = new Chef();
 
 chef.add({
   name: "binary1",
-  cmd: () => {
+  download: () => {
     // a fuction that downloads the binary and return its relative path
   },
   version: () => {
