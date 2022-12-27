@@ -5,6 +5,30 @@ const chef = new Chef();
 chef.addMany(
   [
     {
+      name: "heimer",
+      download: async ({ latestVersion }) => {
+        //https://github.com/juzzlin/Heimer/releases/download/3.6.4/Heimer-3.6.4-x86_64.AppImage
+        const archiveSuffix = (() => {
+          switch (Deno.build.os) {
+            case "linux":
+              return "-x86_64.AppImage";
+          }
+        })();
+        const archiveName = `Heimer-${latestVersion}${archiveSuffix}`;
+
+        await $`wget https://github.com/juzzlin/Heimer/releases/download/${latestVersion}/${archiveName}`;
+        switch (Deno.build.os) {
+          case "linux":
+            await $`chmod +x ${archiveName}`; //AppImage
+            await $`mv ${archiveName} heimer`;
+            return `heimer`;
+        }
+        throw "Not implemented";
+      },
+      cmdEnv: { "QT_QPA_PLATFORM": "" },
+      version: () => utils.getLatestGithubRelease("juzzlin/Heimer"),
+    },
+    {
       name: "codeFormat",
       download: async () => {
         await $`wget https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`;
