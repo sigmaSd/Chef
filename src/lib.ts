@@ -61,7 +61,7 @@ class ChefInternal {
         const recipe = this.recipes.find((recipe) => recipe.name === binName);
         assert(recipe, "Recipe for this binary doesn't exist");
 
-        let args = recipe.cmdPreDefinedArgs ? recipe.cmdPreDefinedArgs : [];
+        let args = recipe.cmdArgs ? recipe.cmdArgs : [];
         args = args.concat(Deno.args.slice(2));
 
         await new Deno.Command(binPath, {
@@ -171,6 +171,6 @@ export interface Recipe {
   /**
       Pre-defined args, the user cli args will be appened after these
   **/
-  cmdPreDefinedArgs?: string[];
+  cmdArgs?: string[];
   cmdEnv?: Record<string, string>;
 }

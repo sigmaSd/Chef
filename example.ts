@@ -55,7 +55,7 @@ chef.addMany(
         return `./cargo-llvm-cov`;
       },
       version: () => utils.getLatestGithubRelease("taiki-e/cargo-llvm-cov"),
-      cmdPreDefinedArgs: ["llvm-cov"],
+      cmdArgs: ["llvm-cov"],
     },
   ],
 );
