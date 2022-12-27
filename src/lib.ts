@@ -67,6 +67,7 @@ class ChefInternal {
         await new Deno.Command(binPath, {
           args,
           stdin: "inherit",
+          env: recipe.cmdEnv,
         }).spawn().status;
         break;
       }
@@ -171,4 +172,5 @@ export interface Recipe {
       Pre-defined args, the user cli args will be appened after these
   **/
   cmdPreDefinedArgs?: string[];
+  cmdEnv?: Record<string, string>;
 }
