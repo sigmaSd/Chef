@@ -36,7 +36,6 @@ class ChefInternal {
   };
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
-    return this;
   };
   run = async () => {
     const cmd = Deno.args[0];
