@@ -41,11 +41,11 @@ export class ChefInternal {
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
   };
-  run = async () => {
-    const cmd = Deno.args[0];
+  run = async (args: string[]) => {
+    const cmd = args[0];
     switch (cmd) {
       case "run": {
-        const binName = Deno.args[1];
+        const binName = args[1];
         const db = this.readDb();
         if (!binName) {
           this.list();
@@ -64,11 +64,11 @@ export class ChefInternal {
         const recipe = this.recipes.find((recipe) => recipe.name === binName);
         assert(recipe, "Recipe for this binary doesn't exist");
 
-        let args = recipe.cmdArgs ? recipe.cmdArgs : [];
-        args = args.concat(Deno.args.slice(2));
+        let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
+        finalArgs = args.concat(args.slice(2));
 
         await new Deno.Command(binPath, {
-          args,
+          args: finalArgs,
           stdin: "inherit",
           env: recipe.cmdEnv,
         }).spawn().status;
@@ -167,7 +167,7 @@ export class Chef {
 
   add = (recipe: Recipe) => this.#chefInternal.add(recipe);
   addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
-  run = () => this.#chefInternal.run();
+  run = () => this.#chefInternal.run(Deno.args);
 }
 
 export interface Recipe {
