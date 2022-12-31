@@ -11,7 +11,7 @@ chef.addMany(
         const archiveSuffix = (() => {
           switch (Deno.build.os) {
             case "linux":
-              return "-x86_64.AppImage";
+              return "-ubuntu-22.04_amd64.deb";
           }
         })();
         const archiveName = `Heimer-${latestVersion}${archiveSuffix}`;
@@ -21,13 +21,12 @@ chef.addMany(
         ).showProgress().pipeToPath();
         switch (Deno.build.os) {
           case "linux":
-            await $`chmod +x ${archiveName}`; //AppImage
-            await $`mv ${archiveName} heimer`;
-            return `heimer`;
+            await $`ar x ${archiveName}`;
+            await $`tar -xzf data.tar.gz`;
+            return `./usr/bin/heimer`;
         }
         throw "Not implemented";
       },
-      cmdEnv: { "QT_QPA_PLATFORM": "" },
       version: () => utils.getLatestGithubRelease("juzzlin/Heimer"),
     },
     {
