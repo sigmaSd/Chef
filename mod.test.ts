@@ -70,7 +70,7 @@ Deno.test("test chef1", async () =>
 Deno.test("test edit", () => {
   const chef = new TestChef();
   const expected = Deno.build.os === "windows"
-    ? `file:///${Deno.cwd()}/mod.test.ts`
-    : `file://${Deno.cwd().replaceAll("\\", "/")}/mod.test.ts`;
+    ? `file:///${Deno.cwd().replaceAll("\\", "/")}/mod.test.ts`
+    : `file://${Deno.cwd()}/mod.test.ts`;
   assertEquals(chef.edit(), expected);
 });
