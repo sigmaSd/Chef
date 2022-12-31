@@ -14,6 +14,7 @@ async function withTempDir(f: (dir: string) => Promise<void> | void) {
     await f(dir);
   } finally {
     Deno.chdir(originalPath);
+    Deno.removeSync(dir);
   }
 }
 Deno.test("test chef1", async () =>
