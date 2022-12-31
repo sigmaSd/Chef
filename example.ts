@@ -1,4 +1,4 @@
-import { $ } from "https://deno.land/x/dax@0.17.0/mod.ts";
+import { $ } from "https://deno.land/x/dax@0.20.0/mod.ts";
 import { Chef, utils } from "./mod.ts";
 
 const chef = new Chef();
@@ -16,7 +16,9 @@ chef.addMany(
         })();
         const archiveName = `Heimer-${latestVersion}${archiveSuffix}`;
 
-        await $`wget https://github.com/juzzlin/Heimer/releases/download/${latestVersion}/${archiveName}`;
+        await $.request(
+          `https://github.com/juzzlin/Heimer/releases/download/${latestVersion}/${archiveName}`,
+        ).showProgress().pipeToPath();
         switch (Deno.build.os) {
           case "linux":
             await $`chmod +x ${archiveName}`; //AppImage
@@ -31,7 +33,9 @@ chef.addMany(
     {
       name: "codeFormat",
       download: async () => {
-        await $`wget https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`;
+        await $.request(
+          `https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`,
+        ).showProgress().pipeToPath();
         await $`tar -xzf linux-x64.tar.gz`;
         return "./linux-x64/bin/CodeFormat";
       },
@@ -40,7 +44,9 @@ chef.addMany(
     {
       name: "irust",
       download: async ({ latestVersion }) => {
-        await $`wget https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
+        await $.request(
+          `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`,
+        ).showProgress().pipeToPath();
         await $`tar -xzf irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
         return `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`;
       },
@@ -50,7 +56,9 @@ chef.addMany(
       name: "cargo-llvm-cov",
       download: async ({ latestVersion }) => {
         //cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz
-        await $`wget https://github.com/taiki-e/cargo-llvm-cov/releases/download/${latestVersion}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
+        await $.request(
+          `https://github.com/taiki-e/cargo-llvm-cov/releases/download/${latestVersion}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`,
+        ).showProgress().pipeToPath();
         await $`tar -xzf cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
         return `./cargo-llvm-cov`;
       },
