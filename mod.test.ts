@@ -28,7 +28,9 @@ Deno.test("test chef1", async () =>
       args: ["compile", "--no-check", "--allow-write=.", exeCodePath],
     }).spawn()
       .status;
-    const exePath = exeCodePath.replace(".js", "");
+    const exePath = Deno.build.os === "windows"
+      ? (exeCodePath.replace(".js", ".exe"))
+      : exeCodePath.replace(".js", "");
 
     const versionPath = path.join(dir, "version");
     Deno.writeTextFileSync(versionPath, version);
@@ -69,6 +71,6 @@ Deno.test("test edit", () => {
   const chef = new TestChef();
   const expected = Deno.build.os === "windows"
     ? `file:///${Deno.cwd()}/mod.test.ts`
-    : `file://${Deno.cwd()}/mod.test.ts`;
+    : `file://${Deno.cwd().replaceAll("\\", "/")}/mod.test.ts`;
   assertEquals(chef.edit(), expected);
 });
