@@ -82,7 +82,7 @@ export class ChefInternal {
         await this.update();
         break;
       case "edit":
-        this.edit();
+        console.log(this.edit());
         break;
       default:
         console.error(`Unknown command %c${cmd}`, `color: ${Colors.lightRed}`);
@@ -145,13 +145,17 @@ export class ChefInternal {
   };
   edit = () => {
     const stack = new Error().stack!;
-    const lines = stack.split("\n");
-    const chef = lines[lines.length - 1];
+
+    const chef = stack.split("\n").findLast((line) =>
+      line.includes("file:///")
+    );
+
+    if (!chef) return;
 
     let chefPath = chef.split("at ")[1];
 
     chefPath = chefPath.slice(0, chefPath.lastIndexOf(":") - 3);
-    console.log(chefPath);
+    return chefPath;
   };
 }
 

@@ -36,3 +36,8 @@ Deno.test("test chef1", async () => {
   // doesn't throw because file exists
   Deno.readTextFileSync(path.join(chef.BinPath, "hello"));
 });
+
+Deno.test("test edit", () => {
+  const chef = new TestChef();
+  assertEquals(chef.edit(), `file://${Deno.cwd()}/mod.test.ts`);
+});
