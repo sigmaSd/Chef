@@ -2,8 +2,13 @@ export async function runInTempDir<T>(fn: () => Promise<T>) {
   const currentDir = Deno.cwd();
   const tempDir = Deno.makeTempDirSync();
   Deno.chdir(tempDir);
-  const ret = await fn();
-  Deno.chdir(currentDir);
+  let ret;
+  try {
+    ret = await fn();
+  } finally {
+    Deno.chdir(currentDir);
+    await Deno.remove(tempDir, { recursive: true });
+  }
   return ret;
 }
 

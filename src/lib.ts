@@ -127,7 +127,7 @@ export class ChefInternal {
 
       await runInTempDir(async () => {
         const tempBin = await download({ latestVersion });
-        Deno.copyFileSync(tempBin, path.join(this.BinPath, name));
+        await Deno.copyFile(tempBin, path.join(this.BinPath, name));
       });
 
       currentDb[name] = latestVersion;
