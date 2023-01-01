@@ -65,7 +65,7 @@ export class ChefInternal {
         assert(recipe, "Recipe for this binary doesn't exist");
 
         let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
-        finalArgs = args.concat(args.slice(2));
+        finalArgs = finalArgs.concat(args.slice(2));
 
         await new Deno.Command(binPath, {
           args: finalArgs,
