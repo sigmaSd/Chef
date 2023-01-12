@@ -1,5 +1,5 @@
 import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
-import { Colors, runInTempDir } from "./internal_utils.ts";
+import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 
 export class ChefInternal {
   Path = path.join(cache_dir()!, "chef");
@@ -97,6 +97,7 @@ export class ChefInternal {
     ensureDirSync(this.BinPath);
     const currentDb = this.readDb();
 
+    const force = Deno.args.includes("--force");
     const maybeTarget = Deno.args[1];
     for (const recipe of this.recipes) {
       if (maybeTarget && recipe.name !== maybeTarget) continue;
@@ -111,7 +112,7 @@ export class ChefInternal {
         continue;
       }
       const currentVersion = currentDb[name];
-      if (currentVersion === latestVersion) {
+      if (!force && currentVersion === latestVersion) {
         console.log(
           `%c${name}%c is %cuptodate`,
           `color: ${Colors.lightYellow}`,
@@ -127,7 +128,21 @@ export class ChefInternal {
 
       await runInTempDir(async () => {
         const tempBin = await download({ latestVersion });
-        await Deno.copyFile(tempBin, path.join(this.BinPath, name));
+        if (tempBin.dir) {
+          await copyDirRecursively(
+            tempBin.dir,
+            path.join(this.BinPath, tempBin.dir),
+          );
+          await Deno.symlink(
+            path.join(
+              this.BinPath,
+              tempBin.exe,
+            ),
+            path.join(this.BinPath, name),
+          );
+        } else {
+          await Deno.copyFile(tempBin.exe, path.join(this.BinPath, name));
+        }
       });
 
       currentDb[name] = latestVersion;
@@ -170,9 +185,19 @@ export class Chef {
   run = () => this.#chefInternal.run(Deno.args);
 }
 
+export interface App {
+  /** The path of the executable */
+  exe: string;
+  /** If the executable needs the parent directory
+   * you can specify it with dir */
+  dir?: string;
+}
+
 export interface Recipe {
   name: string;
-  download: ({ latestVersion }: { latestVersion: string }) => Promise<string>;
+  download: (
+    { latestVersion }: { latestVersion: string },
+  ) => Promise<App>;
   version: () => Promise<string | undefined>;
   postInstall?: (binPath: string) => void;
   /**

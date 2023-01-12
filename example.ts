@@ -5,6 +5,40 @@ const chef = new Chef();
 chef.addMany(
   [
     {
+      name: "godot4",
+      version: async () => {
+        const url = await fetch(
+          "https://downloads.tuxfamily.org/godotengine/4.0/",
+        ).then((r) => r.text());
+
+        const beta =
+          [...url.matchAll(/beta\d+/g)].sort((a, b) =>
+            Number(a[0].split("beta")[1]) - Number(b[0].split("beta")[1])
+          ).at(-1)![0];
+
+        return `v4.0-${beta}_mono`;
+      },
+      download: async ({ latestVersion }) => {
+        const versionPath = latestVersion
+          .slice(1)
+          .replace("-", "/")
+          .replace(
+            "_",
+            "/",
+          );
+        await $.request(
+          `https://downloads.tuxfamily.org/godotengine/${versionPath}/Godot_${latestVersion}_linux_x86_64.zip`,
+        ).showProgress().pipeToPath();
+        await $`unzip Godot_${latestVersion}_linux_x86_64`;
+
+        return {
+          dir: `./Godot_${latestVersion}_linux_x86_64/`,
+          exe:
+            `./Godot_${latestVersion}_linux_x86_64/Godot_${latestVersion}_linux.x86_64`,
+        };
+      },
+    },
+    {
       name: "heimer",
       download: async ({ latestVersion }) => {
         //https://github.com/juzzlin/Heimer/releases/download/3.6.4/Heimer-3.6.4-x86_64.AppImage
@@ -23,7 +57,7 @@ chef.addMany(
           case "linux":
             await $`ar x ${archiveName}`;
             await $`tar -xzf data.tar.gz`;
-            return `./usr/bin/heimer`;
+            return { exe: `./usr/bin/heimer` };
         }
         throw "Not implemented";
       },
@@ -36,7 +70,7 @@ chef.addMany(
           `https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`,
         ).showProgress().pipeToPath();
         await $`tar -xzf linux-x64.tar.gz`;
-        return "./linux-x64/bin/CodeFormat";
+        return { exe: "./linux-x64/bin/CodeFormat" };
       },
       version: () => utils.getLatestGithubRelease("CppCXY/EmmyLuaCodeStyle"),
     },
@@ -47,7 +81,9 @@ chef.addMany(
           `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`,
         ).showProgress().pipeToPath();
         await $`tar -xzf irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
-        return `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`;
+        return {
+          exe: `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`,
+        };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
     },
@@ -59,7 +95,7 @@ chef.addMany(
           `https://github.com/taiki-e/cargo-llvm-cov/releases/download/${latestVersion}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`,
         ).showProgress().pipeToPath();
         await $`tar -xzf cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
-        return `./cargo-llvm-cov`;
+        return { exe: `./cargo-llvm-cov` };
       },
       version: () => utils.getLatestGithubRelease("taiki-e/cargo-llvm-cov"),
       cmdArgs: ["llvm-cov"],

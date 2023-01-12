@@ -44,7 +44,7 @@ Deno.test("test chef1", async () =>
         const exe = `exe-${latestVersion}`;
         await Deno.copyFile(exePath, exe);
         await Deno.rename(exe, "exe");
-        return "exe";
+        return { exe: "exe" };
       },
       version: () => Deno.readTextFile(versionPath),
     }]);
