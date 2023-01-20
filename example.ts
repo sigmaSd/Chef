@@ -5,6 +5,26 @@ const chef = new Chef();
 chef.addMany(
   [
     {
+      name: "imhex",
+      download: async ({ latestVersion }) => {
+        // remove v from version
+        // v1.20.0 -> 1.20.0
+        latestVersion = latestVersion.slice(1);
+
+        await $.request(
+          `https://github.com/WerWolv/ImHex/releases/latest/download/imhex-${latestVersion}.AppImage`,
+        ).showProgress().pipeToPath();
+
+        await $`chmod +x imhex-${latestVersion}.AppImage`;
+        return { exe: `imhex-${latestVersion}.AppImage` };
+      },
+      version: async () => {
+        return await fetch(
+          "https://github.com/WerWolv/ImHex/releases/latest",
+        ).then((res) => res.url.split("/").at(-1));
+      },
+    },
+    {
       name: "godot4",
       version: async () => {
         const url = await fetch(
