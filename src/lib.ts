@@ -133,13 +133,14 @@ export class ChefInternal {
             tempBin.dir,
             path.join(this.BinPath, tempBin.dir),
           );
-          await Deno.symlink(
-            path.join(
-              this.BinPath,
-              tempBin.exe,
-            ),
-            path.join(this.BinPath, name),
-          );
+          // remove old symlink if it exists
+          const symlinkPath = path.join(this.BinPath, name);
+          try {
+            await Deno.remove(symlinkPath);
+          } catch {
+            /**/
+          }
+          await Deno.symlink(path.join(this.BinPath, tempBin.exe), symlinkPath);
         } else {
           await Deno.copyFile(tempBin.exe, path.join(this.BinPath, name));
         }
