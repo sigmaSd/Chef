@@ -162,9 +162,9 @@ export class ChefInternal {
   edit = () => {
     const stack = new Error().stack!;
 
-    const chef = stack.split("\n").findLast((line) =>
-      line.includes("file:///")
-    );
+    const chef = stack
+      .split("\n")
+      .findLast((line) => line.includes("file:///"));
 
     if (!chef) return;
 
@@ -196,9 +196,7 @@ export interface App {
 
 export interface Recipe {
   name: string;
-  download: (
-    { latestVersion }: { latestVersion: string },
-  ) => Promise<App>;
+  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
   version: () => Promise<string | undefined>;
   postInstall?: (binPath: string) => void;
   /**
