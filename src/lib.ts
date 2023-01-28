@@ -1,5 +1,6 @@
 import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
 import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
+import { Command } from "./deps.ts";
 
 export class ChefInternal {
   Path = path.join(cache_dir()!, "chef");
@@ -41,54 +42,68 @@ export class ChefInternal {
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
   };
-  run = async (args: string[]) => {
-    const cmd = args[0];
-    switch (cmd) {
-      case "run": {
-        const binName = args[1];
-        const db = this.readDb();
-        if (!binName) {
-          this.list();
-          return;
-        }
-        if (!db[binName]) {
-          console.error(
-            `Unknown binary: %c${binName}`,
-            `color: ${Colors.lightRed}`,
-          );
-          console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
-          this.list();
-          return;
-        }
-        const binPath = path.join(this.BinPath, binName);
-        const recipe = this.recipes.find((recipe) => recipe.name === binName);
-        assert(recipe, "Recipe for this binary doesn't exist");
 
-        let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
-        finalArgs = finalArgs.concat(args.slice(2));
-
-        await new Deno.Command(binPath, {
-          args: finalArgs,
-          stdin: "inherit",
-          env: recipe.cmdEnv,
-        }).spawn().status;
-        break;
-      }
-      case "list":
-        this.list();
-        break;
-      case "update":
-      case undefined:
-        await this.update();
-        break;
-      case "edit":
-        console.log(this.edit());
-        break;
-      default:
-        console.error(`Unknown command %c${cmd}`, `color: ${Colors.lightRed}`);
+  run = async (name: string) => {
+    const binName = name;
+    const db = this.readDb();
+    if (!binName) {
+      this.list();
+      return;
     }
+    if (!db[binName]) {
+      console.error(
+        `Unknown binary: %c${binName}`,
+        `color: ${Colors.lightRed}`,
+      );
+      console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
+      this.list();
+      return;
+    }
+    const binPath = path.join(this.BinPath, binName);
+    const recipe = this.recipes.find((recipe) => recipe.name === binName);
+    assert(recipe, "Recipe for this binary doesn't exist");
+
+    const finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
+    // finalArgs = finalArgs.concat(args.slice(1)); //FIXME
+
+    await new Deno.Command(binPath, {
+      args: finalArgs,
+      stdin: "inherit",
+      env: recipe.cmdEnv,
+    }).spawn().status;
   };
-  update = async () => {
+
+  start = async (args: string[]) => {
+    await new Command()
+      .name("chef")
+      .description("Manage random binaries")
+      .command("run", "run a binary")
+      .arguments("<name:string>")
+      .action(async (_opts, name) => await this.run(name))
+      .command("list", "list installed binaries")
+      .action(() => this.list())
+      .command("update", "update installed binaries")
+      .option("--force", "force update a binary")
+      .option("--skip <name:string>", "skip updating a binary")
+      .option("--only <name:string>", "only update this binary")
+      .action(async (options) => await this.update(options))
+      .command("edit", "output chef entry file")
+      .action(() => console.log(this.edit()))
+      .parse(args);
+
+    // if (cliffy.args.length === 0) cliffy.cmd.showHelp(); //FIXME
+  };
+  update = async (
+    options: { force?: boolean; skip?: string; only?: string },
+  ) => {
+    if (options.only && this.recipes.find((r) => r.name !== options.only)) {
+      console.error(
+        `%cBinary: ${options.only} is not installed`,
+        "color:red",
+      );
+      return;
+    }
+
     console.log(`%cLooking for updates..`, `color: magenta`);
     console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
     this.list();
@@ -97,14 +112,18 @@ export class ChefInternal {
     ensureDirSync(this.BinPath);
     const currentDb = this.readDb();
 
-    const force = Deno.args.includes("--force");
-    const maybeTarget = Deno.args[1];
     for (const recipe of this.recipes) {
-      if (maybeTarget && recipe.name !== maybeTarget) continue;
+      if (options.only && recipe.name !== options.only) continue;
 
       console.log(`Updating %c${recipe.name}`, `color: ${Colors.lightYellow}`);
 
       const { name, download, version } = recipe;
+
+      if (options.skip && options.skip === name) {
+        console.log(`%cskipping ${name}`, "color:red");
+        continue;
+      }
+
       const latestVersion = await version();
       if (!latestVersion) {
         console.warn("Chef was not able to get the latest version of", name);
@@ -112,7 +131,7 @@ export class ChefInternal {
         continue;
       }
       const currentVersion = currentDb[name];
-      if (!force && currentVersion === latestVersion) {
+      if (!options.force && currentVersion === latestVersion) {
         console.log(
           `%c${name}%c is %cuptodate`,
           `color: ${Colors.lightYellow}`,
@@ -168,9 +187,15 @@ export class ChefInternal {
 
     if (!chef) return;
 
+    // at file:///path/example.ts:126:1
+    // at async file:///path/example.ts:126:1
     let chefPath = chef.split("at ")[1];
+    if (chefPath.startsWith("async")) chefPath = chefPath.split("async ")[1];
 
-    chefPath = chefPath.slice(0, chefPath.lastIndexOf(":") - 3);
+    chefPath = chefPath.slice(
+      0,
+      chefPath.lastIndexOf(":", chefPath.lastIndexOf(":") - 1),
+    );
     return chefPath;
   };
 }
@@ -183,7 +208,7 @@ export class Chef {
 
   add = (recipe: Recipe) => this.#chefInternal.add(recipe);
   addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
-  run = () => this.#chefInternal.run(Deno.args);
+  start = () => this.#chefInternal.start(Deno.args);
 }
 
 export interface App {

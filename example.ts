@@ -123,4 +123,4 @@ chef.addMany(
   ],
 );
 
-await chef.run();
+await chef.start();

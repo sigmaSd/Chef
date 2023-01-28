@@ -50,7 +50,7 @@ Deno.test("test chef1", async () =>
     }]);
 
     // install hello exe
-    await chef.run([]);
+    await chef.start(["update"]);
 
     assertEquals(
       Deno.readTextFileSync(chef.dbPath),
@@ -60,7 +60,7 @@ Deno.test("test chef1", async () =>
     Deno.readTextFileSync(path.join(chef.BinPath, "hello"));
 
     // run hello exe
-    await chef.run(["run", "hello"]);
+    await chef.start(["run", "hello"]);
     // assert it wroks
     assertEquals(
       Deno.readTextFileSync(path.join(dir, "hello")),
