@@ -68,7 +68,6 @@ export class ChefInternal {
 
     await new Deno.Command(binPath, {
       args: finalArgs,
-      stdin: "inherit",
       env: recipe.cmdEnv,
     }).spawn().status;
   };

@@ -1,4 +1,4 @@
-import { $ } from "https://deno.land/x/dax@0.20.0/mod.ts";
+import { $ } from "https://deno.land/x/dax@0.24.1/mod.ts";
 import { Chef, utils } from "./mod.ts";
 
 const chef = new Chef();
