@@ -43,7 +43,7 @@ export class ChefInternal {
     this.recipes.push(recipe);
   };
 
-  run = async (name: string) => {
+  run = async (name: string, binArgs: string[]) => {
     const binName = name;
     const db = this.readDb();
     if (!binName) {
@@ -63,8 +63,8 @@ export class ChefInternal {
     const recipe = this.recipes.find((recipe) => recipe.name === binName);
     assert(recipe, "Recipe for this binary doesn't exist");
 
-    const finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
-    // finalArgs = finalArgs.concat(args.slice(1)); //FIXME
+    let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
+    finalArgs = finalArgs.concat(binArgs);
 
     await new Deno.Command(binPath, {
       args: finalArgs,
@@ -77,8 +77,9 @@ export class ChefInternal {
       .name("chef")
       .description("Manage random binaries")
       .command("run", "run a binary")
-      .arguments("<name:string>")
-      .action(async (_opts, name) => await this.run(name))
+      .arguments("<name:string> [...binArgs]")
+      .stopEarly()
+      .action(async (_opts, name, ...binArgs) => await this.run(name, binArgs))
       .command("list", "list installed binaries")
       .action(() => this.list())
       .command("update", "update installed binaries")
