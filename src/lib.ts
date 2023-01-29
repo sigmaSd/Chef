@@ -76,6 +76,9 @@ export class ChefInternal {
     await new Command()
       .name("chef")
       .description("Manage random binaries")
+      .action(function () {
+        this.showHelp();
+      })
       .command("run", "run a binary")
       .arguments("<name:string> [...binArgs]")
       .stopEarly()
@@ -90,8 +93,6 @@ export class ChefInternal {
       .command("edit", "output chef entry file")
       .action(() => console.log(this.edit()))
       .parse(args);
-
-    // if (cliffy.args.length === 0) cliffy.cmd.showHelp(); //FIXME
   };
   update = async (
     options: { force?: boolean; skip?: string; only?: string },
