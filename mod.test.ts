@@ -1,5 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.170.0/testing/asserts.ts";
-import { path } from "./src/deps.ts";
+import { assertEquals, path } from "./src/deps.ts";
 import { ChefInternal } from "./src/lib.ts";
 
 class TestChef extends ChefInternal {
