@@ -97,7 +97,7 @@ export class ChefInternal {
   update = async (
     options: { force?: boolean; skip?: string; only?: string },
   ) => {
-    if (options.only && this.recipes.find((r) => r.name !== options.only)) {
+    if (options.only && !this.recipes.find((r) => r.name === options.only)) {
       console.error(
         `%cBinary: ${options.only} is not installed`,
         "color:red",

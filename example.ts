@@ -12,17 +12,14 @@ chef.addMany(
         latestVersion = latestVersion.slice(1);
 
         await $.request(
-          `https://github.com/WerWolv/ImHex/releases/latest/download/imhex-${latestVersion}.AppImage`,
+          `https://github.com/WerWolv/ImHex/releases/download/v${latestVersion}/imhex-${latestVersion}-x86_64.AppImage`,
         ).showProgress().pipeToPath();
 
+        //FIXME
         await $`chmod +x imhex-${latestVersion}.AppImage`;
         return { exe: `imhex-${latestVersion}.AppImage` };
       },
-      version: async () => {
-        return await fetch(
-          "https://github.com/WerWolv/ImHex/releases/latest",
-        ).then((res) => res.url.split("/").at(-1));
-      },
+      version: () => utils.getLatestGithubRelease("WerWolv/ImHex"),
     },
     {
       name: "godot4",
