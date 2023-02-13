@@ -5,6 +5,17 @@ const chef = new Chef();
 chef.addMany(
   [
     {
+      name: "gleam",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          `https://github.com/gleam-lang/gleam/releases/download/${latestVersion}/gleam-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xzf gleam-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
+        return { exe: "gleam" };
+      },
+      version: () => utils.getLatestGithubRelease("gleam-lang/gleam"),
+    },
+    {
       name: "imhex",
       download: async ({ latestVersion }) => {
         // remove v from version
