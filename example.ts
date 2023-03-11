@@ -33,40 +33,6 @@ chef.addMany(
       version: () => utils.getLatestGithubRelease("WerWolv/ImHex"),
     },
     {
-      name: "godot4",
-      version: async () => {
-        const url = await fetch(
-          "https://downloads.tuxfamily.org/godotengine/4.0/",
-        ).then((r) => r.text());
-
-        const beta =
-          [...url.matchAll(/beta\d+/g)].sort((a, b) =>
-            Number(a[0].split("beta")[1]) - Number(b[0].split("beta")[1])
-          ).at(-1)![0];
-
-        return `v4.0-${beta}_mono`;
-      },
-      download: async ({ latestVersion }) => {
-        const versionPath = latestVersion
-          .slice(1)
-          .replace("-", "/")
-          .replace(
-            "_",
-            "/",
-          );
-        await $.request(
-          `https://downloads.tuxfamily.org/godotengine/${versionPath}/Godot_${latestVersion}_linux_x86_64.zip`,
-        ).showProgress().pipeToPath();
-        await $`unzip Godot_${latestVersion}_linux_x86_64`;
-
-        return {
-          dir: `./Godot_${latestVersion}_linux_x86_64/`,
-          exe:
-            `./Godot_${latestVersion}_linux_x86_64/Godot_${latestVersion}_linux.x86_64`,
-        };
-      },
-    },
-    {
       name: "heimer",
       download: async ({ latestVersion }) => {
         //https://github.com/juzzlin/Heimer/releases/download/3.6.4/Heimer-3.6.4-x86_64.AppImage
