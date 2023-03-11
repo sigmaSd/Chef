@@ -89,13 +89,19 @@ export class ChefInternal {
       .option("--force", "force update a binary")
       .option("--skip <name:string>", "skip updating a binary")
       .option("--only <name:string>", "only update this binary")
+      .option("--dry-run", "only look for new versions but don't update")
       .action(async (options) => await this.update(options))
       .command("edit", "output chef entry file")
       .action(() => console.log(this.edit()))
       .parse(args);
   };
   update = async (
-    options: { force?: boolean; skip?: string; only?: string },
+    options: {
+      force?: boolean;
+      skip?: string;
+      only?: string;
+      dryRun?: boolean;
+    },
   ) => {
     if (options.only && !this.recipes.find((r) => r.name === options.only)) {
       console.error(
@@ -145,6 +151,11 @@ export class ChefInternal {
         `%c${name} is out of date, updating to ${latestVersion}`,
         "color: #ffff00",
       );
+
+      if (options.dryRun) {
+        console.log("skipping beacause of --dry-run");
+        continue;
+      }
 
       await runInTempDir(async () => {
         const tempBin = await download({ latestVersion });
