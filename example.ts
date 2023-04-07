@@ -27,8 +27,8 @@ chef.addMany(
         ).showProgress().pipeToPath();
 
         //FIXME
-        await $`chmod +x imhex-${latestVersion}.AppImage`;
-        return { exe: `imhex-${latestVersion}.AppImage` };
+        await $`chmod +x imhex-${latestVersion}-x86_64.AppImage`;
+        return { exe: `imhex-${latestVersion}-x86_64.AppImage` };
       },
       version: () => utils.getLatestGithubRelease("WerWolv/ImHex"),
     },
@@ -80,19 +80,6 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
-    },
-    {
-      name: "cargo-llvm-cov",
-      download: async ({ latestVersion }) => {
-        //cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz
-        await $.request(
-          `https://github.com/taiki-e/cargo-llvm-cov/releases/download/${latestVersion}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`,
-        ).showProgress().pipeToPath();
-        await $`tar -xzf cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz`;
-        return { exe: `./cargo-llvm-cov` };
-      },
-      version: () => utils.getLatestGithubRelease("taiki-e/cargo-llvm-cov"),
-      cmdArgs: ["llvm-cov"],
     },
   ],
 );
