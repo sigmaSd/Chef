@@ -187,25 +187,35 @@ export class ChefInternal {
         continue;
       }
 
-      await runInTempDir(async () => {
-        const tempBin = await download({ latestVersion });
-        if (tempBin.dir) {
-          await copyDirRecursively(
-            tempBin.dir,
-            path.join(this.BinPath, tempBin.dir),
-          );
-          // remove old symlink if it exists
-          const symlinkPath = path.join(this.BinPath, name);
-          try {
-            await Deno.remove(symlinkPath);
-          } catch {
-            /**/
+      try {
+        await runInTempDir(async () => {
+          const tempBin = await download({ latestVersion });
+          if (tempBin.dir) {
+            await copyDirRecursively(
+              tempBin.dir,
+              path.join(this.BinPath, tempBin.dir),
+            );
+            // remove old symlink if it exists
+            const symlinkPath = path.join(this.BinPath, name);
+            try {
+              await Deno.remove(symlinkPath);
+            } catch {
+              /**/
+            }
+            await Deno.symlink(
+              path.join(this.BinPath, tempBin.exe),
+              symlinkPath,
+            );
+          } else {
+            await Deno.copyFile(tempBin.exe, path.join(this.BinPath, name));
           }
-          await Deno.symlink(path.join(this.BinPath, tempBin.exe), symlinkPath);
-        } else {
-          await Deno.copyFile(tempBin.exe, path.join(this.BinPath, name));
-        }
-      });
+        });
+      } catch {
+        console.log(
+          `%c${name} failed to update`,
+          "color: #ff0000",
+        );
+      }
 
       currentDb[name] = latestVersion;
 
