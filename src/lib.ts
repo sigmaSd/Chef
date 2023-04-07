@@ -2,6 +2,28 @@ import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
 import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import { Command } from "./deps.ts";
 
+type DB = Record<string, string>;
+
+export interface App {
+  /** The path of the executable */
+  exe: string;
+  /** If the executable needs the parent directory
+   * you can specify it with dir */
+  dir?: string;
+}
+
+export interface Recipe {
+  name: string;
+  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
+  version: () => Promise<string | undefined>;
+  postInstall?: (binPath: string) => void;
+  /**
+      Pre-defined args, the user cli args will be appened after these
+  **/
+  cmdArgs?: string[];
+  cmdEnv?: Record<string, string>;
+}
+
 export class ChefInternal {
   Path = path.join(cache_dir()!, "chef");
   get BinPath() {
@@ -17,11 +39,19 @@ export class ChefInternal {
     } catch {
       db = "{}";
     }
-    return JSON.parse(db);
+    const dbParsed = JSON.parse(db) as DB;
+    return Object.fromEntries(
+      Object.entries(dbParsed).filter(([name]) =>
+        this.recipes.find((r) => r.name === name)
+      ),
+    );
+  }
+  writeDb(db: DB) {
+    Deno.writeTextFileSync(this.dbPath, JSON.stringify(db));
   }
   list() {
     try {
-      const dbData = JSON.parse(Deno.readTextFileSync(this.dbPath));
+      const dbData = this.readDb();
       for (const name of Object.keys(dbData)) {
         console.log(
           `%c${name} %c${dbData[name]}`,
@@ -188,7 +218,7 @@ export class ChefInternal {
         "color: #00ff00",
       );
     }
-    Deno.writeTextFileSync(this.dbPath, JSON.stringify(currentDb));
+    this.writeDb(currentDb);
   };
   edit = () => {
     const stack = new Error().stack!;
@@ -221,24 +251,4 @@ export class Chef {
   add = (recipe: Recipe) => this.#chefInternal.add(recipe);
   addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
   start = () => this.#chefInternal.start(Deno.args);
-}
-
-export interface App {
-  /** The path of the executable */
-  exe: string;
-  /** If the executable needs the parent directory
-   * you can specify it with dir */
-  dir?: string;
-}
-
-export interface Recipe {
-  name: string;
-  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
-  version: () => Promise<string | undefined>;
-  postInstall?: (binPath: string) => void;
-  /**
-      Pre-defined args, the user cli args will be appened after these
-  **/
-  cmdArgs?: string[];
-  cmdEnv?: Record<string, string>;
 }
