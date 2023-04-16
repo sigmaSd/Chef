@@ -5,6 +5,19 @@ const chef = new Chef();
 chef.addMany(
   [
     {
+      name: "rr",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          //https://github.com/rr-debugger/rr/releases/download/5.6.0/rr-5.6.0-Linux-x86_64.tar.gz
+          `https://github.com/rr-debugger/rr/releases/download/${latestVersion}/rr-${latestVersion}-Linux-x86_64.tar.gz`,
+        ).showProgress().pipeToPath();
+        //rr-5.6.0-Linux-x86_64.tar.gz
+        await $`tar -xzf rr-${latestVersion}-Linux-x86_64.tar.gz`;
+        return { exe: `rr-${latestVersion}-Linux-x86_64/bin/rr` };
+      },
+      version: () => utils.getLatestGithubRelease("rr-debugger/rr"),
+    },
+    {
       name: "gleam",
       download: async ({ latestVersion }) => {
         await $.request(
