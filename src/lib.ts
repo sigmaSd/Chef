@@ -210,11 +210,13 @@ export class ChefInternal {
             await Deno.copyFile(tempBin.exe, path.join(this.BinPath, name));
           }
         });
-      } catch {
-        console.log(
-          `%c${name} failed to update`,
+      } catch (e) {
+        console.error(
+          `%c${name} failed to update:`,
           "color: #ff0000",
         );
+        console.error(e.message);
+        continue;
       }
 
       currentDb[name] = latestVersion;
