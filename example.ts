@@ -84,12 +84,13 @@ chef.addMany(
     {
       name: "irust",
       download: async ({ latestVersion }) => {
+        //https://github.com/sigmaSd/IRust/releases/download/irust@1.71.4/irust-x86_64-unknown-linux-musl
         await $.request(
-          `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`,
+          `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-musl`,
         ).showProgress().pipeToPath();
-        await $`tar -xzf irust-${latestVersion}-x86_64-unknown-linux-musl.tar.gz`;
+        await Deno.chmod(`./irust-x86_64-unknown-linux-musl`, 0o555);
         return {
-          exe: `./irust-${latestVersion}-x86_64-unknown-linux-musl/irust`,
+          exe: `./irust-x86_64-unknown-linux-musl`,
         };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
