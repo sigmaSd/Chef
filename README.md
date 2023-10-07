@@ -37,13 +37,13 @@ await chef.run();
 For a better experience install it with deno install (make sure `~/.deno/bin` is
 in your path):
 
-`deno install -A --unstable -n chef chef.ts`
+`deno install -A -n chef chef.ts`
 
 You can now use:
 
-- `chef` or `chef update` to update all binaries (or install it if it doesn't
+- `chef update` to update all binaries (or install it if it doesn't
   exist yet)
 - `chef list` to list currently binaries
-- `chef run ${binary}` to run one of the installed binaries
+- `chef run ${binary} $args` to run one of the installed binaries
 
 Checkout `examples.ts` for more info.
