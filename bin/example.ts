@@ -1,5 +1,6 @@
-import { $ } from "https://deno.land/x/dax@0.35.0/mod.ts";
-import { Chef, utils } from "./mod.ts";
+import { $ } from "jsr:@david/dax@0.39.2";
+import { Chef } from "../mod.ts";
+import * as utils from "../src/utils.ts";
 
 const chef = new Chef();
 chef.addMany(
@@ -64,7 +65,7 @@ chef.addMany(
           case "linux":
             await $`ar x ${archiveName}`;
             await $`tar -xzf data.tar.gz`;
-            return { exe: `./usr/bin/heimer` };
+            return { exe: "./usr/bin/heimer" };
         }
         throw "Not implemented";
       },
@@ -74,7 +75,7 @@ chef.addMany(
       name: "codeFormat",
       download: async () => {
         await $.request(
-          `https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz`,
+          "https://github.com/CppCXY/EmmyLuaCodeStyle/releases/latest/download/linux-x64.tar.gz",
         ).showProgress().pipeToPath();
         await $`tar -xzf linux-x64.tar.gz`;
         return { exe: "./linux-x64/bin/CodeFormat" };
@@ -88,9 +89,9 @@ chef.addMany(
         await $.request(
           `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-musl`,
         ).showProgress().pipeToPath();
-        await Deno.chmod(`./irust-x86_64-unknown-linux-musl`, 0o555);
+        await Deno.chmod("./irust-x86_64-unknown-linux-musl", 0o555);
         return {
-          exe: `./irust-x86_64-unknown-linux-musl`,
+          exe: "./irust-x86_64-unknown-linux-musl",
         };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),

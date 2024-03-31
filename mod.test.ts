@@ -1,4 +1,5 @@
-import { assertEquals, path } from "./src/deps.ts";
+import * as path from "@std/path";
+import { assertEquals } from "@std/assert/assert-equals";
 import { ChefInternal } from "./src/lib.ts";
 
 class TestChef extends ChefInternal {
@@ -47,13 +48,14 @@ Deno.test("test chef1", async () =>
       },
       version: () => Deno.readTextFile(versionPath),
     }]);
+    console.log("hello");
 
     // install hello exe
     await chef.start(["update"]);
 
     assertEquals(
       Deno.readTextFileSync(chef.dbPath),
-      JSON.stringify({ "hello": "1.0.0" }),
+      JSON.stringify({ hello: "1.0.0" }),
     );
     // doesn't throw because file exists
     Deno.readTextFileSync(path.join(chef.BinPath, "hello"));

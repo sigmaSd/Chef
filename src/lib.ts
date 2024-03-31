@@ -1,73 +1,63 @@
-import { assert, cache_dir, ensureDirSync, path } from "./deps.ts";
-import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
+import * as path from "@std/path";
+import { assert } from "@std/assert";
+import { ensureDirSync } from "@std/fs";
+import { Err, Ok, Result } from "@sigmasd/rust-types/result";
+import { Option } from "@sigmasd/rust-types/option";
+import { cacheDir } from "./internal_utils.ts";
 import { Command } from "./deps.ts";
+import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
+import type { Recipe } from "../mod.ts";
 
 type DB = Record<string, string>;
 
-export interface App {
-  /** The path of the executable */
-  exe: string;
-  /** If the executable needs the parent directory
-   * you can specify it with dir */
-  dir?: string;
-}
-
-export interface Recipe {
-  name: string;
-  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
-  version: () => Promise<string | undefined>;
-  postInstall?: (binPath: string) => void;
-  /**
-      Pre-defined args, the user cli args will be appened after these
-  **/
-  cmdArgs?: string[];
-  cmdEnv?: Record<string, string>;
-}
-
+// Exported for tests, but this is internal
 export class ChefInternal {
-  Path = path.join(cache_dir()!, "chef");
+  Path = path.join(
+    Option.wrap(cacheDir()).expect("cache dir not found"),
+    "chef",
+  );
   get BinPath() {
     return path.join(this.Path, "bin");
   }
   get dbPath() {
     return path.join(this.Path, "db.json");
   }
-  readDb() {
-    let db;
-    try {
-      db = Deno.readTextFileSync(this.dbPath);
-    } catch {
-      db = "{}";
-    }
-    const dbParsed = JSON.parse(db) as DB;
-    return Object.fromEntries(
-      Object.entries(dbParsed).filter(([name]) =>
+  readDb(): Result<DB, unknown> {
+    const db = Result
+      .wrap(() => Deno.readTextFileSync(this.dbPath))
+      .unwrapOr("{}");
+
+    const dbParsed = Result.wrap(() => JSON.parse(db) as DB);
+    if (dbParsed.isErr()) return Err(dbParsed.err);
+
+    return Ok(Object.fromEntries(
+      Object.entries(dbParsed.ok).filter(([name]) =>
         this.recipes.find((r) => r.name === name)
       ),
-    );
+    ));
   }
+
   writeDb(db: DB) {
-    Deno.writeTextFileSync(this.dbPath, JSON.stringify(db));
+    Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
+      .expect(
+        "failed to write to database",
+      );
   }
   list() {
-    try {
-      const dbData = this.readDb();
-      for (const name of Object.keys(dbData)) {
-        console.log(
-          `%c${name} %c${dbData[name]}`,
-          `color: ${Colors.lightYellow}`,
-          `color: ${Colors.lightGreen}`,
-        );
-      }
-    } catch {
-      console.log("No db yet, add a new program for it to get created");
+    const dbData = this.readDb().expect("failed to read database");
+    for (const name of Object.keys(dbData)) {
+      console.log(
+        `%c${name} %c${dbData[name]}`,
+        `color: ${Colors.lightYellow}`,
+        `color: ${Colors.lightGreen}`,
+      );
     }
   }
 
   recipes: Recipe[] = [];
 
   addMany = (recipes: Recipe[]) => {
-    recipes.forEach((recipe) => this.add(recipe));
+    for (const recipe of recipes) this.add(recipe);
   };
   add = (recipe: Recipe) => {
     this.recipes.push(recipe);
@@ -75,7 +65,7 @@ export class ChefInternal {
 
   run = async (name: string, binArgs: string[]) => {
     const binName = name;
-    const db = this.readDb();
+    const db = this.readDb().expect("failed to read database");
     if (!binName) {
       this.list();
       return;
@@ -141,13 +131,13 @@ export class ChefInternal {
       return;
     }
 
-    console.log(`%cLooking for updates..`, `color: magenta`);
+    console.log("%cLooking for updates..", "color: magenta");
     console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
     this.list();
     console.log("");
 
     ensureDirSync(this.BinPath);
-    const currentDb = this.readDb();
+    const currentDb = this.readDb().expect("failed to read database");
 
     for (const recipe of this.recipes) {
       if (options.only && recipe.name !== options.only) continue;
@@ -233,10 +223,10 @@ export class ChefInternal {
     this.writeDb(currentDb);
   };
   edit = () => {
-    const stack = new Error().stack!;
+    const stack = new Error().stack;
 
     const chef = stack
-      .split("\n")
+      ?.split("\n")
       .findLast((line) => line.includes("file:///"));
 
     if (!chef) return;
@@ -252,15 +242,4 @@ export class ChefInternal {
     );
     return chefPath;
   };
-}
-
-export class Chef {
-  #chefInternal: ChefInternal;
-  constructor() {
-    this.#chefInternal = new ChefInternal();
-  }
-
-  add = (recipe: Recipe) => this.#chefInternal.add(recipe);
-  addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
-  start = () => this.#chefInternal.start(Deno.args);
 }

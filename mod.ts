@@ -1,3 +1,161 @@
-export { Chef } from "./src/lib.ts";
-export type { App, Recipe } from "./src/lib.ts";
-export * as utils from "./src/utils.ts";
+/**
+ * # Chef
+ *
+ * Personal package manager
+ *
+ * ## Why it exists
+ *
+ * This is useful for those binaries that are not packaged by a distro.
+ *
+ * With chef you can:
+ *
+ * - Install a random binary
+ * - Keep it up-to-date
+ * - Run it
+ *
+ * ## Usage
+ *
+ * Create a file for example **chef.ts** with:
+ *
+ * ```typescript
+ * import { Chef } from "https://deno.land/x/derchef/mod.ts";
+ *
+ * const chef = new Chef();
+ *
+ * chef.add({
+ *  name: "binary1",
+ *  download: () => {
+ *    // a fuction that downloads the binary and return its relative path
+ *  },
+ *  version: () => {
+ *    // a function that returns the latest version of the binary
+ *  },
+ * });
+ *
+ * await chef.run();
+ * ```
+ *
+ * For a better experience install it with deno install (make sure `~/.deno/bin` is
+ * in your path):
+ *
+ * `deno install -A -n chef chef.ts`
+ *
+ * You can now use:
+ *
+ * - `chef update` to update all binaries (or install it if it doesn't
+ *  exist yet)
+ * - `chef list` to list currently binaries
+ * - `chef run ${binary} $args` to run one of the installed binaries
+ *
+ * Checkout `bin` direcotry for more examples.
+ *
+ * @example
+ * ```ts
+ * import { $ } from "jsr:@david/dax@0.39.2";
+ * import { Chef } from "../mod.ts";
+ * import { getLatestGithubRelease, getLatestNpmVersion } from "../src/utils.ts";
+ *
+ * if (import.meta.main) {
+ *  const chef = new Chef();
+ *  chef.addMany(
+ *    [
+ *      {
+ *        name: "slint-lsp",
+ *        download: async () => {
+ *          await $.request(
+ *            "https://github.com/slint-ui/slint/releases/download/v1.5.1/slint-lsp-linux.tar.gz",
+ *          ).pipeToPath();
+ *          await $`tar -xzf slint-lsp-linux.tar.gz`;
+ *          return {
+ *            exe: "./slint-lsp/slint-lsp",
+ *          };
+ *        },
+ *        version: () => getLatestGithubRelease("slint-ui/slint"),
+ *      },
+ *      {
+ *        name: "typescript-language-server",
+ *        download: async () => {
+ *          await $`npm install typescript-language-server`;
+ *          return {
+ *            exe: "./node_modules/typescript-language-server/lib/cli.mjs",
+ *            dir: ".",
+ *          };
+ *        },
+ *        version: () => getLatestNpmVersion("typescript-language-server"),
+ *      },
+ *   ],
+ * );
+ *
+ * await chef.start();
+ * ```
+ *
+ * @module
+ */
+import { ChefInternal } from "./src/lib.ts";
+
+/**
+ * Represents an application.
+ */
+export interface App {
+  /** The relative path of the executable. */
+  exe: string;
+  /** If the executable needs the parent directory you can specify it with dir */
+  dir?: string;
+}
+
+/**
+ * Represents a recipe for managing binaries.
+ */
+export interface Recipe {
+  /** Name of the binary */
+  name: string;
+  /**
+   * Downloads the binary.
+   * @param latestVersion - The latest version of the binary.
+   * @returns A promise that resolves to the downloaded App.
+   */
+  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
+  /**
+   * Retrieves the version of the binary.
+   * @returns A promise that resolves to the version of the binary, if available.
+   */
+  version: () => Promise<string | undefined>;
+  /**
+   * Performs actions after installing the binary.
+   * @param binPath - The path to the installed binary.
+   */
+  postInstall?: (binPath: string) => void;
+  /**
+   * Pre-defined arguments, the user CLI args will be appended after these.
+   */
+  cmdArgs?: string[];
+  /**
+   * Pre-defined environment variables
+   */
+  cmdEnv?: Record<string, string>;
+}
+
+/**
+ * Main class to manage binaries
+ */
+export class Chef {
+  #chefInternal: ChefInternal;
+  constructor() {
+    this.#chefInternal = new ChefInternal();
+  }
+
+  /**
+   * Adds a recipe to manage a binary.
+   * @param recipe - The recipe to add.
+   */
+  add = (recipe: Recipe) => this.#chefInternal.add(recipe);
+  /**
+   * Adds multiple recipes to manage binaries.
+   * @param recipes - The recipes to add.
+   */
+  addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
+  /**
+   * Starts the Chef command-line interface.
+   */
+  start = () => this.#chefInternal.start(Deno.args);
+}
