@@ -8,8 +8,6 @@ import { Command } from "./deps.ts";
 import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
 
-type DB = Record<string, string>;
-
 // Exported for tests, but this is internal
 export class ChefInternal {
   Path = path.join(
@@ -22,12 +20,14 @@ export class ChefInternal {
   get dbPath() {
     return path.join(this.Path, "db.json");
   }
-  readDb(): Result<DB, unknown> {
+  readDb(): Result<Record<string, string>, unknown> {
     const db = Result
       .wrap(() => Deno.readTextFileSync(this.dbPath))
       .unwrapOr("{}");
 
-    const dbParsed = Result.wrap(() => JSON.parse(db) as DB);
+    const dbParsed = Result.wrap(() =>
+      JSON.parse(db) as Record<string, string>
+    );
     if (dbParsed.isErr()) return Err(dbParsed.err);
 
     return Ok(Object.fromEntries(
@@ -37,7 +37,7 @@ export class ChefInternal {
     ));
   }
 
-  writeDb(db: DB) {
+  writeDb(db: Record<string, string>) {
     Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
       .expect(
         "failed to write to database",
