@@ -6,7 +6,7 @@
   "imports": {
     "@std/assert": "jsr:@std/assert@^0.221.0",
     "@std/fs": "jsr:@std/fs@^0.221.0",
-    "@std/path": "jsr:@std/path@^0.221.0"
-    "@sigmasd/rust-types": "jsr:@sigmasd/rust-types@^0.3.0",
+    "@std/path": "jsr:@std/path@^0.221.0",
+    "@sigmasd/rust-types": "jsr:@sigmasd/rust-types@^0.3.0"
   }
 }
