@@ -1,7 +1,10 @@
 {
   "name": "@sigmasd/Chef",
   "version": "0.15.0",
-  "exports": "./mod.ts",
+  "exports": {
+    ".": "./mod.ts",
+    "utils": "./src/utils.ts"
+  },
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.4",
     "@sigmasd/rust-types": "jsr:@sigmasd/rust-types@^0.6.0",

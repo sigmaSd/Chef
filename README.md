@@ -17,7 +17,7 @@ With chef you can:
 Create a file for example **chef.ts** with:
 
 ```typescript
-import { Chef } from "https://deno.land/x/derchef/mod.ts";
+import { Chef } from "jsr:@sigmasd/chef";
 
 const chef = new Chef();
 
@@ -53,8 +53,8 @@ Checkout `bin` direcotry for more examples.
 
 ```ts
 import { $ } from "jsr:@david/dax@0.39.2";
-import { Chef } from "../mod.ts";
-import { getLatestGithubRelease, getLatestNpmVersion } from "../src/utils.ts";
+import { Chef } from "jsr:@sigmasd/chef";
+import { getLatestGithubRelease, getLatestNpmVersion } from "jsr:@sigmasd/chef/utils";
 
 if (import.meta.main) {
  const chef = new Chef();
