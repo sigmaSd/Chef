@@ -4,7 +4,7 @@ import { ensureDirSync } from "@std/fs";
 import { Err, Ok, Result } from "@sigmasd/rust-types/result";
 import { Option } from "@sigmasd/rust-types/option";
 import { cacheDir } from "./internal_utils.ts";
-import { Command } from "./deps.ts";
+import { Command } from "@cliffy/command";
 import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
 
