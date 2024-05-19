@@ -148,14 +148,14 @@ export class Chef {
    * Adds a recipe to manage a binary.
    * @param recipe - The recipe to add.
    */
-  add = (recipe: Recipe) => this.#chefInternal.add(recipe);
+  add = (recipe: Recipe): void => this.#chefInternal.add(recipe);
   /**
    * Adds multiple recipes to manage binaries.
    * @param recipes - The recipes to add.
    */
-  addMany = (recipes: Recipe[]) => this.#chefInternal.addMany(recipes);
+  addMany = (recipes: Recipe[]): void => this.#chefInternal.addMany(recipes);
   /**
    * Starts the Chef command-line interface.
    */
-  start = () => this.#chefInternal.start(Deno.args);
+  start = (): Promise<void> => this.#chefInternal.start(Deno.args);
 }
