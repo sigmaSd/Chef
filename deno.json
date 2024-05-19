@@ -1,5 +1,5 @@
 {
-  "name": "@sigmasd/Chef",
+  "name": "@sigmasd/chef",
   "version": "0.15.0",
   "exports": {
     ".": "./mod.ts",
