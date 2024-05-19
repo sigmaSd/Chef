@@ -18,18 +18,18 @@
  * Create a file for example **chef.ts** with:
  *
  * ```typescript
- * import { Chef } from "https://deno.land/x/derchef/mod.ts";
+ * import { Chef } from "jsr:@sigmasd/chef";
  *
  * const chef = new Chef();
  *
  * chef.add({
- *  name: "binary1",
- *  download: () => {
- *    // a fuction that downloads the binary and return its relative path
- *  },
- *  version: () => {
- *    // a function that returns the latest version of the binary
- *  },
+ *   name: "binary1",
+ *   download: () => {
+ *     // a fuction that downloads the binary and return its relative path
+ *   },
+ *   version: () => {
+ *     // a function that returns the latest version of the binary
+ *   },
  * });
  *
  * await chef.run();
@@ -42,8 +42,7 @@
  *
  * You can now use:
  *
- * - `chef update` to update all binaries (or install it if it doesn't
- *  exist yet)
+ * - `chef update` to update all binaries (or install it if it doesn't exist yet)
  * - `chef list` to list currently binaries
  * - `chef run ${binary} $args` to run one of the installed binaries
  *
@@ -52,8 +51,8 @@
  * @example
  * ```ts
  * import { $ } from "jsr:@david/dax@0.39.2";
- * import { Chef } from "../mod.ts";
- * import { getLatestGithubRelease, getLatestNpmVersion } from "../src/utils.ts";
+ * import { Chef } from "jsr:@sigmasd/chef";
+ * import { getLatestGithubRelease, getLatestNpmVersion } from "jsr:@sigmasd/chef/utils";
  *
  * if (import.meta.main) {
  *  const chef = new Chef();
@@ -88,7 +87,6 @@
  *
  * await chef.start();
  * ```
- *
  * @module
  */
 import { ChefInternal } from "./src/lib.ts";
