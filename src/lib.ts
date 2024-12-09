@@ -205,7 +205,7 @@ export class ChefInternal {
           `%c${name} failed to update:`,
           "color: #ff0000",
         );
-        console.error(e.message);
+        console.error(e instanceof Error ? e.message : e);
         continue;
       }
 
