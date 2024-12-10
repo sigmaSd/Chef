@@ -169,5 +169,10 @@ export class Chef {
   /**
    * Starts the Chef command-line interface.
    */
-  start = (): Promise<void> => this.#chefInternal.start(Deno.args);
+  start = async (chefPath?: string): Promise<void> => {
+    if (chefPath) {
+      this.#chefInternal.chefPath = chefPath;
+    }
+    await this.#chefInternal.start(Deno.args);
+  };
 }

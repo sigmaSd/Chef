@@ -10,6 +10,7 @@ import type { Recipe } from "../mod.ts";
 
 // Exported for tests, but this is internal
 export class ChefInternal {
+  chefPath: string | undefined;
   Path = path.join(
     Option.wrap(cacheDir()).expect("cache dir not found"),
     "chef",
@@ -73,6 +74,14 @@ export class ChefInternal {
       icon?: string;
     },
   ) {
+    if (!this.chefPath) {
+      console.error(
+        `%cChef Path is required, you can pass it as the first argument to Chef.start`,
+        `color: ${Colors.lightRed}`,
+      );
+      return;
+    }
+
     const recipe = this.recipes.find((r) => r.name === name);
     if (!recipe) {
       console.error(
@@ -82,7 +91,6 @@ export class ChefInternal {
       return;
     }
 
-    const binPath = path.join(this.BinPath, name);
     const desktopDir = path.join(
       Deno.env.get("HOME")!,
       ".local/share/applications",
@@ -111,7 +119,7 @@ export class ChefInternal {
 
     const desktopFile = `[Desktop Entry]
 Name=${name}
-Exec=${binPath}
+Exec=deno run -A ${this.chefPath} run ${recipe.name}
 Type=Application
 Terminal=${options.terminal ?? false}
 ${recipe.desktopFile?.comment ? `Comment=${recipe.desktopFile.comment}` : ""}

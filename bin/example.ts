@@ -128,4 +128,4 @@ chef.addMany(
   ],
 );
 
-await chef.start();
+await chef.start(import.meta.url);
