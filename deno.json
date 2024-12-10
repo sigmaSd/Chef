@@ -1,6 +1,6 @@
 {
   "name": "@sigmasd/chef",
-  "version": "0.16.1",
+  "version": "0.17.0",
   "exports": {
     ".": "./mod.ts",
     "./utils": "./src/utils.ts"
