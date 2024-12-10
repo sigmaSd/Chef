@@ -11,20 +11,22 @@
     "jsr:@cross/utils@0.7": "0.7.0",
     "jsr:@david/dax@0.39.2": "0.39.2",
     "jsr:@david/which@0.3": "0.3.0",
-    "jsr:@sigmasd/rust-types@0.6": "0.6.0",
+    "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
     "jsr:@std/assert@0.213": "0.213.1",
     "jsr:@std/assert@0.221": "0.221.0",
+    "jsr:@std/assert@^1.0.9": "1.0.9",
     "jsr:@std/bytes@0.213": "0.213.1",
     "jsr:@std/console@0.221": "0.221.0",
     "jsr:@std/fmt@0.213.0": "0.213.0",
     "jsr:@std/fmt@0.221": "0.221.0",
     "jsr:@std/fs@0.213.0": "0.213.0",
-    "jsr:@std/fs@0.221": "0.221.0",
+    "jsr:@std/fs@^1.0.6": "1.0.6",
+    "jsr:@std/internal@^1.0.5": "1.0.5",
     "jsr:@std/io@0.213": "0.213.0",
     "jsr:@std/io@0.213.0": "0.213.0",
     "jsr:@std/path@0.213": "0.213.0",
     "jsr:@std/path@0.213.0": "0.213.0",
-    "jsr:@std/path@0.221": "0.221.0",
+    "jsr:@std/path@^1.0.8": "1.0.8",
     "jsr:@std/streams@0.213.0": "0.213.0",
     "jsr:@std/text@0.221": "0.221.0",
     "npm:@biomejs/biome@1.6.3": "1.6.3",
@@ -90,8 +92,8 @@
     "@david/which@0.3.0": {
       "integrity": "6bdb62c40ac90edcf328e854fa8103a8db21e7c326089cbe3c3a1cf7887d3204"
     },
-    "@sigmasd/rust-types@0.6.0": {
-      "integrity": "91b27b5a0b093d752af4f9425ea94a814f122c20249facd4afaca6a13360b9e2"
+    "@sigmasd/rust-types@0.6.1": {
+      "integrity": "a9037278897aa25beec301ca552ed9c2f570795f48206888f736549d0f19bb9b"
     },
     "@std/assert@0.213.1": {
       "integrity": "24c28178b30c8e0782c18e8e94ea72b16282207569cdd10ffb9d1d26f2edebfe"
@@ -100,6 +102,12 @@
       "integrity": "a5f1aa6e7909dbea271754fd4ab3f4e687aeff4873b4cef9a320af813adb489a",
       "dependencies": [
         "jsr:@std/fmt@0.221"
+      ]
+    },
+    "@std/assert@1.0.9": {
+      "integrity": "a9f0c611a869cc791b26f523eec54c7e187aab7932c2c8e8bea0622d13680dcd",
+      "dependencies": [
+        "jsr:@std/internal"
       ]
     },
     "@std/bytes@0.213.1": {
@@ -124,12 +132,14 @@
         "jsr:@std/path@0.213"
       ]
     },
-    "@std/fs@0.221.0": {
-      "integrity": "028044450299de8ed5a716ade4e6d524399f035513b85913794f4e81f07da286",
+    "@std/fs@1.0.6": {
+      "integrity": "42b56e1e41b75583a21d5a37f6a6a27de9f510bcd36c0c85791d685ca0b85fa2",
       "dependencies": [
-        "jsr:@std/assert@0.221",
-        "jsr:@std/path@0.221"
+        "jsr:@std/path@^1.0.8"
       ]
+    },
+    "@std/internal@1.0.5": {
+      "integrity": "54a546004f769c1ac9e025abd15a76b6671ddc9687e2313b67376125650dc7ba"
     },
     "@std/io@0.213.0": {
       "integrity": "e78db92000e718c4b37e3c5f8a854a7c8d66cf4f1ab81d2c5c834172e66191cb",
@@ -144,11 +154,8 @@
         "jsr:@std/assert@0.213"
       ]
     },
-    "@std/path@0.221.0": {
-      "integrity": "0a36f6b17314ef653a3a1649740cc8db51b25a133ecfe838f20b79a56ebe0095",
-      "dependencies": [
-        "jsr:@std/assert@0.221"
-      ]
+    "@std/path@1.0.8": {
+      "integrity": "548fa456bb6a04d3c1a1e7477986b6cffbce95102d0bb447c67c4ee70e0364be"
     },
     "@std/streams@0.213.0": {
       "integrity": "14519c7ce5f4c88de2e365f4bf1b8371c942a9fe0e1f9a0b9e10a56e3c3e3877",
@@ -276,10 +283,10 @@
   "workspace": {
     "dependencies": [
       "jsr:@cliffy/command@^1.0.0-rc.4",
-      "jsr:@sigmasd/rust-types@0.6",
-      "jsr:@std/assert@0.221",
-      "jsr:@std/fs@0.221",
-      "jsr:@std/path@0.221"
+      "jsr:@sigmasd/rust-types@~0.6.1",
+      "jsr:@std/assert@^1.0.9",
+      "jsr:@std/fs@^1.0.6",
+      "jsr:@std/path@^1.0.8"
     ]
   }
 }
