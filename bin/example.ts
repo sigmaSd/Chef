@@ -120,6 +120,7 @@ chef.addMany(
         await $`tar -xvf scrcpy-linux-x86_64-${latestVersion}.tar.gz`;
         return {
           exe: `./scrcpy-linux-x86_64-${latestVersion}/scrcpy`,
+          dir: `./scrcpy-linux-x86_64-${latestVersion}/`,
         };
       },
       version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
