@@ -17,6 +17,9 @@ export class ChefInternal {
   get BinPath() {
     return path.join(this.Path, "bin");
   }
+  get IconsPath() {
+    return path.join(this.Path, "icons");
+  }
   get dbPath() {
     return path.join(this.Path, "db.json");
   }
@@ -85,9 +88,26 @@ export class ChefInternal {
       ".local/share/applications",
     );
     ensureDirSync(desktopDir);
+    ensureDirSync(this.IconsPath);
 
-    // Merge options with recipe.desktopFile, with options taking precedence
-    const finalIcon = options.icon ?? recipe.desktopFile?.icon;
+    // Handle icon
+    let finalIcon = recipe.desktopFile?.icon;
+    if (options.icon) {
+      const iconExt = path.extname(options.icon);
+      const iconFileName = `${name}-icon${iconExt}`;
+      const iconPath = path.join(this.IconsPath, iconFileName);
+
+      try {
+        Deno.copyFileSync(options.icon, iconPath);
+        finalIcon = iconPath;
+      } catch (e) {
+        console.error(
+          `%cFailed to copy icon file: ${e instanceof Error ? e.message : e}`,
+          `color: ${Colors.lightRed}`,
+        );
+        finalIcon = recipe.desktopFile?.icon;
+      }
+    }
 
     const desktopFile = `[Desktop Entry]
 Name=${name}
@@ -117,6 +137,17 @@ ${finalIcon ? `Icon=${finalIcon}` : ""}`;
       ".local/share/applications",
       `${name}.desktop`,
     );
+
+    // Remove icon if it exists
+    const iconBasePath = path.join(this.IconsPath, `${name}-icon`);
+    for (const ext of [".png", ".jpg", ".jpeg", ".svg", ".ico"]) {
+      try {
+        Deno.removeSync(iconBasePath + ext);
+        break;
+      } catch {
+        continue;
+      }
+    }
 
     try {
       Deno.removeSync(desktopPath);
