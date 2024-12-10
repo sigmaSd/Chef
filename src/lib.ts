@@ -63,6 +63,75 @@ export class ChefInternal {
     this.recipes.push(recipe);
   };
 
+  private createDesktopFile(
+    name: string,
+    options: {
+      terminal?: boolean;
+      icon?: string;
+    },
+  ) {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) {
+      console.error(
+        `%cBinary ${name} is not installed`,
+        `color: ${Colors.lightRed}`,
+      );
+      return;
+    }
+
+    const binPath = path.join(this.BinPath, name);
+    const desktopDir = path.join(
+      Deno.env.get("HOME")!,
+      ".local/share/applications",
+    );
+    ensureDirSync(desktopDir);
+
+    // Merge options with recipe.desktopFile, with options taking precedence
+    const finalIcon = options.icon ?? recipe.desktopFile?.icon;
+
+    const desktopFile = `[Desktop Entry]
+Name=${name}
+Exec=${binPath}
+Type=Application
+Terminal=${options.terminal ?? false}
+${recipe.desktopFile?.comment ? `Comment=${recipe.desktopFile.comment}` : ""}
+${
+      recipe.desktopFile?.categories
+        ? `Categories=${recipe.desktopFile.categories}`
+        : ""
+    }
+${finalIcon ? `Icon=${finalIcon}` : ""}`;
+
+    const desktopPath = path.join(desktopDir, `${name}.desktop`);
+    Deno.writeTextFileSync(desktopPath, desktopFile);
+    Deno.chmodSync(desktopPath, 0o755);
+    console.log(
+      `%cCreated desktop file for ${name}`,
+      `color: ${Colors.lightGreen}`,
+    );
+  }
+
+  private removeDesktopFile(name: string) {
+    const desktopPath = path.join(
+      Deno.env.get("HOME")!,
+      ".local/share/applications",
+      `${name}.desktop`,
+    );
+
+    try {
+      Deno.removeSync(desktopPath);
+      console.log(
+        `%cRemoved desktop file for ${name}`,
+        `color: ${Colors.lightGreen}`,
+      );
+    } catch {
+      console.error(
+        `%cNo desktop file found for ${name}`,
+        `color: ${Colors.lightRed}`,
+      );
+    }
+  }
+
   run = async (name: string, binArgs: string[]) => {
     const binName = name;
     const db = this.readDb().expect("failed to read database");
@@ -113,6 +182,35 @@ export class ChefInternal {
       .action(async (options) => await this.update(options))
       .command("edit", "output chef entry file")
       .action(() => console.log(this.edit()))
+      .command(
+        "desktop-file",
+        new Command()
+          .description("manage desktop files")
+          .action(function () {
+            this.showHelp();
+          })
+          .command(
+            "create",
+            new Command()
+              .description("create a desktop file")
+              .arguments("<name:string>")
+              .option("--terminal", "set Terminal=true in desktop file")
+              .option("--icon <path:string>", "set icon path in desktop file")
+              .action((opts, name) =>
+                this.createDesktopFile(name, {
+                  terminal: opts.terminal,
+                  icon: opts.icon,
+                })
+              ),
+          )
+          .command(
+            "remove",
+            new Command()
+              .description("remove a desktop file")
+              .arguments("<name:string>")
+              .action((_opts, name) => this.removeDesktopFile(name)),
+          ),
+      )
       .parse(args);
   };
   update = async (

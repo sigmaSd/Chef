@@ -45,6 +45,11 @@ chef.addMany(
         return { exe: `imhex-${latestVersion}-x86_64.AppImage` };
       },
       version: () => utils.getLatestGithubRelease("WerWolv/ImHex"),
+      desktopFile: {
+        comment: "Hex Editor",
+        categories: "Development;",
+        icon: "imhex",
+      },
     },
     {
       name: "heimer",
@@ -70,6 +75,11 @@ chef.addMany(
         throw "Not implemented";
       },
       version: () => utils.getLatestGithubRelease("juzzlin/Heimer"),
+      desktopFile: {
+        comment: "Mind map editor",
+        categories: "Office;",
+        icon: "heimer",
+      },
     },
     {
       name: "codeFormat",
@@ -95,6 +105,24 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
+      desktopFile: {
+        comment: "Rust REPL",
+        categories: "Development;",
+        icon: "terminal",
+      },
+    },
+    {
+      name: "scrcpy",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          `https://github.com/Genymobile/scrcpy/releases/download/${latestVersion}/scrcpy-linux-x86_64-${latestVersion}.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xvf scrcpy-linux-x86_64-${latestVersion}.tar.gz`;
+        return {
+          exe: `./scrcpy-linux-x86_64-${latestVersion}/scrcpy`,
+        };
+      },
+      version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
     },
   ],
 );

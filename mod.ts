@@ -12,6 +12,7 @@
  * - Install a random binary
  * - Keep it up-to-date
  * - Run it
+ * - Create desktop files for installed binaries
  *
  * ## Usage
  *
@@ -45,6 +46,8 @@
  * - `chef update` to update all binaries (or install it if it doesn't exist yet)
  * - `chef list` to list currently binaries
  * - `chef run ${binary} $args` to run one of the installed binaries
+ * - `chef desktop-file create ${binary} [--terminal] [--icon path]` to create a desktop file
+ * - `chef desktop-file remove ${binary}` to remove a desktop file
  *
  * Checkout `bin` direcotry for more examples.
  *
@@ -131,6 +134,17 @@ export interface Recipe {
    * Pre-defined environment variables
    */
   cmdEnv?: Record<string, string>;
+  /**
+   * Desktop file configuration
+   */
+  desktopFile?: {
+    /** Comment field in the desktop entry */
+    comment?: string;
+    /** Categories field in the desktop entry */
+    categories?: string;
+    /** Icon field in the desktop entry */
+    icon?: string;
+  };
 }
 
 /**
