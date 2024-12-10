@@ -11,6 +11,7 @@ With chef you can:
 - Install a random binary
 - Keep it up-to-date
 - Run it
+- Create desktop entries for GUI applications
 
 ## Usage
 
@@ -29,6 +30,12 @@ chef.add({
   version: () => {
     // a function that returns the latest version of the binary
   },
+  // Optional: Desktop file configuration for GUI applications
+  desktopFile: {
+    comment: "Description of the application",
+    categories: "Development;Utility;", // Categories separated by semicolons
+    icon: "icon-name", // Icon name or path
+  },
 });
 
 await chef.run();
@@ -42,8 +49,12 @@ in your path):
 You can now use:
 
 - `chef update` to update all binaries (or install it if it doesn't exist yet)
-- `chef list` to list currently binaries
+- `chef list` to list currently installed binaries
 - `chef run ${binary} $args` to run one of the installed binaries
+- `chef desktop-file create <binary>` to create a desktop entry
+  - `--terminal` option to set Terminal=true
+  - `--icon <path>` option to set a custom icon
+- `chef desktop-file remove <binary>` to remove a desktop entry
 
 Checkout `bin` direcotry for more examples.
 
