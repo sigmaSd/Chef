@@ -17,18 +17,27 @@ import { isUrl } from "./utils.ts";
 // Exported for tests, but this is internal
 export class ChefInternal {
   chefPath: string | undefined;
+
+  // Get the script name for namespacing
+  private get scriptName() {
+    return this.chefPath
+      ? path.basename(this.chefPath, path.extname(this.chefPath))
+      : "default";
+  }
+
   Path = path.join(
     Option.wrap(cacheDir()).expect("cache dir not found"),
     "chef",
   );
   get BinPath() {
-    return path.join(this.Path, "bin");
+    return path.join(this.Path, "bin", this.scriptName);
   }
   get IconsPath() {
-    return path.join(this.Path, "icons");
+    return path.join(this.Path, "icons", this.scriptName);
   }
   get dbPath() {
-    return path.join(this.Path, "db.json");
+    // Extract the script name from chefPath
+    return path.join(this.Path, `db_${this.scriptName}.json`);
   }
   readDb(): Result<Record<string, string>, unknown> {
     const db = Result
