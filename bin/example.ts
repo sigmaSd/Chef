@@ -106,9 +106,9 @@ chef.addMany(
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
       desktopFile: {
+        name: "IRust",
         comment: "Rust REPL",
         categories: "Development;",
-        icon: "terminal",
       },
     },
     {

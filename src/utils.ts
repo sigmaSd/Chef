@@ -34,3 +34,18 @@ export async function getLatestNpmVersion(
   const data = await response.json();
   return data.version;
 }
+
+/**
+ * Checks if a given string is a valid URL.
+ *
+ * @param {string} str - The string to check.
+ * @returns {boolean} True if the string is a valid URL, false otherwise.
+ */
+export function isUrl(str: string): boolean {
+  try {
+    new URL(str);
+    return true;
+  } catch {
+    return false;
+  }
+}

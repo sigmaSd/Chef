@@ -12,6 +12,7 @@ import {
   runInTempDir,
 } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
+import { isUrl } from "./utils.ts";
 
 // Exported for tests, but this is internal
 export class ChefInternal {
@@ -120,7 +121,9 @@ export class ChefInternal {
       const iconPath = path.join(this.IconsPath, iconFileName);
 
       try {
-        await fetch(options.icon)
+        await fetch(
+          isUrl(options.icon) ? options.icon : `file://${options.icon}`,
+        )
           .then((r) => r.bytes())
           .then((bytes) => Deno.writeFileSync(iconPath, bytes));
         finalIcon = iconPath;
