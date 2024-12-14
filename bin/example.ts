@@ -124,6 +124,9 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
+      desktopFile: {
+        name: "SCRCPY",
+      },
     },
     {
       name: "zaproxy",

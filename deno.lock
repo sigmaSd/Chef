@@ -13,6 +13,7 @@
     "jsr:@david/dax@0.39.2": "0.39.2",
     "jsr:@david/which@0.3": "0.3.0",
     "jsr:@sigmasd/deno-infer@*": "3.0.1",
+    "jsr:@sigmasd/deno-infer@3.0.1": "3.0.1",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
     "jsr:@std/assert@0.213": "0.213.1",
     "jsr:@std/assert@^1.0.9": "1.0.9",
