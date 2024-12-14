@@ -84,8 +84,10 @@
  *         download: async () => {
  *           await $`npm install typescript-language-server`;
  *           return {
- *             exe: "./node_modules/typescript-language-server/lib/cli.mjs",
- *             dir: ".",
+ *             dir: {
+ *               path: ".",
+ *               exe: "./node_modules/typescript-language-server/lib/cli.mjs"
+ *             }
  *           };
  *         },
  *         version: () => getLatestNpmVersion("typescript-language-server"),
@@ -103,12 +105,21 @@ import { ChefInternal } from "./src/lib.ts";
 /**
  * Represents an application.
  */
-export interface App {
-  /** The relative path of the executable. */
+export type App = {
+  /** The path of the executable. */
   exe: string;
-  /** If the executable needs the parent directory you can specify it with dir */
-  dir?: string;
-}
+} | {
+  /**
+   * Contains directory path and executable path
+   * Useful when the binary needs its parent directory
+   */
+  dir: {
+    /** The path to the directory */
+    path: string;
+    /** The path to the executable relative to the directory */
+    exe: string;
+  };
+};
 
 /**
  * Represents a recipe for managing binaries.

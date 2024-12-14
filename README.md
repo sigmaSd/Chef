@@ -94,8 +94,10 @@ if (import.meta.main) {
         download: async () => {
           await $`npm install typescript-language-server`;
           return {
-            exe: "./node_modules/typescript-language-server/lib/cli.mjs",
-            dir: ".",
+            dir: {
+              path: ".",
+              exe: "./node_modules/typescript-language-server/lib/cli.mjs"
+            }
           };
         },
         version: () => getLatestNpmVersion("typescript-language-server"),

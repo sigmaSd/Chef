@@ -345,10 +345,14 @@ ${finalIcon ? `Icon=${finalIcon}` : ""}`;
       try {
         await runInTempDir(async () => {
           const tempBin = await download({ latestVersion });
-          if (tempBin.dir) {
+          if ("dir" in tempBin) {
+            const destDir = path.join(
+              this.BinPath,
+              tempBin.dir.path === "." ? `${name}-dir` : tempBin.dir.path,
+            );
             await copyDirRecursively(
-              tempBin.dir,
-              path.join(this.BinPath, tempBin.dir),
+              tempBin.dir.path,
+              destDir,
             );
             // remove old symlink if it exists
             const symlinkPath = path.join(this.BinPath, name);
@@ -358,7 +362,7 @@ ${finalIcon ? `Icon=${finalIcon}` : ""}`;
               /**/
             }
             await Deno.symlink(
-              path.join(this.BinPath, tempBin.exe),
+              path.join(destDir, tempBin.dir.exe),
               symlinkPath,
             );
           } else {

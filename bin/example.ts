@@ -119,8 +119,10 @@ chef.addMany(
         ).showProgress().pipeToPath();
         await $`tar -xvf scrcpy-linux-x86_64-${latestVersion}.tar.gz`;
         return {
-          exe: `./scrcpy-linux-x86_64-${latestVersion}/scrcpy`,
-          dir: `./scrcpy-linux-x86_64-${latestVersion}/`,
+          dir: {
+            path: `./scrcpy-linux-x86_64-${latestVersion}/`,
+            exe: `./scrcpy`,
+          },
         };
       },
       version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
@@ -137,10 +139,7 @@ chef.addMany(
         ).showProgress().pipeToPath();
         await $`tar -xvf ZAP_${latestVersion.slice(1)}_Linux.tar.gz`;
         return {
-          // deno-fmt-ignore
-          exe: `./ZAP_${latestVersion.slice(1)}/zap.sh`,
-          // deno-fmt-ignore
-          dir: `./ZAP_${latestVersion.slice(1)}/`,
+          dir: { path: `./ZAP_${latestVersion.slice(1)}/`, exe: "zap.sh" },
         };
       },
       version: () => utils.getLatestGithubRelease("zaproxy/zaproxy"),
