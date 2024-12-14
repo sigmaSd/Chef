@@ -3,9 +3,14 @@ import { assert } from "@std/assert";
 import { ensureDirSync } from "@std/fs";
 import { Err, Ok, Result } from "@sigmasd/rust-types/result";
 import { Option } from "@sigmasd/rust-types/option";
-import { cacheDir } from "./internal_utils.ts";
 import { Command } from "@cliffy/command";
-import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
+import {
+  cacheDir,
+  Colors,
+  copyDirRecursively,
+  getExt,
+  runInTempDir,
+} from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
 
 // Exported for tests, but this is internal
@@ -67,7 +72,7 @@ export class ChefInternal {
     this.recipes.push(recipe);
   };
 
-  private createDesktopFile(
+  private async createDesktopFile(
     name: string,
     options: {
       terminal?: boolean;
@@ -101,12 +106,14 @@ export class ChefInternal {
     // Handle icon
     let finalIcon = recipe.desktopFile?.icon;
     if (options.icon) {
-      const iconExt = path.extname(options.icon);
+      const iconExt = await getExt(options.icon);
       const iconFileName = `${name}-icon${iconExt}`;
       const iconPath = path.join(this.IconsPath, iconFileName);
 
       try {
-        Deno.copyFileSync(options.icon, iconPath);
+        await fetch(options.icon)
+          .then((r) => r.bytes())
+          .then((bytes) => Deno.writeFileSync(iconPath, bytes));
         finalIcon = iconPath;
       } catch (e) {
         console.error(
@@ -235,8 +242,8 @@ ${finalIcon ? `Icon=${finalIcon}` : ""}`;
               .arguments("<name:string>")
               .option("--terminal", "set Terminal=true in desktop file")
               .option("--icon <path:string>", "set icon path in desktop file")
-              .action((opts, name) =>
-                this.createDesktopFile(name, {
+              .action(async (opts, name) =>
+                await this.createDesktopFile(name, {
                   terminal: opts.terminal,
                   icon: opts.icon,
                 })

@@ -53,7 +53,7 @@ You can now use:
 - `chef run ${binary} $args` to run one of the installed binaries
 - `chef desktop-file create <binary>` to create a desktop entry
   - `--terminal` option to set Terminal=true
-  - `--icon <path>` option to set a custom icon
+  - `--icon <path or url>` option to set a custom icon
 - `chef desktop-file remove <binary>` to remove a desktop entry
 
 Checkout `bin` direcotry for more examples.

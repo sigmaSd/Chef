@@ -1,3 +1,4 @@
+import * as infer from "jsr:@sigmasd/deno-infer";
 import * as path from "@std/path";
 
 export async function runInTempDir<T>(fn: () => Promise<T>) {
@@ -65,4 +66,18 @@ export function cacheDir(): string | null {
       return Deno.env.get("LOCALAPPDATA") ?? null;
   }
   return null;
+}
+
+export async function getExt(iconPath: string) {
+  const name = path.extname(iconPath);
+  if (name) return name;
+
+  const data = await fetch(iconPath);
+  const header = await data.body?.getReader().read().then((d) => d.value);
+  if (header) {
+    const ext = infer.get(header)?.extension();
+    if (ext) {
+      return `.${ext}`;
+    }
+  }
 }

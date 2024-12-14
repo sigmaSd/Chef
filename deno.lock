@@ -12,6 +12,7 @@
     "jsr:@cross/utils@0.7": "0.7.0",
     "jsr:@david/dax@0.39.2": "0.39.2",
     "jsr:@david/which@0.3": "0.3.0",
+    "jsr:@sigmasd/deno-infer@*": "3.0.1",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
     "jsr:@std/assert@0.213": "0.213.1",
     "jsr:@std/assert@^1.0.9": "1.0.9",
@@ -93,6 +94,9 @@
     },
     "@david/which@0.3.0": {
       "integrity": "6bdb62c40ac90edcf328e854fa8103a8db21e7c326089cbe3c3a1cf7887d3204"
+    },
+    "@sigmasd/deno-infer@3.0.1": {
+      "integrity": "11881714f838a1d557b6c6933b2e39794b07686169ceb8321f1bfbfb4cdbcd0d"
     },
     "@sigmasd/rust-types@0.6.1": {
       "integrity": "a9037278897aa25beec301ca552ed9c2f570795f48206888f736549d0f19bb9b"

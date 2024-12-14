@@ -46,7 +46,7 @@
  * - `chef update` to update all binaries (or install it if it doesn't exist yet)
  * - `chef list` to list currently binaries
  * - `chef run ${binary} $args` to run one of the installed binaries
- * - `chef desktop-file create ${binary} [--terminal] [--icon path]` to create a desktop file
+ * - `chef desktop-file create ${binary} [--terminal] [--icon path or url]` to create a desktop file
  * - `chef desktop-file remove ${binary}` to remove a desktop file
  *
  * Checkout `bin` direcotry for more examples.

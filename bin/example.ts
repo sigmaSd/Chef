@@ -125,6 +125,23 @@ chef.addMany(
       },
       version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
     },
+    {
+      name: "zaproxy",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          // deno-fmt-ignore
+          `https://github.com/zaproxy/zaproxy/releases/download/${latestVersion}/ZAP_${latestVersion.slice(1)}_Linux.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xvf ZAP_${latestVersion.slice(1)}_Linux.tar.gz`;
+        return {
+          // deno-fmt-ignore
+          exe: `./ZAP_${latestVersion.slice(1)}/zap.sh`,
+          // deno-fmt-ignore
+          dir: `./ZAP_${latestVersion.slice(1)}/`,
+        };
+      },
+      version: () => utils.getLatestGithubRelease("zaproxy/zaproxy"),
+    },
   ],
 );
 
