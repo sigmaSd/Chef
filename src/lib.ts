@@ -125,7 +125,7 @@ export class ChefInternal {
     }
 
     const desktopFile = `[Desktop Entry]
-Name=${name}
+Name=${recipe.desktopFile?.name ?? name}
 Exec=deno run -A ${this.chefPath} run ${recipe.name}
 Type=Application
 Terminal=${options.terminal ?? false}

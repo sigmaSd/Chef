@@ -138,6 +138,8 @@ export interface Recipe {
    * Desktop file configuration
    */
   desktopFile?: {
+    /** Name field in the desktop entry */
+    name?: string;
     /** Comment field in the desktop entry */
     comment?: string;
     /** Categories field in the desktop entry */

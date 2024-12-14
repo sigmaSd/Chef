@@ -141,6 +141,9 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("zaproxy/zaproxy"),
+      desktopFile: {
+        name: "ZAP",
+      },
     },
   ],
 );
