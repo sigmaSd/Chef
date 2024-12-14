@@ -61,6 +61,15 @@ export class ChefInternal {
         `color: ${Colors.lightGreen}`,
       );
     }
+    console.log("\nAvailable apps to install:");
+    for (const recipe of this.recipes) {
+      if (!dbData[recipe.name]) {
+        console.log(
+          `%c${recipe.name}`,
+          `color: ${Colors.lightYellow}`,
+        );
+      }
+    }
   }
 
   recipes: Recipe[] = [];
