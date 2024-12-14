@@ -33,7 +33,9 @@
  *   },
  * });
  *
- * await chef.run();
+ * // The import.meta.url helps to namespace this script artifacts in its seprate path
+ * // If not specifed it will use a default path
+ * await chef.start(import.meta.url);
  * ```
  *
  * For a better experience install it with deno install (make sure `~/.deno/bin` is
@@ -88,7 +90,7 @@
  *   ],
  * );
  *
- * await chef.start();
+ * await chef.start(import.meta.url);
  * ```
  * @module
  */
