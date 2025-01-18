@@ -337,6 +337,13 @@ ${finalIcon ? `Icon=${finalIcon}` : ""}`;
         "color: #ffff00",
       );
 
+      if (recipe.changeLog) {
+        console.log(
+          `%cChange log: ${recipe.changeLog({ latestVersion })}`,
+          "color: #00ff00",
+        );
+      }
+
       if (options.dryRun) {
         console.log("skipping beacause of --dry-run");
         continue;

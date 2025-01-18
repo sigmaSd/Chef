@@ -151,6 +151,8 @@ export interface Recipe {
    * Pre-defined environment variables
    */
   cmdEnv?: Record<string, string>;
+  /** Change log URL */
+  changeLog?: ({ latestVersion }: { latestVersion: string }) => string;
   /**
    * Desktop file configuration
    */

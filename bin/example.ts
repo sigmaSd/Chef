@@ -134,6 +134,7 @@ chef.addMany(
       name: "zaproxy",
       download: async ({ latestVersion }) => {
         await $.request(
+          // slice to remove the v prefix
           // deno-fmt-ignore
           `https://github.com/zaproxy/zaproxy/releases/download/${latestVersion}/ZAP_${latestVersion.slice(1)}_Linux.tar.gz`,
         ).showProgress().pipeToPath();
@@ -143,6 +144,9 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("zaproxy/zaproxy"),
+      changeLog: ({ latestVersion }) =>
+        // deno-fmt-ignore
+        `https://www.zaproxy.org/docs/desktop/releases/${latestVersion.slice(1)}/`,
       desktopFile: {
         name: "ZAP",
       },
