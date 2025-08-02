@@ -96,8 +96,8 @@ if (import.meta.main) {
           return {
             dir: {
               path: ".",
-              exe: "./node_modules/typescript-language-server/lib/cli.mjs"
-            }
+              exe: "./node_modules/typescript-language-server/lib/cli.mjs",
+            },
           };
         },
         version: () => getLatestNpmVersion("typescript-language-server"),
