@@ -151,6 +151,23 @@ chef.addMany(
         name: "ZAP",
       },
     },
+    {
+      name: "tinymist",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          // https://github.com/Myriad-Dreamin/tinymist/releases/download/v0.13.16/tinymist-x86_64-unknown-linux-gnu.tar.gz
+          `https://github.com/Myriad-Dreamin/tinymist/releases/download/${latestVersion}/tinymist-x86_64-unknown-linux-gnu.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xvf tinymist-x86_64-unknown-linux-gnu.tar.gz`;
+        return {
+          exe: "./tinymist-x86_64-unknown-linux-gnu/tinymist",
+        };
+      },
+      version: () => utils.getLatestGithubRelease("Myriad-Dreamin/tinymist"),
+      desktopFile: {
+        name: "Tinymist",
+      },
+    },
   ],
 );
 
