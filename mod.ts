@@ -100,6 +100,7 @@
  * ```
  * @module
  */
+import { isParseError } from "@sigma/parse";
 import { ChefInternal } from "./src/lib.ts";
 
 /**
@@ -194,6 +195,23 @@ export class Chef {
     if (chefPath) {
       this.#chefInternal.chefPath = chefPath;
     }
-    await this.#chefInternal.start(Deno.args);
+
+    try {
+      await this.#chefInternal.start(Deno.args);
+    } catch (error) {
+      // Handle parsing errors with proper exit codes
+      if (isParseError(error)) {
+        // ParseError has proper exit codes (0 for help, 1+ for errors)
+        console.error(`Chef: ${error.message}`);
+        Deno.exit(error.exitCode);
+      }
+      // Handle other unexpected errors
+      if (error instanceof Error) {
+        console.error(`Chef failed: ${error.message}`);
+      } else {
+        console.error("Chef failed with unknown error:", error);
+      }
+      Deno.exit(1);
+    }
   };
 }

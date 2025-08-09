@@ -3,7 +3,29 @@ import { assertEquals } from "@std/assert";
 import { ChefInternal } from "./src/lib.ts";
 
 class TestChef extends ChefInternal {
-  override Path = path.join(Deno.makeTempDirSync(), "chef");
+  // Override the base path for testing
+  private testBasePath = path.join(Deno.makeTempDirSync(), "chef");
+
+  override get binPath() {
+    return path.join(this.testBasePath, "bin", this.getScriptName());
+  }
+
+  override get iconsPath() {
+    return path.join(this.testBasePath, "icons", this.getScriptName());
+  }
+
+  override get dbPath() {
+    return path.join(
+      this.testBasePath,
+      `db_${this.getScriptName()}.json`,
+    );
+  }
+
+  private getScriptName() {
+    return this.chefPath
+      ? path.basename(this.chefPath, path.extname(this.chefPath))
+      : "default";
+  }
 }
 
 async function withTempDir(f: (dir: string) => Promise<void> | void) {
@@ -17,6 +39,7 @@ async function withTempDir(f: (dir: string) => Promise<void> | void) {
     Deno.removeSync(dir, { recursive: true });
   }
 }
+
 Deno.test("test chef1", async () =>
   await withTempDir(async (dir: string) => {
     const version = "1.0.0";
@@ -58,11 +81,11 @@ Deno.test("test chef1", async () =>
       JSON.stringify({ hello: "1.0.0" }),
     );
     // doesn't throw because file exists
-    Deno.readTextFileSync(path.join(chef.BinPath, "hello"));
+    Deno.readTextFileSync(path.join(chef.binPath, "hello"));
 
     // run hello exe
     await chef.start(["run", "hello"]);
-    // assert it wroks
+    // assert it works
     assertEquals(
       Deno.readTextFileSync(path.join(dir, "hello")),
       "hello written",
