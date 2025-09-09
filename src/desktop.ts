@@ -49,18 +49,21 @@ export class DesktopFileManager {
     ensureDirSync(this.iconsPath);
 
     // Handle icon
-    let finalIcon = recipe.desktopFile?.icon;
-    if (options.icon || recipe.desktopFile?.iconPath) {
-      const iconProvidiedPath = options.icon ?? recipe.desktopFile?.iconPath!;
-      const iconExt = await getExt(iconProvidiedPath);
+    let finalIcon = recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
+    if (
+      options.icon || recipe.desktopFile?.icon || recipe.desktopFile?.iconPath
+    ) {
+      const iconProvidedPath = options.icon ?? recipe.desktopFile?.icon ??
+        recipe.desktopFile?.iconPath!;
+      const iconExt = await getExt(iconProvidedPath);
       const iconFileName = `${name}-icon${iconExt}`;
       const iconPath = path.join(this.iconsPath, iconFileName);
 
       try {
         await fetch(
-          isUrl(iconProvidiedPath)
-            ? iconProvidiedPath
-            : `file://${iconProvidiedPath}`,
+          isUrl(iconProvidedPath)
+            ? iconProvidedPath
+            : `file://${iconProvidedPath}`,
         )
           .then((r) => r.bytes())
           .then((bytes) => Deno.writeFileSync(iconPath, bytes));
@@ -70,7 +73,7 @@ export class DesktopFileManager {
           `%cFailed to copy icon file: ${e instanceof Error ? e.message : e}`,
           `color: ${Colors.lightRed}`,
         );
-        finalIcon = recipe.desktopFile?.icon;
+        finalIcon = recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
       }
     }
 

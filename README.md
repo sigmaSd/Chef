@@ -11,7 +11,8 @@ With chef you can:
 - Install a random binary
 - Keep it up-to-date
 - Run it
-- Create desktop entries for GUI applications
+- Automatically create desktop entries for GUI applications when specified in
+  recipes
 
 ## Usage
 
@@ -32,6 +33,7 @@ chef.add({
   },
   // Optional: Desktop file configuration for GUI applications
   desktopFile: {
+    name: "Custom App Name", // Optional custom name for the desktop entry
     comment: "Description of the application",
     categories: "Development;Utility;", // Categories separated by semicolons
     icon: "icon-name", // Icon name or path
@@ -55,7 +57,10 @@ You can now use:
 - `chef update` to update all binaries (or install it if it doesn't exist yet)
 - `chef list` to list currently installed binaries
 - `chef run ${binary} $args` to run one of the installed binaries
-- `chef desktop-file create <binary>` to create a desktop entry
+- Desktop files are created automatically during installation if specified in
+  the recipe
+- `chef desktop-file create <binary>` to manually create or update a desktop
+  entry
   - `--terminal` option to set Terminal=true
   - `--icon <path or url>` option to set a custom icon
 - `chef desktop-file remove <binary>` to remove a desktop entry
