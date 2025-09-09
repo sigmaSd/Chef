@@ -1,3 +1,4 @@
+// deno-lint-ignore no-import-prefix
 import * as infer from "jsr:@sigmasd/deno-infer@3.0.1";
 import * as path from "@std/path";
 

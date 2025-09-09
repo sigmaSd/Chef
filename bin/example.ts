@@ -49,7 +49,8 @@ chef.addMany(
       desktopFile: {
         comment: "Hex Editor",
         categories: "Development;",
-        icon: "imhex",
+        iconPath:
+          "https://raw.githubusercontent.com/WerWolv/ImHex/master/resources/dist/common/logo/ImHexLogoSVGBG.svg",
       },
     },
     {
@@ -100,9 +101,9 @@ chef.addMany(
         await $.request(
           `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-gnu`,
         ).showProgress().pipeToPath();
-        await Deno.chmod("./irust-x86_64-unknown-linux-musl", 0o555);
+        await Deno.chmod("./irust-x86_64-unknown-linux-gnu", 0o555);
         return {
-          exe: "./irust-x86_64-unknown-linux-musl",
+          exe: "./irust-x86_64-unknown-linux-gnu",
         };
       },
       version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
@@ -110,6 +111,9 @@ chef.addMany(
         name: "IRust",
         comment: "Rust REPL",
         categories: "Development;",
+        iconPath:
+          "https://raw.githubusercontent.com/sigmaSd/IRust/refs/heads/master/distro/io.github.sigmasd.IRust.svg",
+        terminal: true,
       },
     },
     {
@@ -129,6 +133,8 @@ chef.addMany(
       version: () => utils.getLatestGithubRelease("Genymobile/scrcpy"),
       desktopFile: {
         name: "SCRCPY",
+        iconPath:
+          "https://raw.githubusercontent.com/Genymobile/scrcpy/refs/heads/master/app/data/icon.svg",
       },
     },
     {
@@ -150,6 +156,7 @@ chef.addMany(
         `https://www.zaproxy.org/docs/desktop/releases/${latestVersion.slice(1)}/`,
       desktopFile: {
         name: "ZAP",
+        iconPath: "https://avatars.githubusercontent.com/u/6716868?s=200&v=4",
       },
     },
     {
@@ -165,9 +172,6 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("Myriad-Dreamin/tinymist"),
-      desktopFile: {
-        name: "Tinymist",
-      },
     },
     {
       name: "httptoolkit",
@@ -185,7 +189,7 @@ chef.addMany(
         name: "HTTP Toolkit",
         comment: "HTTP debugging proxy",
         categories: "Development;",
-        icon: "httptoolkit",
+        iconPath: "https://avatars.githubusercontent.com/u/39777515?s=48&v=4",
       },
     },
   ],

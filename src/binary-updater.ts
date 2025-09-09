@@ -4,6 +4,7 @@ import type { Recipe } from "../mod.ts";
 import { Colors, copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import type { ChefDatabase } from "./database.ts";
 import { BinaryRunner } from "./binary-runner.ts";
+import type { DesktopFileManager } from "./desktop.ts";
 
 /**
  * Handles updating installed binaries
@@ -13,6 +14,7 @@ export class BinaryUpdater {
     private binPath: string,
     private database: ChefDatabase,
     private recipes: Recipe[],
+    private desktopManager?: DesktopFileManager,
   ) {}
 
   /**
@@ -97,6 +99,20 @@ export class BinaryUpdater {
 
         if (recipe.postInstall) {
           recipe.postInstall(path.join(this.binPath, name));
+        }
+
+        // Automatically create desktop file if specified in recipe
+        if (recipe.desktopFile && this.desktopManager) {
+          try {
+            await this.desktopManager.create(name, {});
+          } catch (e) {
+            console.warn(
+              `%cFailed to create desktop file for ${name}: ${
+                e instanceof Error ? e.message : e
+              }`,
+              `color: ${Colors.lightYellow}`,
+            );
+          }
         }
 
         console.log(

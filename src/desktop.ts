@@ -50,14 +50,17 @@ export class DesktopFileManager {
 
     // Handle icon
     let finalIcon = recipe.desktopFile?.icon;
-    if (options.icon) {
-      const iconExt = await getExt(options.icon);
+    if (options.icon || recipe.desktopFile?.iconPath) {
+      const iconProvidiedPath = options.icon ?? recipe.desktopFile?.iconPath!;
+      const iconExt = await getExt(iconProvidiedPath);
       const iconFileName = `${name}-icon${iconExt}`;
       const iconPath = path.join(this.iconsPath, iconFileName);
 
       try {
         await fetch(
-          isUrl(options.icon) ? options.icon : `file://${options.icon}`,
+          isUrl(iconProvidiedPath)
+            ? iconProvidiedPath
+            : `file://${iconProvidiedPath}`,
         )
           .then((r) => r.bytes())
           .then((bytes) => Deno.writeFileSync(iconPath, bytes));
@@ -74,7 +77,7 @@ export class DesktopFileManager {
     const desktopFile = this.generateDesktopFileContent(
       name,
       recipe,
-      options.terminal ?? false,
+      recipe.desktopFile?.terminal ?? options.terminal ?? false,
       finalIcon,
     );
 

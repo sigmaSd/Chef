@@ -166,6 +166,10 @@ export interface Recipe {
     categories?: string;
     /** Icon field in the desktop entry */
     icon?: string;
+    /** Icon path or url, it will be automaticlly fetched and set as Icon field in the desktop entry */
+    iconPath?: string;
+    /** Terminal field in the desktop entry */
+    terminal?: boolean;
   };
 }
 

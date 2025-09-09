@@ -54,7 +54,12 @@ export class ChefInternal {
   }
 
   private get binaryUpdater() {
-    return new BinaryUpdater(this.binPath, this.database, this.recipes);
+    return new BinaryUpdater(
+      this.binPath,
+      this.database,
+      this.recipes,
+      this.desktopManager,
+    );
   }
 
   /**
