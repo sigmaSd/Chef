@@ -35,6 +35,8 @@ chef.add({
     comment: "Description of the application",
     categories: "Development;Utility;", // Categories separated by semicolons
     icon: "icon-name", // Icon name or path
+    iconPath: "https://avatars.githubusercontent.com/u/39777515?s=48&v=4", // Icon path or URL
+    terminal: false, // Set to true if the application should be run in a terminal
   },
 });
 
