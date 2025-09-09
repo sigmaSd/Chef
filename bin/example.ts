@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix
 import { $ } from "jsr:@david/dax@0.39.2";
 import { Chef } from "../mod.ts";
 import * as utils from "../src/utils.ts";
@@ -97,7 +98,7 @@ chef.addMany(
       download: async ({ latestVersion }) => {
         //https://github.com/sigmaSd/IRust/releases/download/irust@1.71.4/irust-x86_64-unknown-linux-musl
         await $.request(
-          `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-musl`,
+          `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-gnu`,
         ).showProgress().pipeToPath();
         await Deno.chmod("./irust-x86_64-unknown-linux-musl", 0o555);
         return {
@@ -166,6 +167,25 @@ chef.addMany(
       version: () => utils.getLatestGithubRelease("Myriad-Dreamin/tinymist"),
       desktopFile: {
         name: "Tinymist",
+      },
+    },
+    {
+      name: "httptoolkit",
+      download: async ({ latestVersion }) => {
+        const version = latestVersion.slice(1);
+        await $.request(
+          `https://github.com/httptoolkit/httptoolkit-desktop/releases/download/${latestVersion}/HttpToolkit-${version}-x64.AppImage`,
+        ).showProgress().pipeToPath();
+        await $`chmod +x HttpToolkit-${version}-x64.AppImage`;
+        return { exe: `HttpToolkit-${version}-x64.AppImage` };
+      },
+      version: () =>
+        utils.getLatestGithubRelease("httptoolkit/httptoolkit-desktop"),
+      desktopFile: {
+        name: "HTTP Toolkit",
+        comment: "HTTP debugging proxy",
+        categories: "Development;",
+        icon: "httptoolkit",
       },
     },
   ],

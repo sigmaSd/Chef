@@ -135,7 +135,7 @@ export async function parseAndExecute(
 
     @subCommand(DesktopFileCommand)
     @description("manage desktop files")
-    static desktopFile: DesktopFileCommand;
+    static "desktop-file": DesktopFileCommand;
   }
 
   // Execute commands based on what was parsed
@@ -156,7 +156,7 @@ export async function parseAndExecute(
     if (result) {
       console.log(result);
     }
-  } else if (ChefArgs.desktopFile) {
+  } else if (ChefArgs["desktop-file"]) {
     if (DesktopFileCommand.create && handlers.createDesktop) {
       await handlers.createDesktop(CreateDesktopCommand.name, {
         terminal: CreateDesktopCommand.terminal,
