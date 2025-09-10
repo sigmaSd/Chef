@@ -71,7 +71,6 @@ Deno.test("test chef1", async () =>
       },
       version: () => Deno.readTextFile(versionPath),
     }]);
-    console.log("hello");
 
     // install hello exe
     await chef.start(["update"]);
