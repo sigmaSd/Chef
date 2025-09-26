@@ -172,6 +172,8 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("Myriad-Dreamin/tinymist"),
+      changeLog: () =>
+        "https://github.com/Myriad-Dreamin/tinymist/blob/main/editors/vscode/CHANGELOG.md",
     },
     {
       name: "httptoolkit",

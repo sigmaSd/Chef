@@ -38,7 +38,7 @@ export class UpdateCommand {
   static only: string;
 
   @description("only look for new versions but don't update")
-  static dryRun: boolean = false;
+  static "dry-run": boolean = false;
 }
 
 @command
@@ -149,7 +149,7 @@ export async function parseAndExecute(
       force: UpdateCommand.force,
       skip: UpdateCommand.skip,
       only: UpdateCommand.only,
-      dryRun: UpdateCommand.dryRun,
+      dryRun: UpdateCommand["dry-run"],
     });
   } else if (ChefArgs.edit && handlers.edit) {
     const result = handlers.edit();
