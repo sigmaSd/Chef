@@ -194,6 +194,17 @@ chef.addMany(
         iconPath: "https://avatars.githubusercontent.com/u/39777515?s=48&v=4",
       },
     },
+    {
+      name: "codebook",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          `https://github.com/blopker/codebook/releases/download/${latestVersion}/codebook-lsp-x86_64-unknown-linux-musl.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xzf codebook-lsp-x86_64-unknown-linux-musl.tar.gz`;
+        return { exe: "codebook-lsp" };
+      },
+      version: () => utils.getLatestGithubRelease("blopker/codebook"),
+    },
   ],
 );
 
