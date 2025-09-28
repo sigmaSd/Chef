@@ -40,6 +40,10 @@ export class ChefInternal {
     return path.join(this.basePath, `db_${this.scriptName}.json`);
   }
 
+  get exportsPath() {
+    return path.join(this.basePath, "exports");
+  }
+
   // Lazy initialization of service classes
   private get database() {
     return new ChefDatabase(this.dbPath, this.recipes);
@@ -100,6 +104,9 @@ export class ChefInternal {
       removeDesktop: (name: string) => {
         this.desktopManager.remove(name);
       },
+      link: async (name: string) => {
+        await this.link(name);
+      },
     };
 
     await parseAndExecute(args, handlers);
@@ -127,5 +134,52 @@ export class ChefInternal {
       chefPath.lastIndexOf(":", chefPath.lastIndexOf(":") - 1),
     );
     return chefPath;
+  };
+
+  /**
+   * Create a symlink to a binary in the exports directory
+   */
+  link = async (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) {
+      console.error(`Recipe "${name}" not found`);
+      return;
+    }
+
+    const db = this.database;
+    if (!db.isInstalled(name)) {
+      console.error(
+        `Binary "${name}" is not installed. Run 'chef update' first.`,
+      );
+      return;
+    }
+
+    // Ensure exports directory exists
+    await Deno.mkdir(this.exportsPath, { recursive: true });
+
+    // Find the binary path
+    const binaryPath = path.join(this.binPath, name);
+    const linkPath = path.join(this.exportsPath, name);
+
+    try {
+      // Remove existing symlink if it exists
+      try {
+        await Deno.remove(linkPath);
+      } catch {
+        // Ignore if file doesn't exist
+      }
+
+      // Create symlink
+      await Deno.symlink(binaryPath, linkPath);
+
+      console.log(`✅ Created symlink for "${name}"`);
+      console.log(`📂 Export path: ${this.exportsPath}`);
+      console.log(
+        `💡 Add this to your PATH: export PATH="${this.exportsPath}:$PATH"`,
+      );
+      console.log(`   Or add to your shell config (~/.bashrc, ~/.zshrc, etc.)`);
+    } catch (error) {
+      console.error(`Failed to create symlink: ${error}`);
+    }
   };
 }
