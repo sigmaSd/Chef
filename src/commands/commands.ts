@@ -75,6 +75,13 @@ export class LinkCommand {
 }
 
 @command
+export class UnlinkCommand {
+  @argument({ description: "name of the binary to unlink" })
+  @type("string")
+  static name: string;
+}
+
+@command
 export class DesktopFileCommand {
   @subCommand(CreateDesktopCommand)
   @description("create a desktop file")
@@ -105,6 +112,7 @@ export interface CommandHandlers {
   }) => Promise<void>;
   removeDesktop?: (name: string) => void;
   link?: (name: string) => Promise<void>;
+  unlink?: (name: string) => Promise<void>;
 }
 
 /**
@@ -149,6 +157,10 @@ export async function parseAndExecute(
     @subCommand(LinkCommand)
     @description("create symlink to binary in exports directory")
     static link: LinkCommand;
+
+    @subCommand(UnlinkCommand)
+    @description("remove symlink from exports directory")
+    static unlink: UnlinkCommand;
   }
 
   // Execute commands based on what was parsed
@@ -181,5 +193,7 @@ export async function parseAndExecute(
     }
   } else if (ChefArgs.link && handlers.link) {
     await handlers.link(LinkCommand.name);
+  } else if (ChefArgs.unlink && handlers.unlink) {
+    await handlers.unlink(UnlinkCommand.name);
   }
 }

@@ -107,6 +107,9 @@ export class ChefInternal {
       link: async (name: string) => {
         await this.link(name);
       },
+      unlink: async (name: string) => {
+        await this.unlink(name);
+      },
     };
 
     await parseAndExecute(args, handlers);
@@ -185,6 +188,40 @@ export class ChefInternal {
       console.log(`   ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish, etc.`);
     } catch (error) {
       console.error(`Failed to create symlink: ${error}`);
+    }
+  };
+
+  /**
+   * Remove a symlink from the exports directory
+   */
+  unlink = async (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) {
+      console.error(`Recipe "${name}" not found`);
+      return;
+    }
+
+    const linkPath = path.join(this.exportsPath, name);
+
+    try {
+      // Check if the symlink exists
+      const stat = await Deno.lstat(linkPath);
+      if (!stat.isSymlink) {
+        console.error(`"${name}" exists but is not a symlink`);
+        return;
+      }
+
+      // Remove the symlink
+      await Deno.remove(linkPath);
+
+      console.log(`✅ Removed symlink for "${name}"`);
+      console.log(`📂 From: ${this.exportsPath}`);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        console.error(`Symlink for "${name}" does not exist`);
+      } else {
+        console.error(`Failed to remove symlink: ${error}`);
+      }
     }
   };
 }
