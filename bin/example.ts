@@ -205,6 +205,17 @@ chef.addMany(
       },
       version: () => utils.getLatestGithubRelease("blopker/codebook"),
     },
+    {
+      name: "texlab",
+      download: async ({ latestVersion }) => {
+        await $.request(
+          `https://github.com/latex-lsp/texlab/releases/download/${latestVersion}/texlab-x86_64-linux.tar.gz`,
+        ).showProgress().pipeToPath();
+        await $`tar -xzf texlab-x86_64-linux.tar.gz`;
+        return { exe: "texlab" };
+      },
+      version: () => utils.getLatestGithubRelease("latex-lsp/texlab"),
+    },
   ],
 );
 
