@@ -12,7 +12,7 @@ import {
 // Command classes for CLI argument parsing
 @command
 export class RunCommand {
-  @argument(0, "name of the binary to run")
+  @argument({ description: "name of the binary to run" })
   @required()
   @type("string")
   static name: string;
@@ -46,7 +46,7 @@ export class EditCommand {}
 
 @command
 export class CreateDesktopCommand {
-  @argument(0, "name of the binary")
+  @argument({ description: "name of the binary" })
   @required()
   @type("string")
   static name: string;
@@ -61,7 +61,7 @@ export class CreateDesktopCommand {
 
 @command
 export class RemoveDesktopCommand {
-  @argument(0, "name of the binary")
+  @argument({ description: "name of the binary" })
   @required()
   @type("string")
   static name: string;
@@ -69,7 +69,7 @@ export class RemoveDesktopCommand {
 
 @command
 export class LinkCommand {
-  @argument(0, "name of the binary to link")
+  @argument({ description: "name of the binary to link" })
   @required()
   @type("string")
   static name: string;
