@@ -4,7 +4,6 @@ import {
   description,
   parse,
   rawRest,
-  required,
   subCommand,
   type,
 } from "@sigma/parse";
@@ -13,7 +12,6 @@ import {
 @command
 export class RunCommand {
   @argument({ description: "name of the binary to run" })
-  @required()
   @type("string")
   static name: string;
 
@@ -51,7 +49,6 @@ export class EditCommand {}
 @command
 export class CreateDesktopCommand {
   @argument({ description: "name of the binary" })
-  @required()
   @type("string")
   static name: string;
 
@@ -66,7 +63,6 @@ export class CreateDesktopCommand {
 @command
 export class RemoveDesktopCommand {
   @argument({ description: "name of the binary" })
-  @required()
   @type("string")
   static name: string;
 }
@@ -74,7 +70,6 @@ export class RemoveDesktopCommand {
 @command
 export class LinkCommand {
   @argument({ description: "name of the binary to link" })
-  @required()
   @type("string")
   static name: string;
 }
