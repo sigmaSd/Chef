@@ -173,11 +173,16 @@ export class ChefInternal {
       await Deno.symlink(binaryPath, linkPath);
 
       console.log(`✅ Created symlink for "${name}"`);
-      console.log(`📂 Export path: ${this.exportsPath}`);
+      console.log(`📂 Exports directory: ${this.exportsPath}`);
+      console.log(`🔗 Symlink created: ${linkPath} -> ${binaryPath}`);
+      console.log();
       console.log(
-        `💡 Add this to your PATH: export PATH="${this.exportsPath}:$PATH"`,
+        `💡 To use "${name}" from anywhere, add exports to your PATH:`,
       );
-      console.log(`   Or add to your shell config (~/.bashrc, ~/.zshrc, etc.)`);
+      console.log(`   export PATH="${this.exportsPath}:$PATH"`);
+      console.log();
+      console.log(`📝 Add this line to your shell config file:`);
+      console.log(`   ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish, etc.`);
     } catch (error) {
       console.error(`Failed to create symlink: ${error}`);
     }

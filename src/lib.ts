@@ -11,7 +11,11 @@ export { BinaryRunner } from "./binary-runner.ts";
 export { BinaryUpdater } from "./binary-updater.ts";
 
 // Export command functions for testing and advanced usage
-export { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
+export {
+  type CommandHandlers,
+  LinkCommand,
+  parseAndExecute,
+} from "./commands/commands.ts";
 
 // Re-export utilities for convenience
 export {
