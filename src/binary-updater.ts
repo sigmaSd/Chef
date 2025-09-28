@@ -26,14 +26,27 @@ export class BinaryUpdater {
       skip?: string;
       only?: string;
       dryRun?: boolean;
+      binary?: string[];
     },
   ) {
-    if (options.only && !this.recipes.find((r) => r.name === options.only)) {
-      console.error(
-        `%cBinary: ${options.only} is not installed`,
-        "color:red",
-      );
-      return;
+    // Determine which binaries to update
+    const targetBinaries = new Set<string>();
+
+    if (options.only) {
+      targetBinaries.add(options.only);
+    } else if (options.binary && options.binary.length > 0) {
+      options.binary.forEach((name) => targetBinaries.add(name));
+    }
+
+    // Validate that specified binaries exist
+    for (const binaryName of targetBinaries) {
+      if (!this.recipes.find((r) => r.name === binaryName)) {
+        console.error(
+          `%cBinary: ${binaryName} is not found in recipes`,
+          "color:red",
+        );
+        return;
+      }
     }
 
     console.log("%cLooking for updates..", "color: magenta");
@@ -47,7 +60,7 @@ export class BinaryUpdater {
     const currentDb = this.database.read().expect("failed to read database");
 
     for (const recipe of this.recipes) {
-      if (options.only && recipe.name !== options.only) continue;
+      if (targetBinaries.size > 0 && !targetBinaries.has(recipe.name)) continue;
 
       console.log(`Updating %c${recipe.name}`, `color: ${Colors.lightYellow}`);
 

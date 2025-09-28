@@ -39,6 +39,10 @@ export class UpdateCommand {
 
   @description("only look for new versions but don't update")
   static "dry-run": boolean = false;
+
+  @argument({ description: "name of the binary to update", rest: true })
+  @type("string[]")
+  static binary: string[] = [];
 }
 
 @command
@@ -97,6 +101,7 @@ export interface CommandHandlers {
     skip?: string;
     only?: string;
     dryRun?: boolean;
+    binary?: string[];
   }) => Promise<void>;
   edit?: () => string | undefined;
   createDesktop?: (name: string, options: {
@@ -163,6 +168,7 @@ export async function parseAndExecute(
       skip: UpdateCommand.skip,
       only: UpdateCommand.only,
       dryRun: UpdateCommand["dry-run"],
+      binary: UpdateCommand.binary,
     });
   } else if (ChefArgs.edit && handlers.edit) {
     const result = handlers.edit();
