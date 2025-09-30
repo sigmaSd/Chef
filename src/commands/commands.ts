@@ -4,27 +4,29 @@ import {
   cli,
   command,
   description,
+  rawRest,
+  required,
   subCommand,
   type,
 } from "@sigma/parse";
 
 // Command classes for CLI argument parsing
 @command
-export class RunCommand extends Args {
+export class RunCommand {
   @argument({ description: "name of the binary to run" })
   @type("string")
-  name?: string;
+  @required()
+  name!: string;
 
-  @argument({ description: "arguments passed to the binary", rest: true })
-  @type("string[]")
+  @rawRest()
   binArgs: string[] = [];
 }
 
 @command
-export class ListCommand extends Args {}
+export class ListCommand {}
 
 @command
-export class UpdateCommand extends Args {
+export class UpdateCommand {
   @description("force update a binary")
   force: boolean = false;
 
@@ -45,13 +47,14 @@ export class UpdateCommand extends Args {
 }
 
 @command
-export class EditCommand extends Args {}
+export class EditCommand {}
 
 @command
-export class CreateDesktopCommand extends Args {
+export class CreateDesktopCommand {
   @argument({ description: "name of the binary" })
   @type("string")
-  name?: string;
+  @required()
+  name!: string;
 
   @description("set Terminal=true in desktop file")
   terminal: boolean = false;
@@ -62,28 +65,31 @@ export class CreateDesktopCommand extends Args {
 }
 
 @command
-export class RemoveDesktopCommand extends Args {
+export class RemoveDesktopCommand {
   @argument({ description: "name of the binary" })
   @type("string")
-  name?: string;
+  @required()
+  name!: string;
 }
 
 @command
-export class LinkCommand extends Args {
+export class LinkCommand {
   @argument({ description: "name of the binary to link" })
   @type("string")
-  name?: string;
+  @required()
+  name!: string;
 }
 
 @command
-export class UnlinkCommand extends Args {
+export class UnlinkCommand {
   @argument({ description: "name of the binary to unlink" })
   @type("string")
-  name?: string;
+  @required()
+  name!: string;
 }
 
-@command
-export class DesktopFileCommand extends Args {
+@command({ defaultCommand: "help" })
+export class DesktopFileCommand {
   @subCommand(CreateDesktopCommand)
   @description("create a desktop file")
   create?: CreateDesktopCommand;
@@ -116,6 +122,45 @@ export interface CommandHandlers {
   unlink?: (name: string) => Promise<void>;
 }
 
+// Using new @cli decorator and Args class pattern
+@cli({
+  name: "chef",
+  description: "Manage random binaries",
+  color: true,
+  showDefaults: true,
+  defaultCommand: "help",
+  exitOnError: false, // Throw errors instead of exiting
+})
+class ChefArgs extends Args {
+  @subCommand(RunCommand)
+  @description("run a binary")
+  run?: RunCommand;
+
+  @subCommand(ListCommand)
+  @description("list installed binaries")
+  list?: ListCommand;
+
+  @subCommand(UpdateCommand)
+  @description("update installed binaries")
+  update?: UpdateCommand;
+
+  @subCommand(EditCommand)
+  @description("output chef entry file")
+  edit?: EditCommand;
+
+  @subCommand(DesktopFileCommand)
+  @description("manage desktop files")
+  "desktop-file"?: DesktopFileCommand;
+
+  @subCommand(LinkCommand)
+  @description("create symlink to binary in exports directory")
+  link?: LinkCommand;
+
+  @subCommand(UnlinkCommand)
+  @description("remove symlink from exports directory")
+  unlink?: UnlinkCommand;
+}
+
 /**
  * Parse and execute commands using the new v0.17.0-rc1 API
  * Uses @cli decorator and Args class pattern
@@ -124,45 +169,6 @@ export async function parseAndExecute(
   args: string[],
   handlers: CommandHandlers,
 ) {
-  // Using new @cli decorator and Args class pattern
-  @cli({
-    name: "chef",
-    description: "Manage random binaries",
-    color: true,
-    showDefaults: true,
-    defaultCommand: "help",
-    exitOnError: false, // Throw errors instead of exiting
-  })
-  class ChefArgs extends Args {
-    @subCommand(RunCommand)
-    @description("run a binary")
-    run?: RunCommand;
-
-    @subCommand(ListCommand)
-    @description("list installed binaries")
-    list?: ListCommand;
-
-    @subCommand(UpdateCommand)
-    @description("update installed binaries")
-    update?: UpdateCommand;
-
-    @subCommand(EditCommand)
-    @description("output chef entry file")
-    edit?: EditCommand;
-
-    @subCommand(DesktopFileCommand)
-    @description("manage desktop files")
-    "desktop-file"?: DesktopFileCommand;
-
-    @subCommand(LinkCommand)
-    @description("create symlink to binary in exports directory")
-    link?: LinkCommand;
-
-    @subCommand(UnlinkCommand)
-    @description("remove symlink from exports directory")
-    unlink?: UnlinkCommand;
-  }
-
   // Parse arguments using the new API
   const parsedArgs = ChefArgs.parse(args);
 
