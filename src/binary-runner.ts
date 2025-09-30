@@ -1,8 +1,15 @@
 import * as path from "@std/path";
 import { assert } from "@std/assert";
 import type { Recipe } from "../mod.ts";
-import { Colors } from "./internal_utils.ts";
 import type { ChefDatabase } from "./database.ts";
+import {
+  printTable,
+  sectionHeader,
+  spacer,
+  statusMessage,
+  Symbols,
+  UIColors,
+} from "./ui.ts";
 
 /**
  * Handles running installed binaries
@@ -24,14 +31,16 @@ export class BinaryRunner {
       return;
     }
     if (!db[name]) {
-      console.error(
-        `Unknown binary: %c${name}`,
-        `color: ${Colors.lightRed}`,
+      statusMessage("error", `Unknown binary: ${name}`);
+      spacer();
+      console.log(
+        `%c${Symbols.info} Available binaries:`,
+        `color: ${UIColors.info}; font-weight: bold`,
       );
-      console.log("%c\nAvailable binaries:", `color: ${Colors.blueMarine}`);
       this.list();
       return;
     }
+
     const binPath = path.join(this.binPath, name);
     const recipe = this.recipes.find((recipe) => recipe.name === name);
     assert(recipe, "Recipe for this binary doesn't exist");
@@ -46,39 +55,57 @@ export class BinaryRunner {
   }
 
   /**
-   * List all installed and available binaries
+   * List all installed and available binaries with improved formatting
    */
   list() {
     const dbData = this.database.read().expect("failed to read database");
-
-    // Show installed binaries
-    if (Object.keys(dbData).length > 0) {
-      console.log("%cInstalled binaries:", `color: ${Colors.blueMarine}`);
-      for (const name of Object.keys(dbData)) {
-        console.log(
-          `%c${name} %c${dbData[name]}`,
-          `color: ${Colors.lightYellow}`,
-          `color: ${Colors.lightGreen}`,
-        );
-      }
-    }
-
-    // Show available apps to install
+    const installedBinaries = Object.entries(dbData);
     const availableToInstall = this.recipes.filter((recipe) =>
       !dbData[recipe.name]
     );
-    if (availableToInstall.length > 0) {
-      console.log("\nAvailable apps to install:");
-      for (const recipe of availableToInstall) {
-        console.log(
-          `%c${recipe.name}`,
-          `color: ${Colors.lightYellow}`,
-        );
-      }
+
+    if (installedBinaries.length === 0 && availableToInstall.length === 0) {
+      statusMessage("warning", "No binaries configured");
+      return;
     }
 
-    if (Object.keys(dbData).length === 0 && availableToInstall.length === 0) {
-      console.log("%cNo binaries configured", `color: ${Colors.lightRed}`);
+    // Show installed binaries in a table
+    if (installedBinaries.length > 0) {
+      sectionHeader("Installed Binaries");
+
+      const headers = ["Name", "Version", "Status"];
+      const rows = installedBinaries.map(([name, version]) => {
+        const isExecutable = this.isInstalled(name);
+        const status = isExecutable ? "Ready" : "Missing";
+        return [name, version, status];
+      });
+
+      const colors = rows.map((row) =>
+        row[2] === "Ready" ? UIColors.success : UIColors.warning
+      );
+
+      printTable(headers, rows, colors);
+      spacer();
+    }
+
+    // Show available to install
+    if (availableToInstall.length > 0) {
+      sectionHeader("Available to Install");
+
+      const headers = ["Name", "Description"];
+      const rows = availableToInstall.map((recipe) => [
+        recipe.name,
+        "Available for installation",
+      ]);
+
+      printTable(headers, rows);
+      spacer();
+
+      console.log(
+        `%c${Symbols.info} Run 'chef update' to install available binaries`,
+        `color: ${UIColors.info}`,
+      );
+      spacer();
     }
   }
 

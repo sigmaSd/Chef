@@ -80,7 +80,6 @@ chef.addMany(
       desktopFile: {
         comment: "Mind map editor",
         categories: "Office;",
-        icon: "heimer",
       },
     },
     {

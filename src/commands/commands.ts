@@ -1,95 +1,96 @@
 import {
+  Args,
   argument,
+  cli,
   command,
   description,
-  parse,
-  rawRest,
   subCommand,
   type,
 } from "@sigma/parse";
 
 // Command classes for CLI argument parsing
 @command
-export class RunCommand {
+export class RunCommand extends Args {
   @argument({ description: "name of the binary to run" })
   @type("string")
-  static name: string;
+  name?: string;
 
-  @rawRest("arguments passed to the binary")
-  static binArgs: string[] = [];
+  @argument({ description: "arguments passed to the binary", rest: true })
+  @type("string[]")
+  binArgs: string[] = [];
 }
 
 @command
-export class ListCommand {}
+export class ListCommand extends Args {}
 
 @command
-export class UpdateCommand {
+export class UpdateCommand extends Args {
   @description("force update a binary")
-  static force: boolean = false;
+  force: boolean = false;
 
   @type("string")
   @description("skip updating a binary")
-  static skip: string;
+  skip?: string;
 
   @type("string")
   @description("only update this binary")
-  static only: string;
+  only?: string;
 
   @description("only look for new versions but don't update")
-  static "dry-run": boolean = false;
+  "dry-run": boolean = false;
 
   @argument({ description: "name of the binary to update", rest: true })
   @type("string[]")
-  static binary: string[] = [];
+  binary: string[] = [];
 }
 
 @command
-export class EditCommand {}
+export class EditCommand extends Args {}
 
 @command
-export class CreateDesktopCommand {
+export class CreateDesktopCommand extends Args {
   @argument({ description: "name of the binary" })
   @type("string")
-  static name: string;
+  name?: string;
 
   @description("set Terminal=true in desktop file")
-  static terminal: boolean = false;
+  terminal: boolean = false;
 
   @type("string")
   @description("set icon path in desktop file")
-  static icon: string;
+  icon?: string;
 }
 
 @command
-export class RemoveDesktopCommand {
+export class RemoveDesktopCommand extends Args {
   @argument({ description: "name of the binary" })
   @type("string")
-  static name: string;
+  name?: string;
 }
 
 @command
-export class LinkCommand {
+export class LinkCommand extends Args {
   @argument({ description: "name of the binary to link" })
   @type("string")
-  static name: string;
+  name?: string;
 }
 
 @command
-export class UnlinkCommand {
+export class UnlinkCommand extends Args {
   @argument({ description: "name of the binary to unlink" })
   @type("string")
-  static name: string;
+  name?: string;
 }
 
 @command
-export class DesktopFileCommand {
+export class DesktopFileCommand extends Args {
   @subCommand(CreateDesktopCommand)
   @description("create a desktop file")
-  static create: CreateDesktopCommand;
+  create?: CreateDesktopCommand;
 
   @subCommand(RemoveDesktopCommand)
   @description("remove a desktop file")
-  static remove: RemoveDesktopCommand;
+  remove?: RemoveDesktopCommand;
 }
 
 /**
@@ -116,16 +117,15 @@ export interface CommandHandlers {
 }
 
 /**
- * Parse and execute commands using the new v0.11.0 Control Pattern
- * This is much cleaner - custom handlers have complete control!
+ * Parse and execute commands using the new v0.17.0-rc1 API
+ * Uses @cli decorator and Args class pattern
  */
 export async function parseAndExecute(
   args: string[],
   handlers: CommandHandlers,
 ) {
-  // Using Control Pattern - custom handlers have complete control
-  // No exceptions thrown, no process exits unless we decide
-  @parse(args, {
+  // Using new @cli decorator and Args class pattern
+  @cli({
     name: "chef",
     description: "Manage random binaries",
     color: true,
@@ -133,67 +133,69 @@ export async function parseAndExecute(
     defaultCommand: "help",
     exitOnError: false, // Throw errors instead of exiting
   })
-  class ChefArgs {
+  class ChefArgs extends Args {
     @subCommand(RunCommand)
     @description("run a binary")
-    static run: RunCommand;
+    run?: RunCommand;
 
     @subCommand(ListCommand)
     @description("list installed binaries")
-    static list: ListCommand;
+    list?: ListCommand;
 
     @subCommand(UpdateCommand)
     @description("update installed binaries")
-    static update: UpdateCommand;
+    update?: UpdateCommand;
 
     @subCommand(EditCommand)
     @description("output chef entry file")
-    static edit: EditCommand;
+    edit?: EditCommand;
 
     @subCommand(DesktopFileCommand)
     @description("manage desktop files")
-    static "desktop-file": DesktopFileCommand;
+    "desktop-file"?: DesktopFileCommand;
 
     @subCommand(LinkCommand)
     @description("create symlink to binary in exports directory")
-    static link: LinkCommand;
+    link?: LinkCommand;
 
     @subCommand(UnlinkCommand)
     @description("remove symlink from exports directory")
-    static unlink: UnlinkCommand;
+    unlink?: UnlinkCommand;
   }
 
+  // Parse arguments using the new API
+  const parsedArgs = ChefArgs.parse(args);
+
   // Execute commands based on what was parsed
-  // This always runs because our custom handlers chose to continue
-  if (ChefArgs.run && handlers.run) {
-    await handlers.run(RunCommand.name, RunCommand.binArgs);
-  } else if (ChefArgs.list && handlers.list) {
+  if (parsedArgs.run && handlers.run) {
+    await handlers.run(parsedArgs.run.name!, parsedArgs.run.binArgs);
+  } else if (parsedArgs.list && handlers.list) {
     handlers.list();
-  } else if (ChefArgs.update && handlers.update) {
+  } else if (parsedArgs.update && handlers.update) {
     await handlers.update({
-      force: UpdateCommand.force,
-      skip: UpdateCommand.skip,
-      only: UpdateCommand.only,
-      dryRun: UpdateCommand["dry-run"],
-      binary: UpdateCommand.binary,
+      force: parsedArgs.update.force,
+      skip: parsedArgs.update.skip,
+      only: parsedArgs.update.only,
+      dryRun: parsedArgs.update["dry-run"],
+      binary: parsedArgs.update.binary,
     });
-  } else if (ChefArgs.edit && handlers.edit) {
+  } else if (parsedArgs.edit && handlers.edit) {
     const result = handlers.edit();
     if (result) {
       console.log(result);
     }
-  } else if (ChefArgs["desktop-file"]) {
-    if (DesktopFileCommand.create && handlers.createDesktop) {
-      await handlers.createDesktop(CreateDesktopCommand.name, {
-        terminal: CreateDesktopCommand.terminal,
-        icon: CreateDesktopCommand.icon,
+  } else if (parsedArgs["desktop-file"]) {
+    if (parsedArgs["desktop-file"].create && handlers.createDesktop) {
+      await handlers.createDesktop(parsedArgs["desktop-file"].create.name!, {
+        terminal: parsedArgs["desktop-file"].create.terminal,
+        icon: parsedArgs["desktop-file"].create.icon,
       });
-    } else if (DesktopFileCommand.remove && handlers.removeDesktop) {
-      handlers.removeDesktop(RemoveDesktopCommand.name);
+    } else if (parsedArgs["desktop-file"].remove && handlers.removeDesktop) {
+      handlers.removeDesktop(parsedArgs["desktop-file"].remove.name!);
     }
-  } else if (ChefArgs.link && handlers.link) {
-    await handlers.link(LinkCommand.name);
-  } else if (ChefArgs.unlink && handlers.unlink) {
-    await handlers.unlink(UnlinkCommand.name);
+  } else if (parsedArgs.link && handlers.link) {
+    await handlers.link(parsedArgs.link.name!);
+  } else if (parsedArgs.unlink && handlers.unlink) {
+    await handlers.unlink(parsedArgs.unlink.name!);
   }
 }
