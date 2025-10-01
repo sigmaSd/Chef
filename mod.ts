@@ -18,18 +18,22 @@
  *
  * Create a file for example **chef.ts** with:
  *
- * ```typescript
+ * ```ts ignore
  * import { Chef } from "jsr:@sigmasd/chef";
  *
  * const chef = new Chef();
  *
  * chef.add({
  *   name: "binary1",
- *   download: () => {
+ *   download: async ({ latestVersion }) => {
  *     // a fuction that downloads the binary and return its relative path
+ *     // Example: download and extract the binary, then return the path
+ *     return { exe: "./path/to/binary" };
  *   },
- *   version: () => {
+ *   version: async () => {
  *     // a function that returns the latest version of the binary
+ *     // Example: fetch version from GitHub releases, npm, etc.
+ *     return "1.0.0";
  *   },
  * });
  *
@@ -56,7 +60,7 @@
  * Checkout `bin` direcotry for more examples.
  *
  * @example
- * ```ts
+ * ```ts ignore
  * import { $ } from "jsr:@david/dax@0.39.2";
  * import { Chef } from "jsr:@sigmasd/chef";
  * import {

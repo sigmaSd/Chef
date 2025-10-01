@@ -18,18 +18,22 @@ With chef you can:
 
 Create a file for example **chef.ts** with:
 
-```typescript
+```typescript ignore
 import { Chef } from "jsr:@sigmasd/chef";
 
 const chef = new Chef();
 
 chef.add({
   name: "binary1",
-  download: () => {
+  download: async ({ latestVersion }) => {
     // a fuction that downloads the binary and return its relative path
+    // Example: download and extract the binary, then return the path
+    return { exe: "./path/to/binary" };
   },
-  version: () => {
+  version: async () => {
     // a function that returns the latest version of the binary
+    // Example: fetch version from GitHub releases, npm, etc.
+    return "1.0.0";
   },
   // Optional: Desktop file configuration for GUI applications
   desktopFile: {
