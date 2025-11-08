@@ -48,8 +48,8 @@ export class BinaryRunner {
     let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
     finalArgs = finalArgs.concat(binArgs);
 
-    await new Deno.Command(binPath, {
-      args: finalArgs,
+    await new Deno.Command(Deno.build.os === "windows" ? "cmd" : binPath, {
+      args: Deno.build.os === "windows" ? ["/c", ...finalArgs] : finalArgs,
       env: recipe.cmdEnv,
     }).spawn().status;
   }
