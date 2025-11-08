@@ -46,7 +46,7 @@ Deno.test("test chef1", async () =>
     const exeCodePath = path.join(dir, `exe-${version}.js`);
     Deno.writeTextFileSync(
       exeCodePath,
-      `Deno.writeTextFileSync("${dir}/hello", "hello written")`,
+      `Deno.writeTextFileSync("${path.join(dir, "hello")}", "hello written")`,
     );
     await new Deno.Command("deno", {
       args: ["compile", "--no-check", "--allow-write=.", exeCodePath],
