@@ -239,10 +239,9 @@ export class BinaryUpdater {
           recipe.postInstall(path.join(this.binPath, info.name));
         }
 
-        // Automatically create desktop file if specified in recipe and it doesn't exist
+        // Automatically create desktop file if specified in recipe
         if (
-          recipe.desktopFile && this.desktopManager &&
-          !this.desktopManager.exists(info.name)
+          recipe.desktopFile && this.desktopManager
         ) {
           try {
             console.log(

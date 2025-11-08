@@ -215,6 +215,36 @@ chef.addMany(
       },
       version: () => utils.getLatestGithubRelease("latex-lsp/texlab"),
     },
+    {
+      name: "ventoy",
+      download: async ({ latestVersion }) => {
+        const versionWithoutV = latestVersion.slice(1);
+        const archiveName = `ventoy-${versionWithoutV}-linux.tar.gz`;
+        await $.request(
+          `https://github.com/ventoy/Ventoy/releases/download/${latestVersion}/${archiveName}`,
+        ).showProgress().pipeToPath();
+        await $`tar -xzf ${archiveName}`;
+        await Deno.writeTextFile(
+          `./ventoy-${versionWithoutV}/main`,
+          `#!/usr/bin/env sh
+          SCRIPT_DIR="$(dirname "$0")/ventoy-${versionWithoutV}"
+          gnome-terminal -- pkexec sh -c "cd '$SCRIPT_DIR' && ./VentoyWeb.sh"`,
+        );
+        await Deno.chmod(`./ventoy-${versionWithoutV}/main`, 0o755);
+        return {
+          dir: {
+            path: `./ventoy-${versionWithoutV}`,
+            exe: `main`,
+          },
+        };
+      },
+      version: () => utils.getLatestGithubRelease("ventoy/Ventoy"),
+      desktopFile: {
+        name: "Ventoy",
+        categories: "System;",
+        iconPath: "https://www.ventoy.net/static/img/ventoy.png?v=1",
+      },
+    },
   ],
 );
 
