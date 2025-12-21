@@ -41,7 +41,8 @@ export class BinaryRunner {
       return;
     }
 
-    const binPath = path.join(this.binPath, name);
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const binPath = path.join(this.binPath, name + exeExtension);
     const recipe = this.recipes.find((recipe) => recipe.name === name);
     assert(recipe, "Recipe for this binary doesn't exist");
 
@@ -118,7 +119,8 @@ export class BinaryRunner {
     }
 
     try {
-      const binPath = path.join(this.binPath, name);
+      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+      const binPath = path.join(this.binPath, name + exeExtension);
       const stat = Deno.statSync(binPath);
       return stat.isFile;
     } catch {
@@ -133,7 +135,8 @@ export class BinaryRunner {
     if (!this.isInstalled(name)) {
       return null;
     }
-    return path.join(this.binPath, name);
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    return path.join(this.binPath, name + exeExtension);
   }
 
   /**
@@ -143,11 +146,12 @@ export class BinaryRunner {
     { name: string; path: string; version: string }
   > {
     const dbData = this.database.read().expect("failed to read database");
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
     return Object.entries(dbData)
       .filter(([name]) => this.isInstalled(name))
       .map(([name, version]) => ({
         name,
-        path: path.join(this.binPath, name),
+        path: path.join(this.binPath, name + exeExtension),
         version,
       }));
   }

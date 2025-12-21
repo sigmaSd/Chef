@@ -80,7 +80,8 @@ Deno.test("test chef1", async () =>
       JSON.stringify({ hello: "1.0.0" }),
     );
     // doesn't throw because file exists
-    Deno.readTextFileSync(path.join(chef.binPath, "hello"));
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    Deno.readTextFileSync(path.join(chef.binPath, "hello" + exeExtension));
 
     // run hello exe
     await chef.start(["run", "hello"]);

@@ -236,7 +236,8 @@ export class BinaryUpdater {
             `%c  ${Symbols.run} Running post-install...`,
             `color: ${UIColors.muted}`,
           );
-          recipe.postInstall(path.join(this.binPath, info.name));
+          const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+          recipe.postInstall(path.join(this.binPath, info.name + exeExtension));
         }
 
         // Automatically create desktop file if specified in recipe
@@ -341,7 +342,8 @@ export class BinaryUpdater {
           this.binPath,
           tempBin.dir.path === "." ? `${recipe.name}-dir` : tempBin.dir.path,
         );
-        const symlinkPath = path.join(this.binPath, recipe.name);
+        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+        const symlinkPath = path.join(this.binPath, recipe.name + exeExtension);
 
         // Remove old directory and symlink if they exist
         try {
@@ -364,7 +366,8 @@ export class BinaryUpdater {
           symlinkPath,
         );
       } else {
-        const binaryPath = path.join(this.binPath, recipe.name);
+        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+        const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
         // Remove old binary if it exists to prevent permission errors
         try {
           await Deno.remove(binaryPath);

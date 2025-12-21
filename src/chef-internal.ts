@@ -161,8 +161,9 @@ export class ChefInternal {
     await Deno.mkdir(this.exportsPath, { recursive: true });
 
     // Find the binary path
-    const binaryPath = path.join(this.binPath, name);
-    const linkPath = path.join(this.exportsPath, name);
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const binaryPath = path.join(this.binPath, name + exeExtension);
+    const linkPath = path.join(this.exportsPath, name + exeExtension);
 
     try {
       // Remove existing symlink if it exists
@@ -201,7 +202,8 @@ export class ChefInternal {
       return;
     }
 
-    const linkPath = path.join(this.exportsPath, name);
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const linkPath = path.join(this.exportsPath, name + exeExtension);
 
     try {
       // Check if the symlink exists
