@@ -245,6 +245,24 @@ chef.addMany(
         iconPath: "https://www.ventoy.net/static/img/ventoy.png?v=1",
       },
     },
+    {
+      name: "Handy", // "H" so it doesn't get killed with kill -USR2 -n handy
+      download: async ({ latestVersion }) => {
+        const version = latestVersion.slice(1);
+        await $.request(
+          `https://github.com/cjpais/Handy/releases/download/${latestVersion}/Handy_${version}_amd64.AppImage`,
+        ).showProgress().pipeToPath();
+        await $`chmod +x Handy_${version}_amd64.AppImage`;
+        return { exe: `Handy_${version}_amd64.AppImage` };
+      },
+      version: () => utils.getLatestGithubRelease("cjpais/Handy"),
+      desktopFile: {
+        name: "Handy",
+        categories: "System;",
+        iconPath:
+          "https://raw.githubusercontent.com/cjpais/Handy/refs/heads/main/src-tauri/icons/icon.png",
+      },
+    },
   ],
 );
 
