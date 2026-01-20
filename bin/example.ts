@@ -263,6 +263,30 @@ chef.addMany(
           "https://raw.githubusercontent.com/cjpais/Handy/refs/heads/main/src-tauri/icons/icon.png",
       },
     },
+    {
+      name: "zellij",
+      download: async ({ latestVersion }) => {
+        const arch = Deno.build.arch === "x86_64" ? "x86_64" : "aarch64";
+        const os = Deno.build.os === "linux"
+          ? "unknown-linux-musl"
+          : "apple-darwin";
+        const archiveName = `zellij-${arch}-${os}.tar.gz`;
+        await $.request(
+          `https://github.com/zellij-org/zellij/releases/download/${latestVersion}/${archiveName}`,
+        ).showProgress().pipeToPath();
+        await $`tar -xzf ${archiveName}`;
+        return { exe: "zellij" };
+      },
+      version: () => utils.getLatestGithubRelease("zellij-org/zellij"),
+      desktopFile: {
+        name: "Zellij",
+        comment: "A terminal workspace with batteries included",
+        categories: "System;TerminalEmulator;",
+        iconPath:
+          "https://raw.githubusercontent.com/zellij-org/zellij/main/assets/logo.png",
+        terminal: true,
+      },
+    },
   ],
 );
 
