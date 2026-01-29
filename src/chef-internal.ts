@@ -95,6 +95,11 @@ export class ChefInternal {
       update: async (options) => {
         await this.binaryUpdater.update(options);
       },
+      uninstall: async (binary) => {
+        for (const name of binary) {
+          await this.uninstall(name);
+        }
+      },
       edit: () => {
         return this.edit();
       },
@@ -113,6 +118,49 @@ export class ChefInternal {
     };
 
     await parseAndExecute(args, handlers);
+  };
+
+  /**
+   * Uninstall a binary
+   */
+  uninstall = async (name: string) => {
+    const entry = this.database.getEntry(name);
+    if (!entry) {
+      console.error(`Binary "${name}" is not installed.`);
+      return;
+    }
+
+    console.log(`🗑️ Uninstalling "${name}"...`);
+
+    // Remove desktop file
+    this.desktopManager.remove(name, { silent: true });
+
+    // Remove symlink from exports
+    await this.unlink(name, { silent: true });
+
+    // Remove binary file
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const binaryPath = path.join(this.binPath, name + exeExtension);
+    try {
+      await Deno.remove(binaryPath);
+    } catch {
+      // Ignore
+    }
+
+    // Remove directory if it was a directory install
+    if (entry.dir) {
+      try {
+        const dirPath = path.join(this.binPath, entry.dir);
+        await Deno.remove(dirPath, { recursive: true });
+      } catch {
+        // Ignore
+      }
+    }
+
+    // Remove from database
+    this.database.removeBinary(name);
+
+    console.log(`✅ Successfully uninstalled "${name}"`);
   };
 
   /**
@@ -195,10 +243,10 @@ export class ChefInternal {
   /**
    * Remove a symlink from the exports directory
    */
-  unlink = async (name: string) => {
+  unlink = async (name: string, options: { silent?: boolean } = {}) => {
     const recipe = this.recipes.find((r) => r.name === name);
     if (!recipe) {
-      console.error(`Recipe "${name}" not found`);
+      if (!options.silent) console.error(`Recipe "${name}" not found`);
       return;
     }
 
@@ -209,20 +257,28 @@ export class ChefInternal {
       // Check if the symlink exists
       const stat = await Deno.lstat(linkPath);
       if (!stat.isSymlink) {
-        console.error(`"${name}" exists but is not a symlink`);
+        if (!options.silent) {
+          console.error(`"${name}" exists but is not a symlink`);
+        }
         return;
       }
 
       // Remove the symlink
       await Deno.remove(linkPath);
 
-      console.log(`✅ Removed symlink for "${name}"`);
-      console.log(`📂 From: ${this.exportsPath}`);
+      if (!options.silent) {
+        console.log(`✅ Removed symlink for "${name}"`);
+        console.log(`📂 From: ${this.exportsPath}`);
+      }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        console.error(`Symlink for "${name}" does not exist`);
+        if (!options.silent) {
+          console.error(`Symlink for "${name}" does not exist`);
+        }
       } else {
-        console.error(`Failed to remove symlink: ${error}`);
+        if (!options.silent) {
+          console.error(`Failed to remove symlink: ${error}`);
+        }
       }
     }
   };

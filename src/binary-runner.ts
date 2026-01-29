@@ -59,14 +59,15 @@ export class BinaryRunner {
    * List all installed and available binaries with improved formatting
    */
   list() {
-    const dbData = this.database.read().expect("failed to read database");
+    const dbData = this.database.getInstalledBinaries();
+
     const installedBinaries = Object.entries(dbData);
     const availableToInstall = this.recipes.filter((recipe) =>
-      !dbData[recipe.name]
+      !this.database.isInstalled(recipe.name)
     );
 
     if (installedBinaries.length === 0 && availableToInstall.length === 0) {
-      statusMessage("warning", "No binaries configured");
+      statusMessage("info", "No binaries installed or available");
       return;
     }
 
@@ -74,11 +75,14 @@ export class BinaryRunner {
     if (installedBinaries.length > 0) {
       sectionHeader("Installed Binaries");
 
-      const headers = ["Name", "Version", "Status"];
-      const rows = installedBinaries.map(([name, version]) => {
+      const headers = ["Binary", "Version", "Status"];
+      const rows = installedBinaries.map(([name, entry]) => {
         const isExecutable = this.isInstalled(name);
-        const status = isExecutable ? "Ready" : "Missing";
-        return [name, version, status];
+        return [
+          name,
+          entry.version,
+          isExecutable ? "Ready" : "Not Found",
+        ];
       });
 
       const colors = rows.map((row) =>
@@ -149,10 +153,10 @@ export class BinaryRunner {
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
     return Object.entries(dbData)
       .filter(([name]) => this.isInstalled(name))
-      .map(([name, version]) => ({
+      .map(([name, entry]) => ({
         name,
         path: path.join(this.binPath, name + exeExtension),
-        version,
+        version: entry.version,
       }));
   }
 }

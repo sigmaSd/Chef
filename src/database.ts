@@ -1,6 +1,11 @@
 import { Err, Ok, Result } from "@sigmasd/rust-types/result";
 import type { Recipe } from "../mod.ts";
 
+export interface DbEntry {
+  version: string;
+  dir?: string;
+}
+
 /**
  * Manages the Chef database that stores binary versions and metadata
  */
@@ -10,28 +15,35 @@ export class ChefDatabase {
   /**
    * Read the database from disk and filter out recipes that no longer exist
    */
-  read(): Result<Record<string, string>, unknown> {
+  read(): Result<Record<string, DbEntry>, unknown> {
     const db = Result
       .wrap(() => Deno.readTextFileSync(this.dbPath))
       .unwrapOr("{}");
 
     const dbParsed = Result.wrap(() =>
-      JSON.parse(db) as Record<string, string>
+      JSON.parse(db) as Record<string, string | DbEntry>
     );
     if (dbParsed.isErr()) return Err(dbParsed.err);
 
-    // Filter out entries for recipes that no longer exist
-    return Ok(Object.fromEntries(
-      Object.entries(dbParsed.ok).filter(([name]) =>
-        this.recipes.find((r) => r.name === name)
-      ),
-    ));
+    // Normalize entries to DbEntry and filter out entries for recipes that no longer exist
+    const normalized: Record<string, DbEntry> = {};
+    for (const [name, value] of Object.entries(dbParsed.ok)) {
+      if (this.recipes.find((r) => r.name === name)) {
+        if (typeof value === "string") {
+          normalized[name] = { version: value };
+        } else {
+          normalized[name] = value;
+        }
+      }
+    }
+
+    return Ok(normalized);
   }
 
   /**
    * Write the database to disk
    */
-  write(db: Record<string, string>) {
+  write(db: Record<string, DbEntry>) {
     Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
       .expect("failed to write to database");
   }
@@ -41,6 +53,14 @@ export class ChefDatabase {
    */
   getVersion(binaryName: string): string | undefined {
     const db = this.read().expect("failed to read database");
+    return db[binaryName]?.version;
+  }
+
+  /**
+   * Get the entry for a specific binary
+   */
+  getEntry(binaryName: string): DbEntry | undefined {
+    const db = this.read().expect("failed to read database");
     return db[binaryName];
   }
 
@@ -49,14 +69,14 @@ export class ChefDatabase {
    */
   setVersion(binaryName: string, version: string) {
     const db = this.read().expect("failed to read database");
-    db[binaryName] = version;
+    db[binaryName] = { ...db[binaryName], version };
     this.write(db);
   }
 
   /**
    * Get all installed binaries with their versions
    */
-  getInstalledBinaries(): Record<string, string> {
+  getInstalledBinaries(): Record<string, DbEntry> {
     return this.read().expect("failed to read database");
   }
 

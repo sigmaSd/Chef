@@ -77,7 +77,7 @@ Deno.test("test chef1", async () =>
 
     assertEquals(
       Deno.readTextFileSync(chef.dbPath),
-      JSON.stringify({ hello: "1.0.0" }),
+      JSON.stringify({ hello: { version: "1.0.0" } }),
     );
     // doesn't throw because file exists
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
@@ -90,6 +90,20 @@ Deno.test("test chef1", async () =>
       Deno.readTextFileSync(path.join(dir, "hello")),
       "hello written",
     );
+
+    // uninstall hello
+    await chef.start(["uninstall", "hello"]);
+    assertEquals(
+      Deno.readTextFileSync(chef.dbPath),
+      JSON.stringify({}),
+    );
+    // file should be gone
+    try {
+      Deno.statSync(path.join(chef.binPath, "hello" + exeExtension));
+      throw new Error("File should have been deleted");
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
   }));
 
 Deno.test("test edit", () => {

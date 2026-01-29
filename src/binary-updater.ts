@@ -96,7 +96,7 @@ export class BinaryUpdater {
 
         try {
           const latestVersion = await version();
-          const currentVersion = currentDb[name];
+          const currentVersion = currentDb[name]?.version;
 
           if (!latestVersion) {
             return {
@@ -229,15 +229,17 @@ export class BinaryUpdater {
           `%c  ${Symbols.download} Downloading ${recipe.name}...`,
           `color: ${UIColors.muted}`,
         );
-        await this.downloadAndInstallBinary(recipe, latestVersion);
+        const installInfo = await this.downloadAndInstallBinary(
+          recipe,
+          latestVersion,
+        );
 
         if (recipe.postInstall) {
           console.log(
             `%c  ${Symbols.run} Running post-install...`,
             `color: ${UIColors.muted}`,
           );
-          const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-          recipe.postInstall(path.join(this.binPath, info.name + exeExtension));
+          recipe.postInstall(installInfo.binaryPath);
         }
 
         // Automatically create desktop file if specified in recipe
@@ -260,7 +262,10 @@ export class BinaryUpdater {
           }
         }
 
-        currentDb[info.name] = latestVersion;
+        currentDb[info.name] = {
+          version: latestVersion,
+          dir: installInfo.destDir,
+        };
         this.database.write(currentDb);
         statusMessage(
           "success",
@@ -320,32 +325,44 @@ export class BinaryUpdater {
 
   /**
    * Download and install a binary
+   * @returns The installation info (path to binary and directory if it's a directory install)
    */
   private async downloadAndInstallBinary(
     recipe: Recipe,
     latestVersion: string,
-  ) {
-    await runInTempDir(async () => {
+  ): Promise<{ binaryPath: string; destDir?: string }> {
+    return await runInTempDir(async () => {
       const tempBin = await recipe.download({ latestVersion });
+      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+      const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
+
+      // Clean up old version if it was a directory install tracked in DB
+      const oldEntry = this.database.getEntry(recipe.name);
+      if (oldEntry?.dir) {
+        try {
+          const oldDir = path.join(this.binPath, oldEntry.dir);
+          await Deno.remove(oldDir, { recursive: true });
+        } catch {
+          // Ignore errors
+        }
+      }
 
       if ("dir" in tempBin) {
-        const destDir = path.join(
-          this.binPath,
-          tempBin.dir.path === "." ? `${recipe.name}-dir` : tempBin.dir.path,
-        );
-        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-        const symlinkPath = path.join(this.binPath, recipe.name + exeExtension);
+        const destDirName = tempBin.dir.path === "."
+          ? `${recipe.name}-dir`
+          : tempBin.dir.path;
+        const destDir = path.join(this.binPath, destDirName);
 
-        // Remove old directory and symlink if they exist
+        // Remove old directory and symlink if they exist (additional cleanup)
         try {
           await Deno.remove(destDir, { recursive: true });
         } catch {
-          // Ignore errors when removing old directory (e.g., if it doesn't exist)
+          // Ignore
         }
         try {
-          await Deno.remove(symlinkPath);
+          await Deno.remove(binaryPath);
         } catch {
-          // Ignore errors when removing old symlink (e.g., if it doesn't exist)
+          // Ignore
         }
 
         await copyDirRecursively(
@@ -354,11 +371,10 @@ export class BinaryUpdater {
         );
         await Deno.symlink(
           path.join(destDir, tempBin.dir.exe),
-          symlinkPath,
+          binaryPath,
         );
+        return { binaryPath, destDir: destDirName };
       } else {
-        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-        const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
         // Remove old binary if it exists to prevent permission errors
         try {
           await Deno.remove(binaryPath);
@@ -366,6 +382,7 @@ export class BinaryUpdater {
           // Ignore errors when removing old binary (e.g., if it doesn't exist)
         }
         await Deno.copyFile(tempBin.exe, binaryPath);
+        return { binaryPath };
       }
     });
   }

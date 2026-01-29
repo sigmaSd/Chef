@@ -26,6 +26,14 @@ export class RunCommand {
 export class ListCommand {}
 
 @command
+export class UninstallCommand {
+  @argument({ description: "name of the binary to uninstall", rest: true })
+  @type("string[]")
+  @required()
+  binary: string[] = [];
+}
+
+@command
 export class UpdateCommand {
   @description("force update a binary")
   force: boolean = false;
@@ -112,6 +120,7 @@ export interface CommandHandlers {
     dryRun?: boolean;
     binary?: string[];
   }) => Promise<void>;
+  uninstall?: (binary: string[]) => Promise<void>;
   edit?: () => string | undefined;
   createDesktop?: (name: string, options: {
     terminal?: boolean;
@@ -141,8 +150,16 @@ class ChefArgs extends Args {
   list?: ListCommand;
 
   @subCommand(UpdateCommand)
+  @description("install/update binaries")
+  install?: UpdateCommand;
+
+  @subCommand(UpdateCommand)
   @description("update installed binaries")
   update?: UpdateCommand;
+
+  @subCommand(UninstallCommand)
+  @description("uninstall binaries")
+  uninstall?: UninstallCommand;
 
   @subCommand(EditCommand)
   @description("output chef entry file")
@@ -177,14 +194,17 @@ export async function parseAndExecute(
     await handlers.run(parsedArgs.run.name!, parsedArgs.run.binArgs);
   } else if (parsedArgs.list && handlers.list) {
     handlers.list();
-  } else if (parsedArgs.update && handlers.update) {
+  } else if ((parsedArgs.update || parsedArgs.install) && handlers.update) {
+    const updateArgs = parsedArgs.update || parsedArgs.install;
     await handlers.update({
-      force: parsedArgs.update.force,
-      skip: parsedArgs.update.skip,
-      only: parsedArgs.update.only,
-      dryRun: parsedArgs.update["dry-run"],
-      binary: parsedArgs.update.binary,
+      force: updateArgs!.force,
+      skip: updateArgs!.skip,
+      only: updateArgs!.only,
+      dryRun: updateArgs!["dry-run"],
+      binary: updateArgs!.binary,
     });
+  } else if (parsedArgs.uninstall && handlers.uninstall) {
+    await handlers.uninstall(parsedArgs.uninstall.binary);
   } else if (parsedArgs.edit && handlers.edit) {
     const result = handlers.edit();
     if (result) {

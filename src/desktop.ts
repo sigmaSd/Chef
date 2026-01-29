@@ -96,7 +96,7 @@ export class DesktopFileManager {
   /**
    * Remove a desktop file for a binary
    */
-  remove(name: string) {
+  remove(name: string, options: { silent?: boolean } = {}) {
     const desktopPath = path.join(
       Deno.env.get("HOME")!,
       ".local/share/applications",
@@ -108,15 +108,19 @@ export class DesktopFileManager {
 
     try {
       Deno.removeSync(desktopPath);
-      console.log(
-        `%cRemoved desktop file for ${name}`,
-        `color: ${Colors.lightGreen}`,
-      );
+      if (!options.silent) {
+        console.log(
+          `%cRemoved desktop file for ${name}`,
+          `color: ${Colors.lightGreen}`,
+        );
+      }
     } catch {
-      console.error(
-        `%cNo desktop file found for ${name}`,
-        `color: ${Colors.lightRed}`,
-      );
+      if (!options.silent) {
+        console.error(
+          `%cNo desktop file found for ${name}`,
+          `color: ${Colors.lightRed}`,
+        );
+      }
     }
   }
 
