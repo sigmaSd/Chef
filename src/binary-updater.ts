@@ -251,24 +251,17 @@ export class BinaryUpdater {
             );
             await this.desktopManager.create(info.name, {});
           } catch (e) {
-            currentDb[info.name] = latestVersion;
-            statusMessage(
-              "success",
-              `${info.name} ${latestVersion} installed successfully`,
-            );
             statusMessage(
               "warning",
               `Failed to create desktop file: ${
                 e instanceof Error ? e.message : e
               }`,
             );
-            updated++;
-            spacer();
-            continue;
           }
         }
 
         currentDb[info.name] = latestVersion;
+        this.database.write(currentDb);
         statusMessage(
           "success",
           `${info.name} ${latestVersion} installed successfully`,
@@ -285,8 +278,6 @@ export class BinaryUpdater {
       }
       spacer();
     }
-
-    this.database.write(currentDb);
 
     // Final summary
     spacer();
