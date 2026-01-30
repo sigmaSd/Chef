@@ -58,6 +58,9 @@ export class UpdateCommand {
 export class EditCommand {}
 
 @command
+export class GuiCommand {}
+
+@command
 export class CreateDesktopCommand {
   @argument({ description: "name of the binary" })
   @type("string")
@@ -122,6 +125,7 @@ export interface CommandHandlers {
   }) => Promise<void>;
   uninstall?: (binary: string[]) => Promise<void>;
   edit?: () => string | undefined;
+  gui?: () => Promise<void>;
   createDesktop?: (name: string, options: {
     terminal?: boolean;
     icon?: string;
@@ -164,6 +168,10 @@ class ChefArgs extends Args {
   @subCommand(EditCommand)
   @description("output chef entry file")
   edit?: EditCommand;
+
+  @subCommand(GuiCommand)
+  @description("start the gui")
+  gui?: GuiCommand;
 
   @subCommand(DesktopFileCommand)
   @description("manage desktop files")
@@ -210,6 +218,8 @@ export async function parseAndExecute(
     if (result) {
       console.log(result);
     }
+  } else if (parsedArgs.gui && handlers.gui) {
+    await handlers.gui();
   } else if (parsedArgs["desktop-file"]) {
     if (parsedArgs["desktop-file"].create && handlers.createDesktop) {
       await handlers.createDesktop(parsedArgs["desktop-file"].create.name!, {

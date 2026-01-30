@@ -81,6 +81,30 @@ export class ChefInternal {
   };
 
   /**
+   * Install or update a single binary
+   */
+  installOrUpdate = async (name: string, options: { force?: boolean } = {}) => {
+    await this.binaryUpdater.update({
+      force: options.force,
+      binary: [name],
+    });
+  };
+
+  /**
+   * Run a binary
+   */
+  runBin = async (name: string, args: string[]) => {
+    await this.binaryRunner.run(name, args);
+  };
+
+  /**
+   * Check if a binary is installed
+   */
+  isInstalled = (name: string) => {
+    return this.database.isInstalled(name);
+  };
+
+  /**
    * Main entry point - parse arguments and execute commands
    * Now throws parsing errors for caller to handle (exit or test)
    */
@@ -102,6 +126,10 @@ export class ChefInternal {
       },
       edit: () => {
         return this.edit();
+      },
+      gui: async () => {
+        const { startGui } = await import("./gui.ts");
+        await startGui(this);
       },
       createDesktop: async (name: string, options) => {
         await this.desktopManager.create(name, options);

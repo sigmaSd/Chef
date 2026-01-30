@@ -3,9 +3,14 @@
   "specifiers": {
     "jsr:@david/dax@0.39.2": "0.39.2",
     "jsr:@david/which@0.3": "0.3.0",
+    "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
     "jsr:@sigma/parse@0.19": "0.19.0",
+    "jsr:@sigmasd/chef@*": "0.27.1",
     "jsr:@sigmasd/deno-infer@3.0.1": "3.0.1",
+    "jsr:@sigmasd/gtk@*": "0.30.1",
+    "jsr:@sigmasd/gtk@~0.30.1": "0.30.1",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
+    "jsr:@sigmasd/lab@*": "0.1.33",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
     "jsr:@std/assert@0.213": "0.213.1",
     "jsr:@std/assert@^1.0.17": "1.0.17",
@@ -21,7 +26,8 @@
     "jsr:@std/path@0.213.0": "0.213.0",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/streams@0.213.0": "0.213.0",
-    "npm:@types/node@*": "22.15.15"
+    "npm:@types/node@*": "22.15.15",
+    "npm:chalk@*": "5.6.2"
   },
   "jsr": {
     "@david/dax@0.39.2": {
@@ -38,14 +44,29 @@
     "@david/which@0.3.0": {
       "integrity": "6bdb62c40ac90edcf328e854fa8103a8db21e7c326089cbe3c3a1cf7887d3204"
     },
+    "@sigma/deno-compat@0.21.0": {
+      "integrity": "9fccd523e88e5f542985f4b31b7839d5ffbddc83f6f57737b96b500b713a5ca1"
+    },
     "@sigma/parse@0.19.0": {
       "integrity": "cf97d4fe67281a36de5308002657993e6415952e9a93bbcc37c6c35622d9900f"
+    },
+    "@sigmasd/chef@0.27.1": {
+      "integrity": "ae203932d88e9d4fea730917b218e543f9dac60f3c2c9da39a922cdea09f824c"
     },
     "@sigmasd/deno-infer@3.0.1": {
       "integrity": "11881714f838a1d557b6c6933b2e39794b07686169ceb8321f1bfbfb4cdbcd0d"
     },
+    "@sigmasd/gtk@0.30.1": {
+      "integrity": "8a0da3e67d17a971ecb029d651723477de133eb09c0798fa6ff904b3e0098fa5",
+      "dependencies": [
+        "jsr:@sigma/deno-compat"
+      ]
+    },
     "@sigmasd/infer@3.1.3": {
       "integrity": "1bf4df6fdbac9d84ea96112ac9e5c0fd0e099a8100e189f3029f94f8c889bbe2"
+    },
+    "@sigmasd/lab@0.1.33": {
+      "integrity": "118bad77d689c7479347bf6b5dcfa47010f151495613cafa7363b8636d2c4848"
     },
     "@sigmasd/rust-types@0.6.1": {
       "integrity": "a9037278897aa25beec301ca552ed9c2f570795f48206888f736549d0f19bb9b"
@@ -124,6 +145,9 @@
         "undici-types"
       ]
     },
+    "chalk@5.6.2": {
+      "integrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="
+    },
     "undici-types@6.21.0": {
       "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
     }
@@ -131,6 +155,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@sigma/parse@0.19",
+      "jsr:@sigmasd/gtk@~0.30.1",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@sigmasd/rust-types@~0.6.1",
       "jsr:@std/assert@^1.0.17",
