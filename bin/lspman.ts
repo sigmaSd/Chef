@@ -1,6 +1,4 @@
-// deno-lint-ignore no-import-prefix
-import { $ } from "jsr:@david/dax@0.39.2";
-import { Chef } from "../mod.ts";
+import { $, Chef } from "../mod.ts";
 import { getLatestGithubRelease, getLatestNpmVersion } from "../src/utils.ts";
 
 if (import.meta.main) {

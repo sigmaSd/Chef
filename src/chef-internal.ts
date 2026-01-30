@@ -130,6 +130,7 @@ export class ChefInternal {
       gui: async () => {
         const { startGui } = await import("./gui.ts");
         await startGui(this);
+        Deno.exit(0);
       },
       createDesktop: async (name: string, options) => {
         await this.desktopManager.create(name, options);

@@ -61,8 +61,7 @@
  *
  * @example
  * ```ts ignore
- * import { $ } from "jsr:@david/dax@0.39.2";
- * import { Chef } from "jsr:@sigmasd/chef";
+ * import { $, Chef } from "jsr:@sigmasd/chef";
  * import {
  *   getLatestGithubRelease,
  *   getLatestNpmVersion,
@@ -108,6 +107,8 @@
  */
 import { isParseError } from "@sigma/parse";
 import { ChefInternal } from "./src/lib.ts";
+
+export { $ } from "./src/dax_wrapper.ts";
 
 /**
  * Represents an application.

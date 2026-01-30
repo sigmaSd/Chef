@@ -8,11 +8,13 @@ import {
   ListBox,
   ListBoxRow,
   Orientation,
+  ProgressBar,
   ScrolledWindow,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
+import { setStatusListener } from "./dax_wrapper.ts";
 
 export async function startGui(chef: ChefInternal) {
   const app = new Application("com.github.sigmasd.chef", 0);
@@ -52,6 +54,51 @@ export async function startGui(chef: ChefInternal) {
     scrolledWindow.setChild(listBox);
     mainBox.append(scrolledWindow);
 
+    const statusBox = new Box(Orientation.HORIZONTAL, 10);
+    statusBox.setMarginTop(5);
+    const statusPrefix = new Label("Status:");
+    statusPrefix.addCssClass("dim-label");
+    const statusLabel = new Label("Idle");
+    statusLabel.setHalign(Align.START);
+    statusLabel.setEllipsize(3); // END
+    statusBox.append(statusPrefix);
+    statusBox.append(statusLabel);
+
+    const progressBar = new ProgressBar();
+    progressBar.setHexpand(true);
+    progressBar.setVisible(false);
+    statusBox.append(progressBar);
+
+    mainBox.append(statusBox);
+
+    // Register dax command listener
+    setStatusListener((status) => {
+      if (status.status === "running") {
+        let text = status.command || "Running...";
+        if (
+          status.progress !== undefined && status.loaded !== undefined &&
+          status.total !== undefined
+        ) {
+          progressBar.setVisible(true);
+          progressBar.setFraction(status.progress);
+          text += ` [${formatBytes(status.loaded)} / ${
+            formatBytes(status.total)
+          }]`;
+        } else {
+          progressBar.setVisible(false);
+        }
+        statusLabel.setText(text);
+      } else {
+        statusLabel.setText("Idle");
+        progressBar.setVisible(false);
+      }
+    });
+
+    window.onCloseRequest(() => {
+      app.quit();
+      return false;
+    });
+
     window.setChild(mainBox);
     window.present();
   });
@@ -59,6 +106,14 @@ export async function startGui(chef: ChefInternal) {
   await eventLoop.start(app);
 }
 
+function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
 function createRecipeRow(chef: ChefInternal, recipe: Recipe): ListBoxRow {
   const row = new ListBoxRow();
   const box = new Box(Orientation.HORIZONTAL, 10);

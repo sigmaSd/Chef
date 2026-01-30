@@ -76,8 +76,7 @@ Checkout `bin` direcotry for more examples.
 **Example 1**
 
 ```ts
-import { $ } from "jsr:@david/dax@0.39.2";
-import { Chef } from "jsr:@sigmasd/chef";
+import { $, Chef } from "jsr:@sigmasd/chef";
 import {
   getLatestGithubRelease,
   getLatestNpmVersion,
