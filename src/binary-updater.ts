@@ -38,8 +38,11 @@ export class BinaryUpdater {
       only?: string;
       dryRun?: boolean;
       binary?: string[];
+      signal?: AbortSignal;
     },
   ) {
+    if (options.signal?.aborted) return;
+
     // Determine which binaries to update
     const targetBinaries = new Set<string>();
 
@@ -84,6 +87,13 @@ export class BinaryUpdater {
       5,
       recipesToCheck,
       async (recipe) => {
+        if (options.signal?.aborted) {
+          return {
+            name: recipe.name,
+            status: "skipped",
+            reason: "cancelled",
+          };
+        }
         const { name, version } = recipe;
 
         if (options.skip && options.skip === name) {
@@ -196,6 +206,10 @@ export class BinaryUpdater {
 
     // Process updates sequentially
     for (const info of toUpdate) {
+      if (options.signal?.aborted) {
+        statusMessage("info", "Update process cancelled");
+        break;
+      }
       const recipe = info.recipe as Recipe;
       const latestVersion = info.latestVersion;
 
@@ -232,6 +246,7 @@ export class BinaryUpdater {
         const installInfo = await this.downloadAndInstallBinary(
           recipe,
           latestVersion,
+          options.signal,
         );
 
         if (recipe.postInstall) {
@@ -330,9 +345,10 @@ export class BinaryUpdater {
   private async downloadAndInstallBinary(
     recipe: Recipe,
     latestVersion: string,
+    signal?: AbortSignal,
   ): Promise<{ binaryPath: string; destDir?: string }> {
     return await runInTempDir(async () => {
-      const tempBin = await recipe.download({ latestVersion });
+      const tempBin = await recipe.download({ latestVersion, signal });
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
       const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
 

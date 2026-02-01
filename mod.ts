@@ -140,7 +140,9 @@ export interface Recipe {
    * @param latestVersion - The latest version of the binary.
    * @returns A promise that resolves to the downloaded App.
    */
-  download: ({ latestVersion }: { latestVersion: string }) => Promise<App>;
+  download: (
+    { latestVersion, signal }: { latestVersion: string; signal?: AbortSignal },
+  ) => Promise<App>;
   /**
    * Retrieves the version of the binary.
    * @returns A promise that resolves to the version of the binary, if available.

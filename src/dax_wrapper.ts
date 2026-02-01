@@ -26,9 +26,9 @@ const internal$: any = daxBuild$({
   },
 });
 
-function wrapPromise<T>(p: Promise<T>): Promise<T> {
+function wrapPromise<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
   return p.finally(() => {
-    if (statusListener) {
+    if (statusListener && !signal?.aborted) {
       statusListener({ status: "idle" });
     }
   });
@@ -41,11 +41,37 @@ function wrapPromise<T>(p: Promise<T>): Promise<T> {
 function wrapObject(obj: any, label?: string): any {
   return new Proxy(obj, {
     get(target, prop, receiver) {
+      if (prop === "signal" || prop === "abortSignal") {
+        return (sig: AbortSignal) => {
+          (target as any).__chef_signal = sig;
+          // Only call dax's abortSignal if it exists and we're not shadowing it too much
+          // Actually, dax 0.44.2 RequestBuilder might have issues with standard AbortSignal
+          // if it expects its own internal Signal type in some places.
+          // Let's try to pass it and see, but most importantly we keep it in __chef_signal
+          const method = (target as any).abortSignal || (target as any).signal;
+          if (typeof method === "function") {
+            try {
+              method.call(target, sig);
+            } catch (e) {
+              // If dax fails to take the signal, we still want to continue
+              // as we handle it ourselves in pipeToPath
+              console.warn("Dax failed to accept signal:", e);
+            }
+          }
+          return wrapObject(target, label);
+        };
+      }
+
       const value = Reflect.get(target, prop, receiver);
 
       if (label === "request" && prop === "pipeToPath") {
         // deno-lint-ignore no-explicit-any
         return async (...args: any[]) => {
+          const signal = (target as any).__chef_signal as
+            | AbortSignal
+            | undefined;
+          if (signal?.aborted) throw signal.reason;
+
           if (!statusListener) {
             return value.apply(target, args);
           }
@@ -100,6 +126,7 @@ function wrapObject(obj: any, label?: string): any {
             if (body) {
               const reader = body.getReader();
               while (true) {
+                if (signal?.aborted) throw signal.reason;
                 const { done, value } = await reader.read();
                 if (done) break;
 
@@ -153,7 +180,7 @@ function wrapObject(obj: any, label?: string): any {
 
           // If it returns a promise, wrap it to detect completion
           if (result instanceof Promise) {
-            return wrapPromise(result);
+            return wrapPromise(result, (target as any).__chef_signal);
           }
 
           // If it's a CommandBuilder or RequestBuilder being returned (for chaining)
@@ -170,6 +197,8 @@ function wrapObject(obj: any, label?: string): any {
             } else if (label === "request") {
               result.__chef_url = target.__chef_url;
             }
+            // Propagate signal
+            result.__chef_signal = (target as any).__chef_signal;
             return wrapObject(result, nextLabel);
           }
 
@@ -190,7 +219,7 @@ function wrapObject(obj: any, label?: string): any {
         return wrapObject(result);
       }
       if (result instanceof Promise) {
-        return wrapPromise(result);
+        return wrapPromise(result, (target as any).__chef_signal);
       }
       return result;
     },

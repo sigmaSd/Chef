@@ -1,4 +1,5 @@
 {
+  "vendor": true,
   "name": "@sigmasd/chef",
   "version": "0.27.1",
   "license": "MIT",

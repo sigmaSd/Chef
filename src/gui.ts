@@ -31,9 +31,19 @@ export async function startGui(chef: ChefInternal) {
     mainBox.setMarginStart(10);
     mainBox.setMarginEnd(10);
 
+    const headerBox = new Box(Orientation.HORIZONTAL, 10);
     const titleLabel = new Label("Chef - Personal Package Manager");
     titleLabel.addCssClass("title-1");
-    mainBox.append(titleLabel);
+    titleLabel.setHexpand(true);
+    titleLabel.setHalign(Align.START);
+    headerBox.append(titleLabel);
+
+    const updateAllBtn = new Button("Update All");
+    const cancelBtn = new Button("Cancel");
+    cancelBtn.setVisible(false);
+    headerBox.append(updateAllBtn);
+    headerBox.append(cancelBtn);
+    mainBox.append(headerBox);
 
     const scrolledWindow = new ScrolledWindow();
     scrolledWindow.setVexpand(true);
@@ -45,11 +55,48 @@ export async function startGui(chef: ChefInternal) {
     const listBox = new ListBox();
     listBox.setSelectionMode(0); // NONE
 
-    // Populate list
-    for (const recipe of chef.recipes) {
-      const row = createRecipeRow(chef, recipe);
-      listBox.append(row);
-    }
+    let abortController: AbortController | null = null;
+    const recipeRows: { setSensitive: (sensitive: boolean) => void }[] = [];
+
+    const refreshList = () => {
+      listBox.removeAll();
+      recipeRows.length = 0;
+      for (const recipe of chef.recipes) {
+        const { row, setSensitive } = createRecipeRow(chef, recipe);
+        recipeRows.push({ setSensitive });
+        listBox.append(row);
+      }
+    };
+
+    updateAllBtn.onClick(async () => {
+      updateAllBtn.setSensitive(false);
+      updateAllBtn.setLabel("Updating All...");
+      cancelBtn.setVisible(true);
+      recipeRows.forEach((r) => r.setSensitive(false));
+
+      abortController = new AbortController();
+      try {
+        await chef.updateAll({ signal: abortController.signal });
+        refreshList();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        updateAllBtn.setSensitive(true);
+        updateAllBtn.setLabel("Update All");
+        cancelBtn.setVisible(false);
+        recipeRows.forEach((r) => r.setSensitive(true));
+        abortController = null;
+      }
+    });
+
+    cancelBtn.onClick(() => {
+      if (abortController) {
+        abortController.abort();
+      }
+    });
+
+    // Initial populate
+    refreshList();
 
     scrolledWindow.setChild(listBox);
     mainBox.append(scrolledWindow);
@@ -96,6 +143,10 @@ export async function startGui(chef: ChefInternal) {
 
     window.onCloseRequest(() => {
       app.quit();
+      // Ensure the process exits
+      setTimeout(() => {
+        Deno.exit(0);
+      }, 100);
       return false;
     });
 
@@ -114,7 +165,10 @@ function formatBytes(bytes: number, decimals = 2) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
-function createRecipeRow(chef: ChefInternal, recipe: Recipe): ListBoxRow {
+function createRecipeRow(
+  chef: ChefInternal,
+  recipe: Recipe,
+): { row: ListBoxRow; setSensitive: (sensitive: boolean) => void } {
   const row = new ListBoxRow();
   const box = new Box(Orientation.HORIZONTAL, 10);
   box.setMarginTop(10);
@@ -214,5 +268,12 @@ function createRecipeRow(chef: ChefInternal, recipe: Recipe): ListBoxRow {
   box.append(actionBox);
   row.setChild(box);
 
-  return row;
+  const setSensitive = (sensitive: boolean) => {
+    installBtn.setSensitive(sensitive);
+    uninstallBtn.setSensitive(sensitive);
+    updateBtn.setSensitive(sensitive);
+    runBtn.setSensitive(sensitive);
+  };
+
+  return { row, setSensitive };
 }

@@ -83,11 +83,24 @@ export class ChefInternal {
   /**
    * Install or update a single binary
    */
-  installOrUpdate = async (name: string, options: { force?: boolean } = {}) => {
+  installOrUpdate = async (
+    name: string,
+    options: { force?: boolean; signal?: AbortSignal } = {},
+  ) => {
     await this.binaryUpdater.update({
       force: options.force,
       binary: [name],
+      signal: options.signal,
     });
+  };
+
+  /**
+   * Update all binaries
+   */
+  updateAll = async (
+    options: { force?: boolean; signal?: AbortSignal } = {},
+  ) => {
+    await this.binaryUpdater.update(options);
   };
 
   /**
