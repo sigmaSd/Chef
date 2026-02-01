@@ -2,7 +2,9 @@ import {
   build$ as daxBuild$,
   CommandBuilder,
   KillController,
+  RequestBuilder,
 } from "@david/dax";
+import type { $Type, RequestResponse } from "@david/dax";
 
 export type CommandStatus = {
   status: "running" | "idle";
@@ -12,6 +14,9 @@ export type CommandStatus = {
   total?: number;
 };
 
+/**
+ * Bridges standard AbortSignal to dax's KillController.
+ */
 function abortSignalToKillSignal(signal: AbortSignal) {
   const controller = new KillController();
   if (signal.aborted) {
@@ -22,126 +27,152 @@ function abortSignalToKillSignal(signal: AbortSignal) {
   return controller.signal;
 }
 
-let statusListener: ((status: CommandStatus) => void) | undefined;
-
-export function setStatusListener(cb: (status: CommandStatus) => void) {
-  statusListener = cb;
-}
-
-let currentSignal: AbortSignal | undefined;
-
-export function setSignal(signal: AbortSignal | undefined) {
-  currentSignal = signal;
-}
-
-export function getSignal() {
-  return currentSignal;
-}
-
-// deno-lint-ignore no-explicit-any
-const internal$: any = daxBuild$({
-  // @ts-ignore: dax version mismatch causing type error
-  // deno-lint-ignore no-explicit-any
-  commandLogger: (cmd: any) => {
-    if (statusListener) {
-      statusListener({ status: "running", command: cmd });
-    }
-    console.log(`\x1b[2m$\x1b[0m ${cmd}`);
-  },
-});
-
-function wrapPromise<T>(p: Promise<T>, _signal?: AbortSignal): Promise<T> {
-  return p.finally(() => {
-    // signal parameter is kept to avoid breaking signature if needed,
-    // but we always want to reset to idle on completion/error/abort
-    if (statusListener) {
-      statusListener({ status: "idle" });
-    }
-  });
-}
+// Map to track signals and metadata associated with builders without monkey-patching
+const builderContext = new WeakMap<
+  object,
+  { signal?: AbortSignal; url?: string }
+>();
 
 /**
- * Wraps dax objects to intercept promise-returning methods
+ * Encapsulates the state for a Chef execution context.
+ */
+export class ChefContext {
+  private statusListener?: (status: CommandStatus) => void;
+  private currentSignal?: AbortSignal;
+
+  setStatusListener = (cb: (status: CommandStatus) => void) => {
+    this.statusListener = cb;
+  };
+
+  setSignal = (signal: AbortSignal | undefined) => {
+    this.currentSignal = signal;
+  };
+
+  getSignal = () => {
+    return this.currentSignal;
+  };
+
+  get $(): $Type {
+    const internal$ = daxBuild$({
+      commandBuilder: (b) => {
+        b.setPrintCommandLogger((cmd: string) => {
+          if (this.statusListener) {
+            this.statusListener({ status: "running", command: cmd });
+          }
+          console.log(`\x1b[2m$\x1b[0m ${cmd}`);
+        });
+        return b;
+      },
+    });
+
+    return createProxy(internal$, this);
+  }
+
+  // Internal helpers for the proxy to notify the listener
+  _notifyRunning(command?: string) {
+    if (this.statusListener) {
+      this.statusListener({ status: "running", command });
+    }
+  }
+
+  _notifyIdle() {
+    if (this.statusListener) {
+      this.statusListener({ status: "idle" });
+    }
+  }
+
+  _notifyProgress(command: string, loaded: number, total: number) {
+    if (this.statusListener) {
+      this.statusListener({
+        status: "running",
+        command,
+        progress: loaded / total,
+        loaded,
+        total,
+      });
+    }
+  }
+}
+
+const defaultContext = new ChefContext();
+
+export const setStatusListener = defaultContext.setStatusListener;
+export const setSignal = defaultContext.setSignal;
+export const getSignal = defaultContext.getSignal;
+
+/**
+ * Creates a type-safe proxy around dax objects to intercept terminal methods
+ * and propagate signals.
  */
 // deno-lint-ignore no-explicit-any
-function wrapObject(obj: any, label?: string): any {
-  return new Proxy(obj, {
+function createProxy(target: any, context: ChefContext): any {
+  return new Proxy(target, {
     get(target, prop, receiver) {
-      if (prop === "signal" || prop === "abortSignal") {
-        return (sig: AbortSignal) => {
-          // deno-lint-ignore no-explicit-any
-          (target as any).__chef_signal = sig;
+      const value = Reflect.get(target, prop, receiver);
 
-          if (target instanceof CommandBuilder) {
-            target.signal(abortSignalToKillSignal(sig));
-            // deno-lint-ignore no-explicit-any
-          } else if (typeof (target as any).abort === "function") {
-            // RequestBuilder has .abort() but not a .signal() setter
-            if (sig.aborted) {
-              // deno-lint-ignore no-explicit-any
-              (target as any).abort();
-            } else {
-              // deno-lint-ignore no-explicit-any
-              sig.addEventListener("abort", () => (target as any).abort(), {
-                once: true,
-              });
-            }
-          }
-          return wrapObject(target, label);
+      // Special handling for the .request() method to track the URL
+      if (prop === "request") {
+        return (url: string | URL) => {
+          const result = value.call(target, url);
+          builderContext.set(result, {
+            signal: context.getSignal(),
+            url: url.toString(),
+          });
+          return createProxy(result, context);
         };
       }
 
-      const value = Reflect.get(target, prop, receiver);
-
-      if (label === "request" && prop === "pipeToPath") {
-        // deno-lint-ignore no-explicit-any
-        return async (...args: any[]) => {
-          // deno-lint-ignore no-explicit-any
-          const signal = (target as any).__chef_signal as
-            | AbortSignal
-            | undefined;
-
-          // If no signal and no status listener, use dax's original implementation
-          if (!signal && !statusListener) {
-            return value.apply(target, args);
+      // Intercept fetch on RequestBuilder to apply signal
+      if (prop === "fetch" && target instanceof RequestBuilder) {
+        return async () => {
+          const res = (await value.call(target)) as RequestResponse;
+          const signal = builderContext.get(target)?.signal;
+          if (signal) {
+            if (signal.aborted) {
+              res.abort();
+              throw signal.reason;
+            }
+            signal.addEventListener("abort", () => res.abort(), {
+              once: true,
+            });
           }
+          return res;
+        };
+      }
+
+      // Custom implementation of pipeToPath with progress reporting
+      if (prop === "pipeToPath") {
+        return async (path?: string) => {
+          const ctx = builderContext.get(target);
+          const signal = ctx?.signal;
 
           if (signal?.aborted) throw signal.reason;
 
-          let path = args[0] as string | undefined;
-          if (!path) {
-            // deno-lint-ignore no-explicit-any
-            const urlStr = (target as any).__chef_url;
+          let finalPath = path;
+          if (!finalPath) {
+            const urlStr = ctx?.url;
             if (!urlStr) {
               throw new Error(
                 "Could not determine URL. Please provide a path.",
               );
             }
             const url = new URL(urlStr);
-            const segments = url.pathname.split("/");
-            path = segments[segments.length - 1];
-            if (!path) {
+            finalPath = url.pathname.split("/").pop();
+            if (!finalPath) {
               throw new Error(
                 "Could not determine file name from URL. Please provide a path.",
               );
             }
           }
 
-          try {
-            if (statusListener) {
-              statusListener({
-                status: "running",
-                command: `Downloading to ${path}...`,
-              });
-            }
+          context._notifyRunning(`Downloading to ${finalPath}...`);
 
-            // deno-lint-ignore no-explicit-any
-            const response = await (target as any).fetch();
+          try {
+            const response = await (target as RequestBuilder).fetch();
             if (!response.ok) {
               throw new Error(`Request failed with status ${response.status}`);
             }
 
-            // Link our signal to dax's response abort
             if (signal) {
               if (signal.aborted) {
                 response.abort();
@@ -158,21 +189,18 @@ function wrapObject(obj: any, label?: string): any {
             );
             let loaded = 0;
 
-            const file = await Deno.open(path, {
+            const file = await Deno.open(finalPath, {
               write: true,
               create: true,
               truncate: true,
             });
 
             try {
-              // We use response.readable so dax's showProgress() still works on terminal
-              // deno-lint-ignore no-explicit-any
-              const body = (response as any).readable ?? response.body;
+              const body = response.readable;
               if (body) {
                 const reader = body.getReader();
                 while (true) {
                   if (signal?.aborted) {
-                    // Try to abort the response if we haven't already
                     response.abort();
                     throw signal.reason;
                   }
@@ -182,14 +210,12 @@ function wrapObject(obj: any, label?: string): any {
                   loaded += value.length;
                   await file.write(value);
 
-                  if (statusListener && total > 0) {
-                    statusListener({
-                      status: "running",
-                      command: `Downloading to ${path}...`,
-                      progress: loaded / total,
+                  if (total > 0) {
+                    context._notifyProgress(
+                      `Downloading to ${finalPath}...`,
                       loaded,
                       total,
-                    });
+                    );
                   }
                 }
               }
@@ -197,117 +223,82 @@ function wrapObject(obj: any, label?: string): any {
               file.close();
             }
           } finally {
-            if (statusListener) {
-              statusListener({ status: "idle" });
-            }
+            context._notifyIdle();
           }
         };
       }
 
       if (typeof value === "function") {
-        // deno-lint-ignore no-explicit-any
-        return (...args: any[]) => {
-          // Trigger running status for terminal methods of RequestBuilder
+        return (...args: unknown[]) => {
+          // Terminal methods that return a Promise
           const terminalMethods = [
             "json",
             "text",
             "bytes",
             "blob",
-            // "pipeToPath", // Handled above
             "pipeTo",
             "response",
           ];
-          if (label === "request" && terminalMethods.includes(prop as string)) {
-            if (statusListener) {
-              statusListener({
-                status: "running",
-                command: `Fetching ${target.url || "resource"}...`,
-              });
+          const isTerminal = terminalMethods.includes(prop as string) ||
+            prop === "then";
+
+          if (isTerminal && prop !== "then") {
+            // Trigger status for RequestBuilder methods (CommandBuilder uses logger)
+            if (target instanceof RequestBuilder) {
+              context._notifyRunning(
+                `Fetching ${builderContext.get(target)?.url || "resource"}...`,
+              );
+            }
+          }
+
+          // Apply signal to the builder before execution
+          if (target instanceof CommandBuilder) {
+            const signal = builderContext.get(target)?.signal;
+            if (signal) {
+              target.signal(abortSignalToKillSignal(signal));
             }
           }
 
           const result = value.apply(target, args);
 
-          // If it returns a promise, wrap it to detect completion
+          // Wrap promises to handle "idle" status
           if (result instanceof Promise) {
-            // deno-lint-ignore no-explicit-any
-            return wrapPromise(result, (target as any).__chef_signal);
+            return result.finally(() => context._notifyIdle());
           }
 
-          // If it's a CommandBuilder or RequestBuilder being returned (for chaining)
+          // Wrap returned builders for chaining
           if (
             result && typeof result === "object" &&
-            // deno-lint-ignore no-explicit-any
-            typeof (result as any).then === "function"
+            (result instanceof CommandBuilder ||
+              result instanceof RequestBuilder)
           ) {
-            // Keep track of what we are wrapping to provide better status messages
-            const nextLabel = prop === "request" ? "request" : label;
-            // Store the URL for status messages if this is a request
-            if (prop === "request" && args[0]) {
-              result.__chef_url = args[0].toString();
-            } else if (label === "request") {
-              result.__chef_url = target.__chef_url;
-            }
-            // Propagate signal
-            // deno-lint-ignore no-explicit-any
-            result.__chef_signal = (target as any).__chef_signal ||
-              currentSignal;
-            return wrapObject(result, nextLabel);
+            const parentCtx = builderContext.get(target);
+            builderContext.set(result, {
+              signal: parentCtx?.signal || context.getSignal(),
+              url: parentCtx?.url,
+            });
+            return createProxy(result, context);
           }
 
           return result;
         };
       }
+
       return value;
     },
     apply(target, thisArg, argArray) {
       const result = Reflect.apply(target, thisArg, argArray);
-      // This is for $`command` calls
-      if (
-        result && typeof result === "object" &&
-        // deno-lint-ignore no-explicit-any
-        typeof (result as any).then === "function"
-      ) {
-        let builder = result;
-        // Automatically attach signal if available
-        if (currentSignal) {
-          if (builder instanceof CommandBuilder) {
-            builder = builder.signal(abortSignalToKillSignal(currentSignal));
-            // deno-lint-ignore no-explicit-any
-          } else if (typeof (builder as any).abort === "function") {
-            if (currentSignal.aborted) {
-              // deno-lint-ignore no-explicit-any
-              (builder as any).abort();
-            } else {
-              currentSignal.addEventListener(
-                "abort",
-                // deno-lint-ignore no-explicit-any
-                () => (builder as any).abort(),
-                { once: true },
-              );
-            }
-          }
-          // deno-lint-ignore no-explicit-any
-          if (!(builder as any).__chef_signal) {
-            // deno-lint-ignore no-explicit-any
-            (builder as any).__chef_signal = currentSignal;
-          }
-        }
-
-        // We don't need to trigger "running" here because commandLogger already did it
-        return wrapObject(builder);
-      }
-      if (result instanceof Promise) {
-        return wrapPromise(
-          result,
-          // deno-lint-ignore no-explicit-any
-          (target as any).__chef_signal || currentSignal,
-        );
+      // This handles the template literal call: $`command`
+      if (result instanceof CommandBuilder) {
+        builderContext.set(result, { signal: context.getSignal() });
+        return createProxy(result, context);
       }
       return result;
     },
   });
 }
 
-// deno-lint-ignore no-explicit-any
-export const $: any = wrapObject(internal$);
+/**
+ * The proxied dax instance exported for general use.
+ */
+export const $: $Type = defaultContext.$;
