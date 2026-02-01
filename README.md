@@ -61,6 +61,7 @@ You can now use:
 - `chef update` to update all binaries (or install it if it doesn't exist yet)
 - `chef list` to list currently installed binaries
 - `chef run ${binary} $args` to run one of the installed binaries
+- `chef gui` to start the GTK4 graphical user interface
 - Desktop files are created automatically during installation if specified in
   the recipe
 - `chef desktop-file create <binary>` to manually create or update a desktop
@@ -70,6 +71,21 @@ You can now use:
 - `chef desktop-file remove <binary>` to remove a desktop entry
 
 Checkout `bin` direcotry for more examples.
+
+## GUI
+
+Chef comes with a GTK4 graphical user interface that allows you to manage your
+binaries visually.
+
+![Chef GUI](distro/demo.png)
+
+With the GUI you can:
+
+- See the installation status and versions of all your binaries
+- Install, update, or uninstall binaries with a single click
+- Run binaries directly from the interface
+- View changelogs if provided in the recipe
+- Update all binaries at once
 
 ## Examples
 
