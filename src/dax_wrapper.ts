@@ -65,7 +65,7 @@ export class ChefContext {
       },
     });
 
-    return createProxy(internal$, this);
+    return createProxy(internal$, this) as $Type;
   }
 
   // Internal helpers for the proxy to notify the listener
@@ -229,6 +229,7 @@ function createProxy(target: any, context: ChefContext): any {
       }
 
       if (typeof value === "function") {
+        const boundValue = value.bind(target);
         return (...args: unknown[]) => {
           // Terminal methods that return a Promise
           const terminalMethods = [
@@ -259,7 +260,7 @@ function createProxy(target: any, context: ChefContext): any {
             }
           }
 
-          const result = value.apply(target, args);
+          const result = boundValue(...args);
 
           // Wrap promises to handle "idle" status
           if (result instanceof Promise) {
