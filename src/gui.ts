@@ -42,8 +42,11 @@ export async function startGui(chef: ChefInternal) {
     headerBox.append(titleLabel);
 
     const updateAllBtn = new Button("Update All");
+    updateAllBtn.addCssClass("suggested-action");
+
     const cancelBtn = new Button("Cancel");
     cancelBtn.setVisible(false);
+
     headerBox.append(updateAllBtn);
     headerBox.append(cancelBtn);
     mainBox.append(headerBox);
@@ -57,6 +60,7 @@ export async function startGui(chef: ChefInternal) {
 
     const listBox = new ListBox();
     listBox.setSelectionMode(0); // NONE
+    listBox.setShowSeparators(true);
 
     const nameGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
     const versionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
@@ -282,6 +286,31 @@ function createRecipeRow(
   groups.statusGroup.addWidget(statusBox);
   grid.attach(statusBox, 3, 0, 1, 1);
 
+  const actionBox = new Box(Orientation.HORIZONTAL, 5);
+  groups.actionsGroup.addWidget(actionBox);
+  grid.attach(actionBox, 4, 0, 1, 1);
+
+  const installBtn = new Button("Install");
+  installBtn.addCssClass("suggested-action");
+
+  const uninstallBtn = new Button();
+  uninstallBtn.setIconName("user-trash-symbolic");
+  uninstallBtn.addCssClass("flat");
+  uninstallBtn.addCssClass("destructive-action");
+  uninstallBtn.setTooltipText("Uninstall");
+
+  const updateBtn = new Button("Update");
+
+  const runBtn = new Button();
+  runBtn.setIconName("media-playback-start-symbolic");
+  runBtn.addCssClass("flat");
+  runBtn.setTooltipText("Run");
+
+  const changelogBtn = new Button();
+  changelogBtn.setIconName("help-about-symbolic");
+  changelogBtn.addCssClass("flat");
+  changelogBtn.setTooltipText("Changelog");
+
   const checkUpdate = async () => {
     try {
       const info = await chef.checkUpdate(recipe.name);
@@ -294,8 +323,10 @@ function createRecipeRow(
 
       if (chef.isInstalled(recipe.name) && info.needsUpdate) {
         updateAvailableLabel.setText("✨");
+        updateBtn.addCssClass("success");
       } else {
         updateAvailableLabel.setText("  ");
+        updateBtn.removeCssClass("success");
       }
     } catch (e) {
       console.error(`Failed to check update for ${recipe.name}:`, e);
@@ -316,21 +347,12 @@ function createRecipeRow(
       statusLabel.addCssClass("dim-label");
       statusLabel.removeCssClass("success");
       updateAvailableLabel.setText("  ");
+      updateBtn.removeCssClass("success");
     }
     // Always check for latest version regardless of installation status
     checkUpdate();
   };
   updateStatus();
-
-  const actionBox = new Box(Orientation.HORIZONTAL, 5);
-  groups.actionsGroup.addWidget(actionBox);
-  grid.attach(actionBox, 4, 0, 1, 1);
-
-  const installBtn = new Button("Install");
-  const uninstallBtn = new Button("Uninstall");
-  const updateBtn = new Button("Update");
-  const runBtn = new Button("Run");
-  const changelogBtn = new Button("Changelog");
 
   const updateButtons = () => {
     const installed = chef.isInstalled(recipe.name);
