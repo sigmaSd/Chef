@@ -14,6 +14,16 @@ export function setStatusListener(cb: (status: CommandStatus) => void) {
   statusListener = cb;
 }
 
+let currentSignal: AbortSignal | undefined;
+
+export function setSignal(signal: AbortSignal | undefined) {
+  currentSignal = signal;
+}
+
+export function getSignal() {
+  return currentSignal;
+}
+
 // deno-lint-ignore no-explicit-any
 const internal$: any = daxBuild$({
   // @ts-ignore: dax version mismatch causing type error
@@ -43,11 +53,13 @@ function wrapObject(obj: any, label?: string): any {
     get(target, prop, receiver) {
       if (prop === "signal" || prop === "abortSignal") {
         return (sig: AbortSignal) => {
+          // deno-lint-ignore no-explicit-any
           (target as any).__chef_signal = sig;
           // Only call dax's abortSignal if it exists and we're not shadowing it too much
           // Actually, dax 0.44.2 RequestBuilder might have issues with standard AbortSignal
           // if it expects its own internal Signal type in some places.
           // Let's try to pass it and see, but most importantly we keep it in __chef_signal
+          // deno-lint-ignore no-explicit-any
           const method = (target as any).abortSignal || (target as any).signal;
           if (typeof method === "function") {
             try {
@@ -67,6 +79,7 @@ function wrapObject(obj: any, label?: string): any {
       if (label === "request" && prop === "pipeToPath") {
         // deno-lint-ignore no-explicit-any
         return async (...args: any[]) => {
+          // deno-lint-ignore no-explicit-any
           const signal = (target as any).__chef_signal as
             | AbortSignal
             | undefined;
@@ -180,6 +193,7 @@ function wrapObject(obj: any, label?: string): any {
 
           // If it returns a promise, wrap it to detect completion
           if (result instanceof Promise) {
+            // deno-lint-ignore no-explicit-any
             return wrapPromise(result, (target as any).__chef_signal);
           }
 
@@ -198,7 +212,9 @@ function wrapObject(obj: any, label?: string): any {
               result.__chef_url = target.__chef_url;
             }
             // Propagate signal
-            result.__chef_signal = (target as any).__chef_signal;
+            // deno-lint-ignore no-explicit-any
+            result.__chef_signal = (target as any).__chef_signal ||
+              currentSignal;
             return wrapObject(result, nextLabel);
           }
 
@@ -215,11 +231,22 @@ function wrapObject(obj: any, label?: string): any {
         // deno-lint-ignore no-explicit-any
         typeof (result as any).then === "function"
       ) {
+        // Automatically attach signal if available
+        // deno-lint-ignore no-explicit-any
+        if (currentSignal && !(result as any).__chef_signal) {
+          // deno-lint-ignore no-explicit-any
+          (result as any).__chef_signal = currentSignal;
+        }
+
         // We don't need to trigger "running" here because commandLogger already did it
         return wrapObject(result);
       }
       if (result instanceof Promise) {
-        return wrapPromise(result, (target as any).__chef_signal);
+        return wrapPromise(
+          result,
+          // deno-lint-ignore no-explicit-any
+          (target as any).__chef_signal || currentSignal,
+        );
       }
       return result;
     },

@@ -3,6 +3,7 @@ import { ensureDirSync } from "@std/fs";
 import { pooledMap } from "@std/async/pool";
 import type { Recipe } from "../mod.ts";
 import { copyDirRecursively, runInTempDir } from "./internal_utils.ts";
+import { setSignal } from "./dax_wrapper.ts";
 import type { ChefDatabase } from "./database.ts";
 import { BinaryRunner } from "./binary-runner.ts";
 import type { DesktopFileManager } from "./desktop.ts";
@@ -348,7 +349,10 @@ export class BinaryUpdater {
     signal?: AbortSignal,
   ): Promise<{ binaryPath: string; destDir?: string }> {
     return await runInTempDir(async () => {
-      const tempBin = await recipe.download({ latestVersion, signal });
+      setSignal(signal);
+      const tempBin = await recipe.download({ latestVersion, signal }).finally(
+        () => setSignal(undefined),
+      );
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
       const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
 
