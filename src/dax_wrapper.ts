@@ -1,4 +1,8 @@
-import { build$ as daxBuild$ } from "@david/dax";
+import {
+  build$ as daxBuild$,
+  CommandBuilder,
+  KillController,
+} from "@david/dax";
 
 export type CommandStatus = {
   status: "running" | "idle";
@@ -7,6 +11,16 @@ export type CommandStatus = {
   loaded?: number;
   total?: number;
 };
+
+function abortSignalToKillSignal(signal: AbortSignal) {
+  const controller = new KillController();
+  if (signal.aborted) {
+    controller.kill();
+  } else {
+    signal.addEventListener("abort", () => controller.kill(), { once: true });
+  }
+  return controller.signal;
+}
 
 let statusListener: ((status: CommandStatus) => void) | undefined;
 
@@ -36,9 +50,11 @@ const internal$: any = daxBuild$({
   },
 });
 
-function wrapPromise<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+function wrapPromise<T>(p: Promise<T>, _signal?: AbortSignal): Promise<T> {
   return p.finally(() => {
-    if (statusListener && !signal?.aborted) {
+    // signal parameter is kept to avoid breaking signature if needed,
+    // but we always want to reset to idle on completion/error/abort
+    if (statusListener) {
       statusListener({ status: "idle" });
     }
   });
@@ -55,19 +71,20 @@ function wrapObject(obj: any, label?: string): any {
         return (sig: AbortSignal) => {
           // deno-lint-ignore no-explicit-any
           (target as any).__chef_signal = sig;
-          // Only call dax's abortSignal if it exists and we're not shadowing it too much
-          // Actually, dax 0.44.2 RequestBuilder might have issues with standard AbortSignal
-          // if it expects its own internal Signal type in some places.
-          // Let's try to pass it and see, but most importantly we keep it in __chef_signal
-          // deno-lint-ignore no-explicit-any
-          const method = (target as any).abortSignal || (target as any).signal;
-          if (typeof method === "function") {
-            try {
-              method.call(target, sig);
-            } catch (e) {
-              // If dax fails to take the signal, we still want to continue
-              // as we handle it ourselves in pipeToPath
-              console.warn("Dax failed to accept signal:", e);
+
+          if (target instanceof CommandBuilder) {
+            target.signal(abortSignalToKillSignal(sig));
+            // deno-lint-ignore no-explicit-any
+          } else if (typeof (target as any).abort === "function") {
+            // RequestBuilder has .abort() but not a .signal() setter
+            if (sig.aborted) {
+              // deno-lint-ignore no-explicit-any
+              (target as any).abort();
+            } else {
+              // deno-lint-ignore no-explicit-any
+              sig.addEventListener("abort", () => (target as any).abort(), {
+                once: true,
+              });
             }
           }
           return wrapObject(target, label);
@@ -83,11 +100,13 @@ function wrapObject(obj: any, label?: string): any {
           const signal = (target as any).__chef_signal as
             | AbortSignal
             | undefined;
-          if (signal?.aborted) throw signal.reason;
 
-          if (!statusListener) {
+          // If no signal and no status listener, use dax's original implementation
+          if (!signal && !statusListener) {
             return value.apply(target, args);
           }
+
+          if (signal?.aborted) throw signal.reason;
 
           let path = args[0] as string | undefined;
           if (!path) {
@@ -108,61 +127,79 @@ function wrapObject(obj: any, label?: string): any {
             }
           }
 
-          if (statusListener) {
-            statusListener({
-              status: "running",
-              command: `Downloading to ${path}...`,
-            });
-          }
-
-          // deno-lint-ignore no-explicit-any
-          const response = await (target as any).fetch();
-          if (!response.ok) {
-            throw new Error(`Request failed with status ${response.status}`);
-          }
-
-          const total = parseInt(
-            response.headers.get("content-length") || "0",
-            10,
-          );
-          let loaded = 0;
-
-          const file = await Deno.open(path, {
-            write: true,
-            create: true,
-            truncate: true,
-          });
-
           try {
+            if (statusListener) {
+              statusListener({
+                status: "running",
+                command: `Downloading to ${path}...`,
+              });
+            }
+
             // deno-lint-ignore no-explicit-any
-            const body = (response as any).readable ?? response.body;
-            if (body) {
-              const reader = body.getReader();
-              while (true) {
-                if (signal?.aborted) throw signal.reason;
-                const { done, value } = await reader.read();
-                if (done) break;
+            const response = await (target as any).fetch();
+            if (!response.ok) {
+              throw new Error(`Request failed with status ${response.status}`);
+            }
 
-                loaded += value.length;
-                await file.write(value);
+            // Link our signal to dax's response abort
+            if (signal) {
+              if (signal.aborted) {
+                response.abort();
+                throw signal.reason;
+              }
+              signal.addEventListener("abort", () => response.abort(), {
+                once: true,
+              });
+            }
 
-                if (statusListener && total > 0) {
-                  statusListener({
-                    status: "running",
-                    command: `Downloading to ${path}...`,
-                    progress: loaded / total,
-                    loaded,
-                    total,
-                  });
+            const total = parseInt(
+              response.headers.get("content-length") || "0",
+              10,
+            );
+            let loaded = 0;
+
+            const file = await Deno.open(path, {
+              write: true,
+              create: true,
+              truncate: true,
+            });
+
+            try {
+              // We use response.readable so dax's showProgress() still works on terminal
+              // deno-lint-ignore no-explicit-any
+              const body = (response as any).readable ?? response.body;
+              if (body) {
+                const reader = body.getReader();
+                while (true) {
+                  if (signal?.aborted) {
+                    // Try to abort the response if we haven't already
+                    response.abort();
+                    throw signal.reason;
+                  }
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  loaded += value.length;
+                  await file.write(value);
+
+                  if (statusListener && total > 0) {
+                    statusListener({
+                      status: "running",
+                      command: `Downloading to ${path}...`,
+                      progress: loaded / total,
+                      loaded,
+                      total,
+                    });
+                  }
                 }
               }
+            } finally {
+              file.close();
             }
           } finally {
-            file.close();
-          }
-
-          if (statusListener) {
-            statusListener({ status: "idle" });
+            if (statusListener) {
+              statusListener({ status: "idle" });
+            }
           }
         };
       }
@@ -231,15 +268,34 @@ function wrapObject(obj: any, label?: string): any {
         // deno-lint-ignore no-explicit-any
         typeof (result as any).then === "function"
       ) {
+        let builder = result;
         // Automatically attach signal if available
-        // deno-lint-ignore no-explicit-any
-        if (currentSignal && !(result as any).__chef_signal) {
+        if (currentSignal) {
+          if (builder instanceof CommandBuilder) {
+            builder = builder.signal(abortSignalToKillSignal(currentSignal));
+            // deno-lint-ignore no-explicit-any
+          } else if (typeof (builder as any).abort === "function") {
+            if (currentSignal.aborted) {
+              // deno-lint-ignore no-explicit-any
+              (builder as any).abort();
+            } else {
+              currentSignal.addEventListener(
+                "abort",
+                // deno-lint-ignore no-explicit-any
+                () => (builder as any).abort(),
+                { once: true },
+              );
+            }
+          }
           // deno-lint-ignore no-explicit-any
-          (result as any).__chef_signal = currentSignal;
+          if (!(builder as any).__chef_signal) {
+            // deno-lint-ignore no-explicit-any
+            (builder as any).__chef_signal = currentSignal;
+          }
         }
 
         // We don't need to trigger "running" here because commandLogger already did it
-        return wrapObject(result);
+        return wrapObject(builder);
       }
       if (result instanceof Promise) {
         return wrapPromise(

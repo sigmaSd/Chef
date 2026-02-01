@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@david/console-static-text@0.3": "0.3.0",
     "jsr:@david/dax@0.39.2": "0.39.2",
+    "jsr:@david/dax@0.44.2": "0.44.2",
     "jsr:@david/dax@~0.44.2": "0.44.2",
     "jsr:@david/path@0.2": "0.2.0",
     "jsr:@david/which@0.3": "0.3.0",
