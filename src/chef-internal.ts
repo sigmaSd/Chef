@@ -118,6 +118,22 @@ export class ChefInternal {
   };
 
   /**
+   * Get the installed version of a binary
+   */
+  getVersion = (name: string) => {
+    return this.database.getVersion(name);
+  };
+
+  /**
+   * Check if a binary needs updating
+   */
+  checkUpdate = async (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) return { needsUpdate: false };
+    return await this.binaryUpdater.needsUpdate(recipe);
+  };
+
+  /**
    * Main entry point - parse arguments and execute commands
    * Now throws parsing errors for caller to handle (exit or test)
    */

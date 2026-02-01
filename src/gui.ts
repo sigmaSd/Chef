@@ -4,12 +4,15 @@ import {
   ApplicationWindow,
   Box,
   Button,
+  Grid,
   Label,
   ListBox,
   ListBoxRow,
   Orientation,
   ProgressBar,
   ScrolledWindow,
+  SizeGroup,
+  SizeGroupMode,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
@@ -55,14 +58,76 @@ export async function startGui(chef: ChefInternal) {
     const listBox = new ListBox();
     listBox.setSelectionMode(0); // NONE
 
+    const nameGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
+    const versionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
+    const latestVersionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
+    const statusGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
+    const actionsGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
+
+    const createHeader = () => {
+      const row = new ListBoxRow();
+      row.setSensitive(false);
+      row.addCssClass("header");
+      const grid = new Grid();
+      grid.setColumnSpacing(20);
+      grid.setMarginTop(10);
+      grid.setMarginBottom(10);
+      grid.setMarginStart(10);
+      grid.setMarginEnd(10);
+
+      const nameLabel = new Label("Name");
+      nameLabel.setHalign(Align.START);
+      nameLabel.addCssClass("bold");
+      nameGroup.addWidget(nameLabel);
+      grid.attach(nameLabel, 0, 0, 1, 1);
+
+      const versionLabel = new Label("Installed");
+      versionLabel.setHalign(Align.START);
+      versionLabel.addCssClass("bold");
+      versionLabel.setProperty("width-chars", 12);
+      versionGroup.addWidget(versionLabel);
+      grid.attach(versionLabel, 1, 0, 1, 1);
+
+      const latestVersionLabel = new Label("Latest");
+      latestVersionLabel.setHalign(Align.START);
+      latestVersionLabel.addCssClass("bold");
+      latestVersionLabel.setProperty("width-chars", 12);
+      latestVersionGroup.addWidget(latestVersionLabel);
+      grid.attach(latestVersionLabel, 2, 0, 1, 1);
+
+      const statusLabel = new Label("Status");
+      statusLabel.setHalign(Align.START);
+      statusLabel.addCssClass("bold");
+      statusGroup.addWidget(statusLabel);
+      grid.attach(statusLabel, 3, 0, 1, 1);
+
+      const actionsLabel = new Label("Actions");
+      actionsLabel.setHalign(Align.START);
+      actionsLabel.addCssClass("bold");
+      actionsGroup.addWidget(actionsLabel);
+      grid.attach(actionsLabel, 4, 0, 1, 1);
+
+      row.setChild(grid);
+      return row;
+    };
+
     let abortController: AbortController | null = null;
     const recipeRows: { setSensitive: (sensitive: boolean) => void }[] = [];
 
     const refreshList = () => {
       listBox.removeAll();
       recipeRows.length = 0;
+
+      listBox.append(createHeader());
+
       for (const recipe of chef.recipes) {
-        const { row, setSensitive } = createRecipeRow(chef, recipe);
+        const { row, setSensitive } = createRecipeRow(chef, recipe, {
+          nameGroup,
+          versionGroup,
+          latestVersionGroup,
+          statusGroup,
+          actionsGroup,
+        });
         recipeRows.push({ setSensitive });
         listBox.append(row);
       }
@@ -168,40 +233,104 @@ function formatBytes(bytes: number, decimals = 2) {
 function createRecipeRow(
   chef: ChefInternal,
   recipe: Recipe,
+  groups: {
+    nameGroup: SizeGroup;
+    versionGroup: SizeGroup;
+    latestVersionGroup: SizeGroup;
+    statusGroup: SizeGroup;
+    actionsGroup: SizeGroup;
+  },
 ): { row: ListBoxRow; setSensitive: (sensitive: boolean) => void } {
   const row = new ListBoxRow();
-  const box = new Box(Orientation.HORIZONTAL, 10);
-  box.setMarginTop(10);
-  box.setMarginBottom(10);
-  box.setMarginStart(10);
-  box.setMarginEnd(10);
+  const grid = new Grid();
+  grid.setColumnSpacing(20);
+  grid.setMarginTop(5);
+  grid.setMarginBottom(5);
+  grid.setMarginStart(10);
+  grid.setMarginEnd(10);
 
   const nameLabel = new Label(recipe.name);
   nameLabel.setHalign(Align.START);
-  nameLabel.setHexpand(true);
-  box.append(nameLabel);
+  groups.nameGroup.addWidget(nameLabel);
+  grid.attach(nameLabel, 0, 0, 1, 1);
 
+  const versionLabel = new Label("");
+  versionLabel.setHalign(Align.START);
+  versionLabel.setProperty("width-chars", 12);
+  versionLabel.setEllipsize(3); // END
+  groups.versionGroup.addWidget(versionLabel);
+  grid.attach(versionLabel, 1, 0, 1, 1);
+
+  const latestVersionLabel = new Label("Checking...");
+  latestVersionLabel.setHalign(Align.START);
+  latestVersionLabel.setProperty("width-chars", 12);
+  latestVersionLabel.setEllipsize(3); // END
+  latestVersionLabel.addCssClass("dim-label");
+  groups.latestVersionGroup.addWidget(latestVersionLabel);
+  grid.attach(latestVersionLabel, 2, 0, 1, 1);
+
+  const statusBox = new Box(Orientation.HORIZONTAL, 5);
+  statusBox.setHalign(Align.START);
   const statusLabel = new Label("");
+  const updateAvailableLabel = new Label("  ");
+  updateAvailableLabel.addCssClass("warning");
+  updateAvailableLabel.setHalign(Align.START);
+  updateAvailableLabel.setTooltipText("Update available!");
+
+  statusBox.append(statusLabel);
+  statusBox.append(updateAvailableLabel);
+  groups.statusGroup.addWidget(statusBox);
+  grid.attach(statusBox, 3, 0, 1, 1);
+
+  const checkUpdate = async () => {
+    try {
+      const info = await chef.checkUpdate(recipe.name);
+      if (info.latestVersion) {
+        latestVersionLabel.setText(info.latestVersion);
+        latestVersionLabel.removeCssClass("dim-label");
+      } else {
+        latestVersionLabel.setText("-");
+      }
+
+      if (chef.isInstalled(recipe.name) && info.needsUpdate) {
+        updateAvailableLabel.setText("✨");
+      } else {
+        updateAvailableLabel.setText("  ");
+      }
+    } catch (e) {
+      console.error(`Failed to check update for ${recipe.name}:`, e);
+      latestVersionLabel.setText("Error");
+    }
+  };
+
   const updateStatus = () => {
     const installed = chef.isInstalled(recipe.name);
     statusLabel.setText(installed ? "Installed" : "Not Installed");
+    const version = chef.getVersion(recipe.name);
+    versionLabel.setText(version || "-");
+
     if (installed) {
       statusLabel.addCssClass("success");
       statusLabel.removeCssClass("dim-label");
     } else {
       statusLabel.addCssClass("dim-label");
       statusLabel.removeCssClass("success");
+      updateAvailableLabel.setText("  ");
     }
+    // Always check for latest version regardless of installation status
+    checkUpdate();
   };
   updateStatus();
-  box.append(statusLabel);
 
   const actionBox = new Box(Orientation.HORIZONTAL, 5);
+  groups.actionsGroup.addWidget(actionBox);
+  grid.attach(actionBox, 4, 0, 1, 1);
 
   const installBtn = new Button("Install");
   const uninstallBtn = new Button("Uninstall");
   const updateBtn = new Button("Update");
   const runBtn = new Button("Run");
+  const changelogBtn = new Button("Changelog");
 
   const updateButtons = () => {
     const installed = chef.isInstalled(recipe.name);
@@ -209,6 +338,7 @@ function createRecipeRow(
     uninstallBtn.setVisible(installed);
     updateBtn.setVisible(installed);
     runBtn.setVisible(installed);
+    changelogBtn.setVisible(!!recipe.changeLog);
   };
   updateButtons();
 
@@ -246,7 +376,7 @@ function createRecipeRow(
     updateBtn.setLabel("Updating...");
     try {
       await chef.installOrUpdate(recipe.name, { force: true });
-      updateStatus(); // Version might change?
+      updateStatus();
     } catch (e) {
       console.error(e);
     } finally {
@@ -256,23 +386,40 @@ function createRecipeRow(
   });
 
   runBtn.onClick(() => {
-    // Run asynchronously to avoid blocking UI
     chef.runBin(recipe.name, []);
+  });
+
+  changelogBtn.onClick(() => {
+    const version = chef.getVersion(recipe.name);
+    if (recipe.changeLog && version) {
+      const url = recipe.changeLog({ latestVersion: version });
+      // In a real GTK app we might use Gio.AppInfo.launch_default_for_uri
+      // For now, we can try to use dax to open it or just log it
+      console.log(`Opening changelog: ${url}`);
+      // Try to open with system default browser
+      const command = Deno.build.os === "windows"
+        ? "start"
+        : Deno.build.os === "darwin"
+        ? "open"
+        : "xdg-open";
+      new Deno.Command(command, { args: [url] }).spawn();
+    }
   });
 
   actionBox.append(installBtn);
   actionBox.append(updateBtn);
   actionBox.append(uninstallBtn);
   actionBox.append(runBtn);
+  actionBox.append(changelogBtn);
 
-  box.append(actionBox);
-  row.setChild(box);
+  row.setChild(grid);
 
   const setSensitive = (sensitive: boolean) => {
     installBtn.setSensitive(sensitive);
     uninstallBtn.setSensitive(sensitive);
     updateBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
+    changelogBtn.setSensitive(sensitive);
   };
 
   return { row, setSensitive };
