@@ -1,10 +1,9 @@
 import {
   build$ as daxBuild$,
   CommandBuilder,
-  KillController,
   RequestBuilder,
 } from "@david/dax";
-import type { $Type, RequestResponse } from "@david/dax";
+import type { $Type } from "@david/dax";
 
 export type CommandStatus = {
   status: "running" | "idle";
@@ -14,23 +13,10 @@ export type CommandStatus = {
   total?: number;
 };
 
-/**
- * Bridges standard AbortSignal to dax's KillController.
- */
-function abortSignalToKillSignal(signal: AbortSignal) {
-  const controller = new KillController();
-  if (signal.aborted) {
-    controller.kill();
-  } else {
-    signal.addEventListener("abort", () => controller.kill(), { once: true });
-  }
-  return controller.signal;
-}
-
-// Map to track signals and metadata associated with builders without monkey-patching
+// Map to track metadata associated with builders without monkey-patching
 const builderContext = new WeakMap<
   object,
-  { signal?: AbortSignal; url?: string }
+  { url?: string }
 >();
 
 /**
@@ -110,33 +96,18 @@ function createProxy(target: any, context: ChefContext): any {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
 
-      // Special handling for the .request() method to track the URL
+      // Special handling for the .request() method to track the URL and apply signal
       if (prop === "request") {
         return (url: string | URL) => {
-          const result = value.call(target, url);
+          let result = value.call(target, url) as RequestBuilder;
+          const signal = context.getSignal();
+          if (signal) {
+            result = result.signal(signal);
+          }
           builderContext.set(result, {
-            signal: context.getSignal(),
             url: url.toString(),
           });
           return createProxy(result, context);
-        };
-      }
-
-      // Intercept fetch on RequestBuilder to apply signal
-      if (prop === "fetch" && target instanceof RequestBuilder) {
-        return async () => {
-          const res = (await value.call(target)) as RequestResponse;
-          const signal = builderContext.get(target)?.signal;
-          if (signal) {
-            if (signal.aborted) {
-              res.abort();
-              throw signal.reason;
-            }
-            signal.addEventListener("abort", () => res.abort(), {
-              once: true,
-            });
-          }
-          return res;
         };
       }
 
@@ -144,9 +115,6 @@ function createProxy(target: any, context: ChefContext): any {
       if (prop === "pipeToPath") {
         return async (path?: string) => {
           const ctx = builderContext.get(target);
-          const signal = ctx?.signal;
-
-          if (signal?.aborted) throw signal.reason;
 
           let finalPath = path;
           if (!finalPath) {
@@ -168,19 +136,10 @@ function createProxy(target: any, context: ChefContext): any {
           context._notifyRunning(`Downloading to ${finalPath}...`);
 
           try {
+            // target is RequestBuilder. It already has the signal applied in .request()
             const response = await (target as RequestBuilder).fetch();
             if (!response.ok) {
               throw new Error(`Request failed with status ${response.status}`);
-            }
-
-            if (signal) {
-              if (signal.aborted) {
-                response.abort();
-                throw signal.reason;
-              }
-              signal.addEventListener("abort", () => response.abort(), {
-                once: true,
-              });
             }
 
             const total = parseInt(
@@ -200,10 +159,6 @@ function createProxy(target: any, context: ChefContext): any {
               if (body) {
                 const reader = body.getReader();
                 while (true) {
-                  if (signal?.aborted) {
-                    response.abort();
-                    throw signal.reason;
-                  }
                   const { done, value } = await reader.read();
                   if (done) break;
 
@@ -252,14 +207,6 @@ function createProxy(target: any, context: ChefContext): any {
             }
           }
 
-          // Apply signal to the builder before execution
-          if (target instanceof CommandBuilder) {
-            const signal = builderContext.get(target)?.signal;
-            if (signal) {
-              target.signal(abortSignalToKillSignal(signal));
-            }
-          }
-
           const result = boundValue(...args);
 
           // Wrap promises to handle "idle" status
@@ -275,7 +222,6 @@ function createProxy(target: any, context: ChefContext): any {
           ) {
             const parentCtx = builderContext.get(target);
             builderContext.set(result, {
-              signal: parentCtx?.signal || context.getSignal(),
               url: parentCtx?.url,
             });
             return createProxy(result, context);
@@ -288,10 +234,13 @@ function createProxy(target: any, context: ChefContext): any {
       return value;
     },
     apply(target, thisArg, argArray) {
-      const result = Reflect.apply(target, thisArg, argArray);
+      let result = Reflect.apply(target, thisArg, argArray);
       // This handles the template literal call: $`command`
       if (result instanceof CommandBuilder) {
-        builderContext.set(result, { signal: context.getSignal() });
+        const signal = context.getSignal();
+        if (signal) {
+          result = result.signal(signal);
+        }
         return createProxy(result, context);
       }
       return result;
