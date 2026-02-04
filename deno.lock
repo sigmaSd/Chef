@@ -3,13 +3,12 @@
   "specifiers": {
     "jsr:@david/console-static-text@0.3": "0.3.0",
     "jsr:@david/dax@0.39.2": "0.39.2",
-    "jsr:@david/dax@0.44.2": "0.44.2",
-    "jsr:@david/dax@~0.44.2": "0.44.2",
+    "jsr:@david/dax@0.45": "0.45.0",
     "jsr:@david/path@0.2": "0.2.0",
     "jsr:@david/which@0.3": "0.3.0",
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
-    "jsr:@sigma/parse@0.19": "0.19.0",
+    "jsr:@sigma/parse@0.20": "0.20.0",
     "jsr:@sigmasd/chef@*": "0.27.1",
     "jsr:@sigmasd/deno-infer@3.0.1": "3.0.1",
     "jsr:@sigmasd/gtk@0.32": "0.32.0",
@@ -25,7 +24,6 @@
     "jsr:@std/fmt@1": "1.0.9",
     "jsr:@std/fs@0.213.0": "0.213.0",
     "jsr:@std/fs@1": "1.0.22",
-    "jsr:@std/fs@^1.0.20": "1.0.22",
     "jsr:@std/fs@^1.0.22": "1.0.22",
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/io@0.213": "0.213.0",
@@ -54,14 +52,14 @@
         "jsr:@std/streams"
       ]
     },
-    "@david/dax@0.44.2": {
-      "integrity": "26f5985f66a4340d55fb05ca90a0063bb5f0d670a326e14cb33a974aafcbb8d9",
+    "@david/dax@0.45.0": {
+      "integrity": "ac7565dc5c3e5be953a18b505e5dd0d8a30ed53656b65fd34a53bd8d2d5d6b1e",
       "dependencies": [
         "jsr:@david/console-static-text",
         "jsr:@david/path",
         "jsr:@david/which@~0.4.1",
         "jsr:@std/fmt@1",
-        "jsr:@std/fs@^1.0.20",
+        "jsr:@std/fs@1",
         "jsr:@std/io@0.225",
         "jsr:@std/path@1"
       ]
@@ -82,8 +80,8 @@
     "@sigma/deno-compat@0.21.0": {
       "integrity": "9fccd523e88e5f542985f4b31b7839d5ffbddc83f6f57737b96b500b713a5ca1"
     },
-    "@sigma/parse@0.19.0": {
-      "integrity": "cf97d4fe67281a36de5308002657993e6415952e9a93bbcc37c6c35622d9900f"
+    "@sigma/parse@0.20.0": {
+      "integrity": "a0c96b98f43f234715075749066fbb676be9ed741583f10441edf3db9494b1bc"
     },
     "@sigmasd/chef@0.27.1": {
       "integrity": "ae203932d88e9d4fea730917b218e543f9dac60f3c2c9da39a922cdea09f824c"
@@ -201,8 +199,8 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@david/dax@~0.44.2",
-      "jsr:@sigma/parse@0.19",
+      "jsr:@david/dax@0.45",
+      "jsr:@sigma/parse@0.20",
       "jsr:@sigmasd/gtk@0.32",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@sigmasd/rust-types@~0.6.1",
