@@ -8,10 +8,10 @@
     "jsr:@david/which@0.3": "0.3.0",
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
-    "jsr:@sigma/parse@0.30": "0.30.0",
+    "jsr:@sigma/parse@0.45": "0.45.0",
     "jsr:@sigmasd/chef@*": "0.27.1",
     "jsr:@sigmasd/deno-infer@3.0.1": "3.0.1",
-    "jsr:@sigmasd/gtk@0.32": "0.32.0",
+    "jsr:@sigmasd/gtk@~0.34.1": "0.34.1",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@sigmasd/lab@*": "0.1.33",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
@@ -80,8 +80,8 @@
     "@sigma/deno-compat@0.21.0": {
       "integrity": "9fccd523e88e5f542985f4b31b7839d5ffbddc83f6f57737b96b500b713a5ca1"
     },
-    "@sigma/parse@0.30.0": {
-      "integrity": "65166819898d6a67ed9f8ee4a26eda4f44f2dc8db497c05beca4aabbb6e8ee8d"
+    "@sigma/parse@0.45.0": {
+      "integrity": "c0e70e86b4c2c53b50815975da38966a677e80b75c3cb3e542febe84a5a2f828"
     },
     "@sigmasd/chef@0.27.1": {
       "integrity": "ae203932d88e9d4fea730917b218e543f9dac60f3c2c9da39a922cdea09f824c"
@@ -89,8 +89,8 @@
     "@sigmasd/deno-infer@3.0.1": {
       "integrity": "11881714f838a1d557b6c6933b2e39794b07686169ceb8321f1bfbfb4cdbcd0d"
     },
-    "@sigmasd/gtk@0.32.0": {
-      "integrity": "c8972ff4aded04bae00af9a1c08ec86603839a8301fd7ba7e3b4f9f2f627f6cd",
+    "@sigmasd/gtk@0.34.1": {
+      "integrity": "8076072b1f0cb695e1039398370e867aeeae6872a644397c0282dfee8aefb28f",
       "dependencies": [
         "jsr:@sigma/deno-compat"
       ]
@@ -200,8 +200,8 @@
   "workspace": {
     "dependencies": [
       "jsr:@david/dax@0.45",
-      "jsr:@sigma/parse@0.30",
-      "jsr:@sigmasd/gtk@0.32",
+      "jsr:@sigma/parse@0.45",
+      "jsr:@sigmasd/gtk@~0.34.1",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@sigmasd/rust-types@~0.6.1",
       "jsr:@std/assert@^1.0.18",
