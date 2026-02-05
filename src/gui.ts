@@ -301,6 +301,12 @@ function createRecipeRow(
 
   const updateBtn = new Button("Update");
 
+  const cancelBtn = new Button();
+  cancelBtn.setIconName("process-stop-symbolic");
+  cancelBtn.addCssClass("flat");
+  cancelBtn.setVisible(false);
+  cancelBtn.setTooltipText("Cancel");
+
   const runBtn = new Button();
   runBtn.setIconName("media-playback-start-symbolic");
   runBtn.addCssClass("flat");
@@ -310,6 +316,8 @@ function createRecipeRow(
   changelogBtn.setIconName("help-about-symbolic");
   changelogBtn.addCssClass("flat");
   changelogBtn.setTooltipText("Changelog");
+
+  let rowAbortController: AbortController | null = null;
 
   const checkUpdate = async () => {
     try {
@@ -367,16 +375,26 @@ function createRecipeRow(
   installBtn.onClick(async () => {
     installBtn.setSensitive(false);
     installBtn.setLabel("Installing...");
+    cancelBtn.setVisible(true);
+    rowAbortController = new AbortController();
     try {
-      await chef.installOrUpdate(recipe.name);
+      await chef.installOrUpdate(recipe.name, {
+        signal: rowAbortController.signal,
+      });
       updateStatus();
       updateButtons();
     } catch (e) {
-      console.error(e);
-      installBtn.setLabel("Failed");
+      if ((e as Error).name === "AbortError") {
+        console.log(`Installation of ${recipe.name} cancelled`);
+      } else {
+        console.error(e);
+        installBtn.setLabel("Failed");
+      }
     } finally {
       installBtn.setSensitive(true);
       installBtn.setLabel("Install");
+      cancelBtn.setVisible(false);
+      rowAbortController = null;
     }
   });
 
@@ -396,14 +414,31 @@ function createRecipeRow(
   updateBtn.onClick(async () => {
     updateBtn.setSensitive(false);
     updateBtn.setLabel("Updating...");
+    cancelBtn.setVisible(true);
+    rowAbortController = new AbortController();
     try {
-      await chef.installOrUpdate(recipe.name, { force: true });
+      await chef.installOrUpdate(recipe.name, {
+        force: true,
+        signal: rowAbortController.signal,
+      });
       updateStatus();
     } catch (e) {
-      console.error(e);
+      if ((e as Error).name === "AbortError") {
+        console.log(`Update of ${recipe.name} cancelled`);
+      } else {
+        console.error(e);
+      }
     } finally {
       updateBtn.setSensitive(true);
       updateBtn.setLabel("Update");
+      cancelBtn.setVisible(false);
+      rowAbortController = null;
+    }
+  });
+
+  cancelBtn.onClick(() => {
+    if (rowAbortController) {
+      rowAbortController.abort();
     }
   });
 
@@ -430,6 +465,7 @@ function createRecipeRow(
 
   actionBox.append(installBtn);
   actionBox.append(updateBtn);
+  actionBox.append(cancelBtn);
   actionBox.append(uninstallBtn);
   actionBox.append(runBtn);
   actionBox.append(changelogBtn);
@@ -442,6 +478,10 @@ function createRecipeRow(
     updateBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
     changelogBtn.setSensitive(sensitive);
+    if (!sensitive && rowAbortController) {
+      // If we are globally disabling, we might want to keep the cancel button enabled
+      // but usually updateAll handles its own cancellation globally.
+    }
   };
 
   return { row, setSensitive };
