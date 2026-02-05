@@ -10,7 +10,7 @@ import { isUrl } from "./utils.ts";
 export class DesktopFileManager {
   constructor(
     private iconsPath: string,
-    private chefPath: string | undefined,
+    private chefPath: string,
     private recipes: Recipe[],
   ) {}
 
@@ -24,14 +24,6 @@ export class DesktopFileManager {
       icon?: string;
     },
   ) {
-    if (!this.chefPath) {
-      console.error(
-        `%cChef Path is required, you can pass it as the first argument to Chef.start`,
-        `color: ${Colors.lightRed}`,
-      );
-      return;
-    }
-
     const recipe = this.recipes.find((r) => r.name === name);
     if (!recipe) {
       console.error(
