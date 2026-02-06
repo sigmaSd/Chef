@@ -228,3 +228,106 @@ export class Chef {
     }
   };
 }
+
+if (import.meta.main) {
+  const { printBanner, statusMessage, spacer, UIColors } = await import(
+    "./src/ui.ts"
+  );
+
+  if (Deno.args.length === 0) {
+    try {
+      await Deno.stat("chef.ts");
+      console.log(
+        "%cchef.ts%c already exists in the current directory.",
+        "color: yellow",
+        "color: inherit",
+      );
+      console.log(
+        "Run it with: %cdeno run -A chef.ts%c",
+        "color: green",
+        "color: inherit",
+      );
+      Deno.exit(0);
+    } catch (err) {
+      if (!(err instanceof Deno.errors.NotFound)) {
+        throw err;
+      }
+    }
+
+    printBanner();
+    console.log(
+      "%cChef: Personal Package Manager",
+      `color: ${UIColors.primary}; font-weight: bold`,
+    );
+    console.log(
+      "Chef helps you manage binaries that are not packaged by your distro.",
+    );
+    spacer();
+
+    console.log(
+      "To get started, you usually create a %cchef.ts%c file with your recipes.",
+      "color: yellow",
+      "color: inherit",
+    );
+    spacer();
+
+    const shouldCreate = confirm(
+      "Would you like to create a template chef.ts file in the current directory?",
+    );
+
+    if (shouldCreate) {
+      const template = `
+import { Chef, $ } from "jsr:@sigmasd/chef";
+import { getLatestGithubRelease } from "jsr:@sigmasd/chef/utils";
+
+const chef = new Chef();
+
+chef.add({
+  name: "irust",
+  download: async ({ latestVersion }) => {
+    await $.request(
+      \`https://github.com/sigmaSd/IRust/releases/download/\${latestVersion}/irust-x86_64-unknown-linux-gnu\`,
+    ).showProgress().pipeToPath();
+    await Deno.chmod("./irust-x86_64-unknown-linux-gnu", 0o555);
+    return {
+      exe: "./irust-x86_64-unknown-linux-gnu",
+    };
+  },
+  version: () => getLatestGithubRelease("sigmaSd/IRust"),
+});
+
+await chef.start(import.meta.url);
+`.trim();
+
+      try {
+        await Deno.writeTextFile("chef.ts", template);
+        statusMessage("success", "Created chef.ts");
+        console.log(
+          "You can now run it with: %cdeno run -A chef.ts%c",
+          "color: green",
+          "color: inherit",
+        );
+        spacer();
+        console.log(
+          "Recommended: Install it globally to use the 'chef' command:",
+        );
+        console.log(
+          "%cdeno install -gA -n chef chef.ts%c",
+          "color: cyan",
+          "color: inherit",
+        );
+      } catch (err) {
+        if (err instanceof Error) {
+          statusMessage("error", `Failed to create chef.ts: ${err.message}`);
+        }
+      }
+    } else {
+      console.log(
+        "Check out the documentation at: https://jsr.io/@sigmasd/chef",
+      );
+    }
+  } else {
+    const chef = new Chef();
+    await chef.start();
+  }
+}
