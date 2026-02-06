@@ -44,10 +44,13 @@ export async function startGui(chef: ChefInternal) {
     const updateAllBtn = new Button("Update All");
     updateAllBtn.addCssClass("suggested-action");
 
+    const editRecipesBtn = new Button("Edit Recipes");
+
     const cancelBtn = new Button("Cancel");
     cancelBtn.setVisible(false);
 
     headerBox.append(updateAllBtn);
+    headerBox.append(editRecipesBtn);
     headerBox.append(cancelBtn);
     mainBox.append(headerBox);
 
@@ -155,6 +158,18 @@ export async function startGui(chef: ChefInternal) {
         cancelBtn.setVisible(false);
         recipeRows.forEach((r) => r.setSensitive(true));
         abortController = null;
+      }
+    });
+
+    editRecipesBtn.onClick(() => {
+      const chefPath = chef.edit();
+      if (chefPath) {
+        const command = Deno.build.os === "windows"
+          ? "start"
+          : Deno.build.os === "darwin"
+          ? "open"
+          : "xdg-open";
+        new Deno.Command(command, { args: [chefPath] }).spawn();
       }
     });
 

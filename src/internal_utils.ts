@@ -1,5 +1,57 @@
 import * as infer from "@sigmasd/infer";
 import * as path from "@std/path";
+import { Option } from "@sigmasd/rust-types/option";
+
+export function getChefBasePath() {
+  return path.join(
+    Option.wrap(cacheDir()).expect("cache dir not found"),
+    "chef",
+  );
+}
+
+export async function ensureDefaultChefFile(
+  libUrl: string,
+  utilsUrl: string,
+): Promise<string> {
+  const basePath = getChefBasePath();
+  const isLocal = libUrl.startsWith("file://");
+  const filename = isLocal ? "chef-default-local.ts" : "chef-default-jsr.ts";
+  const defaultChefPath = path.join(basePath, filename);
+
+  try {
+    await Deno.stat(defaultChefPath);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      const template = `
+import { Chef, $ } from "${libUrl}";
+import { getLatestGithubRelease } from "${utilsUrl}";
+
+const chef = new Chef();
+
+chef.add({
+  name: "irust",
+  download: async ({ latestVersion }) => {
+    await $.request(
+      \`https://github.com/sigmaSd/IRust/releases/download/\${latestVersion}/irust-x86_64-unknown-linux-gnu\`,
+    ).showProgress().pipeToPath();
+    await Deno.chmod("./irust-x86_64-unknown-linux-gnu", 0o555);
+    return {
+      exe: "./irust-x86_64-unknown-linux-gnu",
+    };
+  },
+  version: () => getLatestGithubRelease("sigmaSd/IRust"),
+});
+
+await chef.start(import.meta.url);
+`.trim();
+      await Deno.mkdir(basePath, { recursive: true });
+      await Deno.writeTextFile(defaultChefPath, template);
+    } else {
+      throw err;
+    }
+  }
+  return defaultChefPath;
+}
 
 export async function runInTempDir<T>(fn: () => Promise<T>) {
   const currentDir = Deno.cwd();

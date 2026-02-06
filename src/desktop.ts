@@ -86,6 +86,87 @@ export class DesktopFileManager {
   }
 
   /**
+   * Install Chef GUI as a desktop application
+   */
+  async installGui() {
+    const desktopDir = path.join(
+      Deno.env.get("HOME")!,
+      ".local/share/applications",
+    );
+    ensureDirSync(desktopDir);
+    ensureDirSync(this.iconsPath);
+
+    let iconPath = "package-x-generic";
+
+    // Try to find and copy the chef icon
+    try {
+      const svgUrl = new URL("../distro/chef.svg", import.meta.url);
+      const destIconPath = path.join(this.iconsPath, "chef.svg");
+
+      const response = await fetch(svgUrl);
+      if (response.ok) {
+        const bytes = await response.bytes();
+        await Deno.writeFile(destIconPath, bytes);
+        iconPath = destIconPath;
+      }
+    } catch {
+      // Fallback to generic icon if icon not found
+    }
+
+    const desktopPath = path.join(desktopDir, "chef.desktop");
+    const content = `[Desktop Entry]
+Name=Chef
+Exec=deno run -A ${this.chefPath} gui
+Type=Application
+Terminal=false
+Comment=Personal Package Manager
+Categories=System;
+Icon=${iconPath}`;
+
+    Deno.writeTextFileSync(desktopPath, content);
+    Deno.chmodSync(desktopPath, 0o755);
+    console.log(
+      `%cChef GUI installed as a desktop application`,
+      `color: ${Colors.lightGreen}`,
+    );
+    console.log(
+      `%cDesktop file: ${desktopPath}`,
+      `color: ${Colors.blueMarine}`,
+    );
+  }
+
+  /**
+   * Uninstall Chef GUI desktop application
+   */
+  uninstallGui() {
+    const desktopPath = path.join(
+      Deno.env.get("HOME")!,
+      ".local/share/applications",
+      "chef.desktop",
+    );
+
+    // Remove icon if it exists
+    try {
+      Deno.removeSync(path.join(this.iconsPath, "chef.svg"));
+    } catch {
+      // Ignore
+    }
+
+    try {
+      Deno.removeSync(desktopPath);
+      console.log(
+        `%cChef GUI uninstalled successfully`,
+        `color: ${Colors.lightGreen}`,
+      );
+    } catch {
+      console.error(
+        `%cChef GUI is not installed as a desktop application`,
+        `color: ${Colors.lightRed}`,
+      );
+    }
+  }
+
+  /**
    * Remove a desktop file for a binary
    */
   remove(name: string, options: { silent?: boolean } = {}) {

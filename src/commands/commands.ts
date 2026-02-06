@@ -1,4 +1,5 @@
 import { arg, Args, cli, command, opt, subCommand } from "@sigma/parse";
+import denoJson from "../../deno.json" with { type: "json" };
 
 // Command classes for CLI argument parsing
 @command
@@ -54,7 +55,13 @@ export class UpdateCommand {
 export class EditCommand {}
 
 @command
-export class GuiCommand {}
+export class GuiCommand {
+  @opt({ description: "install chef gui as a desktop application" })
+  install: boolean = false;
+
+  @opt({ description: "uninstall chef gui desktop application" })
+  uninstall: boolean = false;
+}
 
 @command
 export class CreateDesktopCommand {
@@ -118,7 +125,7 @@ export interface CommandHandlers {
   }) => Promise<void>;
   uninstall?: (binary: string[]) => Promise<void>;
   edit?: () => string | undefined;
-  gui?: () => Promise<void>;
+  gui?: (options: { install?: boolean; uninstall?: boolean }) => Promise<void>;
   createDesktop?: (name: string, options: {
     terminal?: boolean;
     icon?: string;
@@ -138,6 +145,12 @@ export interface CommandHandlers {
   exitOnError: false, // Throw errors instead of exiting
 })
 class ChefArgs extends Args {
+  @opt({
+    short: "v",
+    description: "show version",
+  })
+  version: boolean = false;
+
   @subCommand(RunCommand, { description: "run a binary" })
   run?: RunCommand;
 
@@ -184,6 +197,11 @@ export async function parseAndExecute(
   // Parse arguments using the new API
   const parsedArgs = ChefArgs.parse(args);
 
+  if (parsedArgs.version) {
+    console.log(denoJson.version);
+    return;
+  }
+
   // Execute commands based on what was parsed
   if (parsedArgs.run && handlers.run) {
     await handlers.run(parsedArgs.run.name!, parsedArgs.run.binArgs);
@@ -206,7 +224,10 @@ export async function parseAndExecute(
       console.log(result);
     }
   } else if (parsedArgs.gui && handlers.gui) {
-    await handlers.gui();
+    await handlers.gui({
+      install: parsedArgs.gui.install,
+      uninstall: parsedArgs.gui.uninstall,
+    });
   } else if (parsedArgs["desktop-file"]) {
     if (parsedArgs["desktop-file"].create && handlers.createDesktop) {
       await handlers.createDesktop(parsedArgs["desktop-file"].create.name!, {

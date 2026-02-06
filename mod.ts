@@ -3,106 +3,59 @@
  *
  * Personal package manager
  *
- * ## Why it exists
+ * ## Quick Start (No Config)
  *
- * This is useful for those binaries that are not packaged by a distro.
+ * Install Chef globally and use it immediately:
  *
- * With chef you can:
+ * ```bash
+ * deno install -gA jsr:@sigmasd/chef
  *
- * - Install a random binary
- * - Keep it up-to-date
- * - Run it
- * - Automatically create desktop files for installed binaries when specified in recipes
+ * # Start the GUI
+ * chef gui
  *
- * ## Usage
+ * # Install Chef as a desktop application
+ * chef gui --install
+ * ```
  *
- * Create a file for example **chef.ts** with:
+ * ## Custom Recipes
  *
- * ```ts ignore
- * import { Chef } from "jsr:@sigmasd/chef";
+ * Create a file (e.g., **chef.ts**) to define your own binaries:
+ *
+ * ```ts
+ * import { Chef, $ } from "jsr:@sigmasd/chef";
+ * import { getLatestGithubRelease } from "jsr:@sigmasd/chef/utils";
  *
  * const chef = new Chef();
  *
  * chef.add({
- *   name: "binary1",
+ *   name: "irust",
  *   download: async ({ latestVersion }) => {
- *     // a fuction that downloads the binary and return its relative path
- *     // Example: download and extract the binary, then return the path
- *     return { exe: "./path/to/binary" };
+ *     await $.request(
+ *       `https://github.com/sigmaSd/IRust/releases/download/${latestVersion}/irust-x86_64-unknown-linux-gnu`,
+ *     ).showProgress().pipeToPath();
+ *     await Deno.chmod("./irust-x86_64-unknown-linux-gnu", 0o555);
+ *     return {
+ *       exe: "./irust-x86_64-unknown-linux-gnu",
+ *     };
  *   },
- *   version: async () => {
- *     // a function that returns the latest version of the binary
- *     // Example: fetch version from GitHub releases, npm, etc.
- *     return "1.0.0";
- *   },
+ *   version: () => getLatestGithubRelease("sigmaSd/IRust"),
  * });
  *
- * // The import.meta.url helps to namespace this script artifacts in its seprate path
- * // If not specifed it will use a default path
+ * // The import.meta.url namespaces artifacts for this script
  * await chef.start(import.meta.url);
  * ```
  *
- * For a better experience install it with deno install (make sure `~/.deno/bin` is
- * in your path):
+ * For a better experience, install your script globally:
  *
- * `deno install -A -n chef chef.ts`
+ * `deno install -gA -n chef chef.ts`
  *
- * You can now use:
+ * ## Features
  *
- * - `chef update` to update all binaries (or install it if it doesn't exist yet)
- * - `chef list` to list currently binaries
- * - `chef run ${binary} $args` to run one of the installed binaries
- * - `chef link ${binary}` to create a symlink in the exports directory for easy PATH access
- * - Desktop files are created automatically during installation if specified in the recipe
- * - `chef desktop-file create ${binary} [--terminal] [--icon path or url]` to manually create or update a desktop file
- * - `chef desktop-file remove ${binary}` to remove a desktop file
+ * - **Zero Config**: Works out of the box with a default recipes file.
+ * - **GUI**: Modern GTK4 interface for visual management.
+ * - **Desktop Integration**: Automatically creates `.desktop` files for your binaries.
+ * - **Portable**: Recipes are just TypeScript files.
  *
- * Checkout `bin` direcotry for more examples.
- *
- * @example
- * ```ts ignore
- * import { $, Chef } from "jsr:@sigmasd/chef";
- * import {
- *   getLatestGithubRelease,
- *   getLatestNpmVersion,
- * } from "jsr:@sigmasd/chef/utils";
- *
- * if (import.meta.main) {
- *   const chef = new Chef();
- *   chef.addMany(
- *     [
- *       {
- *         name: "slint-lsp",
- *         download: async () => {
- *           await $.request(
- *             "https://github.com/slint-ui/slint/releases/download/v1.5.1/slint-lsp-linux.tar.gz",
- *           ).pipeToPath();
- *           await $`tar -xzf slint-lsp-linux.tar.gz`;
- *           return {
- *             exe: "./slint-lsp/slint-lsp",
- *           };
- *         },
- *         version: () => getLatestGithubRelease("slint-ui/slint"),
- *       },
- *       {
- *         name: "typescript-language-server",
- *         download: async () => {
- *           await $`npm install typescript-language-server`;
- *           return {
- *             dir: {
- *               path: ".",
- *               exe: "./node_modules/typescript-language-server/lib/cli.mjs"
- *             }
- *           };
- *         },
- *         version: () => getLatestNpmVersion("typescript-language-server"),
- *       },
- *     ],
- *   );
- *   await chef.start(import.meta.url);
- * }
- *
- * ```
  * @module
  */
 import { isParseError } from "@sigma/parse";
@@ -230,104 +183,39 @@ export class Chef {
 }
 
 if (import.meta.main) {
-  const { printBanner, statusMessage, spacer, UIColors } = await import(
-    "./src/ui.ts"
-  );
+  const { ensureDefaultChefFile } = await import("./src/internal_utils.ts");
+  const path = await import("@std/path");
 
-  if (Deno.args.length === 0) {
+  const libUrl = import.meta.url;
+  const utilsUrl = new URL("./src/utils.ts", libUrl).toString();
+
+  const defaultChefPath = await ensureDefaultChefFile(libUrl, utilsUrl);
+
+  const args = ["run", "-A"];
+
+  // If running locally, pass the config file to the sub-process
+  if (import.meta.url.startsWith("file://")) {
+    const configPath = path.join(
+      path.dirname(path.fromFileUrl(import.meta.url)),
+      "deno.json",
+    );
     try {
-      await Deno.stat("chef.ts");
-      console.log(
-        "%cchef.ts%c already exists in the current directory.",
-        "color: yellow",
-        "color: inherit",
-      );
-      console.log(
-        "Run it with: %cdeno run -A chef.ts%c",
-        "color: green",
-        "color: inherit",
-      );
-      Deno.exit(0);
-    } catch (err) {
-      if (!(err instanceof Deno.errors.NotFound)) {
-        throw err;
-      }
+      await Deno.stat(configPath);
+      args.push("--config", configPath);
+    } catch {
+      // Ignore
     }
-
-    printBanner();
-    console.log(
-      "%cChef: Personal Package Manager",
-      `color: ${UIColors.primary}; font-weight: bold`,
-    );
-    console.log(
-      "Chef helps you manage binaries that are not packaged by your distro.",
-    );
-    spacer();
-
-    console.log(
-      "To get started, you usually create a %cchef.ts%c file with your recipes.",
-      "color: yellow",
-      "color: inherit",
-    );
-    spacer();
-
-    const shouldCreate = confirm(
-      "Would you like to create a template chef.ts file in the current directory?",
-    );
-
-    if (shouldCreate) {
-      const template = `
-import { Chef, $ } from "jsr:@sigmasd/chef";
-import { getLatestGithubRelease } from "jsr:@sigmasd/chef/utils";
-
-const chef = new Chef();
-
-chef.add({
-  name: "irust",
-  download: async ({ latestVersion }) => {
-    await $.request(
-      \`https://github.com/sigmaSd/IRust/releases/download/\${latestVersion}/irust-x86_64-unknown-linux-gnu\`,
-    ).showProgress().pipeToPath();
-    await Deno.chmod("./irust-x86_64-unknown-linux-gnu", 0o555);
-    return {
-      exe: "./irust-x86_64-unknown-linux-gnu",
-    };
-  },
-  version: () => getLatestGithubRelease("sigmaSd/IRust"),
-});
-
-await chef.start(import.meta.url);
-`.trim();
-
-      try {
-        await Deno.writeTextFile("chef.ts", template);
-        statusMessage("success", "Created chef.ts");
-        console.log(
-          "You can now run it with: %cdeno run -A chef.ts%c",
-          "color: green",
-          "color: inherit",
-        );
-        spacer();
-        console.log(
-          "Recommended: Install it globally to use the 'chef' command:",
-        );
-        console.log(
-          "%cdeno install -gA -n chef chef.ts%c",
-          "color: cyan",
-          "color: inherit",
-        );
-      } catch (err) {
-        if (err instanceof Error) {
-          statusMessage("error", `Failed to create chef.ts: ${err.message}`);
-        }
-      }
-    } else {
-      console.log(
-        "Check out the documentation at: https://jsr.io/@sigmasd/chef",
-      );
-    }
-  } else {
-    const chef = new Chef();
-    await chef.start();
   }
+
+  args.push(defaultChefPath, ...Deno.args);
+
+  const command = new Deno.Command(Deno.execPath(), {
+    args,
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+  });
+
+  const status = await command.spawn().status;
+  Deno.exit(status.code);
 }

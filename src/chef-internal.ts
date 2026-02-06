@@ -1,7 +1,6 @@
 import * as path from "@std/path";
-import { Option } from "@sigmasd/rust-types/option";
 import type { Recipe } from "../mod.ts";
-import { cacheDir } from "./internal_utils.ts";
+import { getChefBasePath } from "./internal_utils.ts";
 import { ChefDatabase } from "./database.ts";
 import { DesktopFileManager } from "./desktop.ts";
 import { BinaryRunner } from "./binary-runner.ts";
@@ -24,10 +23,7 @@ export class ChefInternal {
     return name ? path.basename(name, path.extname(name)) : "default";
   }
 
-  private readonly basePath = path.join(
-    Option.wrap(cacheDir()).expect("cache dir not found"),
-    "chef",
-  );
+  private readonly basePath = getChefBasePath();
 
   get binPath() {
     return path.join(this.basePath, "bin", this.scriptName);
@@ -157,7 +153,15 @@ export class ChefInternal {
       edit: () => {
         return this.edit();
       },
-      gui: async () => {
+      gui: async (options) => {
+        if (options?.install) {
+          await this.desktopManager.installGui();
+          Deno.exit(0);
+        }
+        if (options?.uninstall) {
+          this.desktopManager.uninstallGui();
+          Deno.exit(0);
+        }
         const { startGui } = await import("./gui.ts");
         await startGui(this);
         Deno.exit(0);
