@@ -6,6 +6,11 @@ export interface DbEntry {
   dir?: string;
 }
 
+interface DbStructure {
+  _settings?: Record<string, string>;
+  [key: string]: string | DbEntry | Record<string, string> | undefined;
+}
+
 /**
  * Manages the Chef database that stores binary versions and metadata
  */
@@ -13,26 +18,35 @@ export class ChefDatabase {
   constructor(private dbPath: string, private recipes: Recipe[]) {}
 
   /**
-   * Read the database from disk and filter out recipes that no longer exist
+   * Read the raw database structure including settings
    */
-  read(): Result<Record<string, DbEntry>, unknown> {
+  readRaw(): Result<DbStructure, unknown> {
     const db = Result
       .wrap(() => Deno.readTextFileSync(this.dbPath))
       .unwrapOr("{}");
 
-    const dbParsed = Result.wrap(() =>
-      JSON.parse(db) as Record<string, string | DbEntry>
-    );
+    const dbParsed = Result.wrap(() => JSON.parse(db) as DbStructure);
+    if (dbParsed.isErr()) return Err(dbParsed.err);
+    return Ok(dbParsed.ok);
+  }
+
+  /**
+   * Read the database from disk and filter out recipes that no longer exist.
+   * Returns only binary entries (DbEntry).
+   */
+  read(): Result<Record<string, DbEntry>, unknown> {
+    const dbParsed = this.readRaw();
     if (dbParsed.isErr()) return Err(dbParsed.err);
 
     // Normalize entries to DbEntry and filter out entries for recipes that no longer exist
     const normalized: Record<string, DbEntry> = {};
     for (const [name, value] of Object.entries(dbParsed.ok)) {
+      if (name === "_settings") continue;
       if (this.recipes.find((r) => r.name === name)) {
         if (typeof value === "string") {
           normalized[name] = { version: value };
         } else {
-          normalized[name] = value;
+          normalized[name] = value as DbEntry;
         }
       }
     }
@@ -43,9 +57,27 @@ export class ChefDatabase {
   /**
    * Write the database to disk
    */
-  write(db: Record<string, DbEntry>) {
+  write(db: DbStructure) {
     Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
       .expect("failed to write to database");
+  }
+
+  /**
+   * Get a setting value
+   */
+  getSetting(key: string): string | undefined {
+    const db = this.readRaw().expect("failed to read database");
+    return db._settings?.[key];
+  }
+
+  /**
+   * Set a setting value
+   */
+  setSetting(key: string, value: string) {
+    const db = this.readRaw().expect("failed to read database");
+    if (!db._settings) db._settings = {};
+    db._settings[key] = value;
+    this.write(db);
   }
 
   /**
@@ -68,8 +100,9 @@ export class ChefDatabase {
    * Update the version of a specific binary
    */
   setVersion(binaryName: string, version: string) {
-    const db = this.read().expect("failed to read database");
-    db[binaryName] = { ...db[binaryName], version };
+    const db = this.readRaw().expect("failed to read database");
+    const entry = db[binaryName] as DbEntry | undefined;
+    db[binaryName] = { ...entry, version };
     this.write(db);
   }
 

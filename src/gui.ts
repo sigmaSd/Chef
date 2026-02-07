@@ -4,11 +4,13 @@ import {
   ApplicationWindow,
   Box,
   Button,
+  Entry,
   Grid,
   Label,
   ListBox,
   ListBoxRow,
   Orientation,
+  Popover,
   ProgressBar,
   ScrolledWindow,
   SizeGroup,
@@ -46,11 +48,48 @@ export async function startGui(chef: ChefInternal) {
 
     const editRecipesBtn = new Button("Edit Recipes");
 
+    const settingsBtn = new Button();
+    settingsBtn.setIconName("emblem-system-symbolic");
+    settingsBtn.setTooltipText("Settings");
+
+    const settingsPopover = new Popover();
+    settingsPopover.setParent(settingsBtn);
+
+    const settingsBox = new Box(Orientation.VERTICAL, 10);
+    settingsBox.setMarginTop(10);
+    settingsBox.setMarginBottom(10);
+    settingsBox.setMarginStart(10);
+    settingsBox.setMarginEnd(10);
+
+    const editorLabel = new Label("Editor Command:");
+    editorLabel.setHalign(Align.START);
+    const editorEntry = new Entry();
+    editorEntry.setText(chef.getEditorCommand());
+    editorEntry.setPlaceholderText("e.g. kgx -e hx");
+
+    const saveSettingsBtn = new Button("Save");
+    saveSettingsBtn.addCssClass("suggested-action");
+
+    settingsBox.append(editorLabel);
+    settingsBox.append(editorEntry);
+    settingsBox.append(saveSettingsBtn);
+    settingsPopover.setChild(settingsBox);
+
+    settingsBtn.onClick(() => {
+      settingsPopover.popup();
+    });
+
+    saveSettingsBtn.onClick(() => {
+      chef.setEditorCommand(editorEntry.getText());
+      settingsPopover.popdown();
+    });
+
     const cancelBtn = new Button("Cancel");
     cancelBtn.setVisible(false);
 
     headerBox.append(updateAllBtn);
     headerBox.append(editRecipesBtn);
+    headerBox.append(settingsBtn);
     headerBox.append(cancelBtn);
     mainBox.append(headerBox);
 
@@ -164,12 +203,9 @@ export async function startGui(chef: ChefInternal) {
     editRecipesBtn.onClick(() => {
       const chefPath = chef.edit();
       if (chefPath) {
-        const command = Deno.build.os === "windows"
-          ? "start"
-          : Deno.build.os === "darwin"
-          ? "open"
-          : "xdg-open";
-        new Deno.Command(command, { args: [chefPath] }).spawn();
+        const fullCommand = chef.getEditorCommand();
+        const [cmd, ...args] = fullCommand.split(" ");
+        new Deno.Command(cmd, { args: [...args, chefPath] }).spawn();
       }
     });
 

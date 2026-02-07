@@ -237,6 +237,26 @@ export class ChefInternal {
   };
 
   /**
+   * Get the configured editor command or default
+   */
+  getEditorCommand = (): string => {
+    return this.database.getSetting("editorCommand") || (
+      Deno.build.os === "windows"
+        ? "start"
+        : Deno.build.os === "darwin"
+        ? "open"
+        : "xdg-open"
+    );
+  };
+
+  /**
+   * Set the editor command
+   */
+  setEditorCommand = (command: string) => {
+    this.database.setSetting("editorCommand", command);
+  };
+
+  /**
    * Create a symlink to a binary in the exports directory
    */
   link = async (name: string) => {
