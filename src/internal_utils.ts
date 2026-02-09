@@ -9,6 +9,11 @@ export function getChefBasePath() {
   );
 }
 
+export function getVersionFromUrl(text: string): string | undefined {
+  const match = text.match(/@sigmasd\/chef@([0-9]+\.[0-9]+\.[0-9]+[^"'/]*)/);
+  return match ? match[1] : undefined;
+}
+
 export async function ensureDefaultChefFile(
   libUrl: string,
   utilsUrl: string,
@@ -20,6 +25,34 @@ export async function ensureDefaultChefFile(
 
   try {
     await Deno.stat(defaultChefPath);
+    if (!isLocal) {
+      const content = await Deno.readTextFile(defaultChefPath);
+      const fileVersion = getVersionFromUrl(content);
+      const runningVersion = getVersionFromUrl(libUrl);
+
+      if (fileVersion && runningVersion) {
+        const semver = await import("@std/semver");
+        if (
+          semver.greaterThan(
+            semver.parse(runningVersion),
+            semver.parse(fileVersion),
+          )
+        ) {
+          const newContent = content.replaceAll(
+            `@sigmasd/chef@${fileVersion}`,
+            `@sigmasd/chef@${runningVersion}`,
+          );
+          if (newContent !== content) {
+            await Deno.writeTextFile(defaultChefPath, newContent);
+            const { statusMessage } = await import("./ui.ts");
+            statusMessage(
+              "update",
+              `Updated ${filename} from version ${fileVersion} to ${runningVersion}`,
+            );
+          }
+        }
+      }
+    }
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) {
       const template = `

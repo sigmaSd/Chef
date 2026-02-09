@@ -1,6 +1,6 @@
 import * as path from "@std/path";
 import { assertEquals } from "@std/assert";
-import { ChefInternal } from "./src/lib.ts";
+import { ChefInternal } from "../src/lib.ts";
 
 class TestChef extends ChefInternal {
   // Override the base path for testing

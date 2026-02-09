@@ -15,6 +15,7 @@
     "@std/async": "jsr:@std/async@^1.1.1",
     "@std/fs": "jsr:@std/fs@^1.0.22",
     "@std/path": "jsr:@std/path@^1.1.4",
+    "@std/semver": "jsr:@std/semver@^1.0.3",
     "@david/dax": "jsr:@david/dax@^0.45.0"
   }
 }
