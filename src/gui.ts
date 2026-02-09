@@ -380,12 +380,23 @@ function createRecipeRow(
         latestVersionLabel.setText("-");
       }
 
-      if (chef.isInstalled(recipe.name) && info.needsUpdate) {
-        updateAvailableLabel.setText("✨");
-        updateBtn.addCssClass("success");
-      } else {
-        updateAvailableLabel.setText("  ");
-        updateBtn.removeCssClass("success");
+      if (chef.isInstalled(recipe.name)) {
+        if (info.needsUpdate) {
+          updateAvailableLabel.setText("✨");
+          updateBtn.addCssClass("success");
+          updateBtn.setLabel("Update");
+        } else if (
+          info.currentVersion && info.latestVersion &&
+          info.currentVersion === info.latestVersion
+        ) {
+          updateAvailableLabel.setText("  ");
+          updateBtn.removeCssClass("success");
+          updateBtn.setLabel("Reinstall");
+        } else {
+          updateAvailableLabel.setText("  ");
+          updateBtn.removeCssClass("success");
+          updateBtn.setLabel("Update");
+        }
       }
     } catch (e) {
       console.error(`Failed to check update for ${recipe.name}:`, e);
@@ -463,8 +474,9 @@ function createRecipeRow(
   });
 
   updateBtn.onClick(async () => {
+    const isReinstall = updateBtn.getLabel() === "Reinstall";
     updateBtn.setSensitive(false);
-    updateBtn.setLabel("Updating...");
+    updateBtn.setLabel(isReinstall ? "Reinstalling..." : "Updating...");
     cancelBtn.setVisible(true);
     rowAbortController = new AbortController();
     try {
@@ -475,13 +487,15 @@ function createRecipeRow(
       updateStatus();
     } catch (e) {
       if ((e as Error).name === "AbortError") {
-        console.log(`Update of ${recipe.name} cancelled`);
+        console.log(
+          `${isReinstall ? "Reinstall" : "Update"} of ${recipe.name} cancelled`,
+        );
       } else {
         console.error(e);
       }
+      updateBtn.setLabel(isReinstall ? "Reinstall" : "Update");
     } finally {
       updateBtn.setSensitive(true);
-      updateBtn.setLabel("Update");
       cancelBtn.setVisible(false);
       rowAbortController = null;
     }
