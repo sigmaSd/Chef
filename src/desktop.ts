@@ -89,39 +89,44 @@ export class DesktopFileManager {
    * Install Chef GUI as a desktop application
    */
   async installGui() {
+    const appId = "io.github.sigmasd.chef";
     const desktopDir = path.join(
       Deno.env.get("HOME")!,
       ".local/share/applications",
     );
+    const iconDir = path.join(
+      Deno.env.get("HOME")!,
+      ".local/share/icons/hicolor/scalable/apps",
+    );
     ensureDirSync(desktopDir);
-    ensureDirSync(this.iconsPath);
+    ensureDirSync(iconDir);
 
-    let iconPath = "package-x-generic";
+    let iconValue = "package-x-generic";
 
     // Try to find and copy the chef icon
     try {
-      const svgUrl = new URL("../distro/chef.svg", import.meta.url);
-      const destIconPath = path.join(this.iconsPath, "chef.svg");
+      const svgUrl = new URL(`../distro/${appId}.svg`, import.meta.url);
+      const destIconPath = path.join(iconDir, `${appId}.svg`);
 
       const response = await fetch(svgUrl);
       if (response.ok) {
         const bytes = await response.bytes();
         await Deno.writeFile(destIconPath, bytes);
-        iconPath = destIconPath;
+        iconValue = appId;
       }
     } catch {
       // Fallback to generic icon if icon not found
     }
 
-    const desktopPath = path.join(desktopDir, "chef.desktop");
+    const desktopPath = path.join(desktopDir, `${appId}.desktop`);
     const content = `[Desktop Entry]
 Name=Chef
-Exec=deno run -A ${this.chefPath} gui
+Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} gui
 Type=Application
 Terminal=false
 Comment=Personal Package Manager
 Categories=System;
-Icon=${iconPath}`;
+Icon=${iconValue}`;
 
     Deno.writeTextFileSync(desktopPath, content);
     Deno.chmodSync(desktopPath, 0o755);
@@ -135,19 +140,40 @@ Icon=${iconPath}`;
     );
   }
 
+  private getConfigArg(): string {
+    if (!import.meta.url.startsWith("file://")) {
+      return "";
+    }
+
+    try {
+      const configUrl = new URL("../deno.json", import.meta.url);
+      const configPath = path.fromFileUrl(configUrl);
+      Deno.statSync(configPath);
+      return `--config ${configPath} `;
+    } catch {
+      return "";
+    }
+  }
+
   /**
    * Uninstall Chef GUI desktop application
    */
   uninstallGui() {
+    const appId = "io.github.sigmasd.chef";
     const desktopPath = path.join(
       Deno.env.get("HOME")!,
       ".local/share/applications",
-      "chef.desktop",
+      `${appId}.desktop`,
     );
 
     // Remove icon if it exists
     try {
-      Deno.removeSync(path.join(this.iconsPath, "chef.svg"));
+      const iconPath = path.join(
+        Deno.env.get("HOME")!,
+        ".local/share/icons/hicolor/scalable/apps",
+        `${appId}.svg`,
+      );
+      Deno.removeSync(iconPath);
     } catch {
       // Ignore
     }
@@ -208,7 +234,7 @@ Icon=${iconPath}`;
   ): string {
     return `[Desktop Entry]
 Name=${recipe.desktopFile?.name ?? name}
-Exec=deno run -A ${this.chefPath} run ${recipe.name}
+Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} run ${recipe.name}
 Type=Application
 Terminal=${terminal}
 ${recipe.desktopFile?.comment ? `Comment=${recipe.desktopFile.comment}` : ""}

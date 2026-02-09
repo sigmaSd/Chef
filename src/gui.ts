@@ -22,7 +22,7 @@ import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
 
 export async function startGui(chef: ChefInternal) {
-  const app = new Application("com.github.sigmasd.chef", 0);
+  const app = new Application("io.github.sigmasd.chef", 0);
   const eventLoop = new EventLoop();
 
   app.onActivate(() => {
