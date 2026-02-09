@@ -1,7 +1,7 @@
 - [x] if the latest version is the same as the current version, the Update
       button should be called soemthing else maybe Reinstall
 
-- add a run in terminal button
+- [x] add a run in terminal button
 
 - if an app is running we should have visual feedback in the app, it should be
   easy to tell if teh app is running and listen to its exit

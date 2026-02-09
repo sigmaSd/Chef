@@ -1,6 +1,6 @@
 import * as path from "@std/path";
+import { commandExists, getChefBasePath } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
-import { getChefBasePath } from "./internal_utils.ts";
 import { ChefDatabase } from "./database.ts";
 import { DesktopFileManager } from "./desktop.ts";
 import { BinaryRunner } from "./binary-runner.ts";
@@ -105,6 +105,29 @@ export class ChefInternal {
    */
   runBin = async (name: string, args: string[]) => {
     await this.binaryRunner.run(name, args);
+  };
+
+  /**
+   * Run a binary in a terminal
+   */
+  runInTerminal = async (name: string, args: string[]) => {
+    const binPath = this.binaryRunner.getBinaryPath(name);
+    if (!binPath) return;
+
+    const recipe = this.recipes.find((r) => r.name === name);
+    let finalArgs = recipe?.cmdArgs ? [...recipe.cmdArgs] : [];
+    finalArgs = finalArgs.concat(args);
+
+    const terminalCommand = await this.getTerminalCommand();
+    const [termBin, ...termArgs] = terminalCommand.split(" ");
+
+    // For some modern terminals, if we have -- at the end, it's safer
+    // If user provided a custom command like "kgx --", we use it as is.
+    // If it's a simple binary name, we might want to ensure a separator if it's a known terminal.
+
+    await new Deno.Command(termBin, {
+      args: [...termArgs, binPath, ...finalArgs],
+    }).spawn();
   };
 
   /**
@@ -254,6 +277,46 @@ export class ChefInternal {
    */
   setEditorCommand = (command: string) => {
     this.database.setSetting("editorCommand", command);
+  };
+
+  /**
+   * Get the configured terminal command or default
+   */
+  getTerminalCommand = async (): Promise<string> => {
+    const saved = this.database.getSetting("terminalCommand");
+    if (saved) return saved;
+
+    if (Deno.build.os === "windows") return "cmd /c start";
+    if (Deno.build.os === "darwin") return "open -a Terminal";
+
+    const envTerminal = Deno.env.get("TERMINAL");
+    if (envTerminal) return `${envTerminal} -e`;
+
+    const commonTerminals = [
+      { bin: "kgx", args: "--" },
+      { bin: "gnome-terminal", args: "--" },
+      { bin: "xfce4-terminal", args: "-e" },
+      { bin: "konsole", args: "-e" },
+      { bin: "x-terminal-emulator", args: "-e" },
+      { bin: "alacritty", args: "-e" },
+      { bin: "kitty", args: "" },
+      { bin: "xterm", args: "-e" },
+    ];
+
+    for (const { bin, args } of commonTerminals) {
+      if (await commandExists(bin)) {
+        return `${bin} ${args}`.trim();
+      }
+    }
+
+    return "xterm -e";
+  };
+
+  /**
+   * Set the terminal command
+   */
+  setTerminalCommand = (command: string) => {
+    this.database.setSetting("terminalCommand", command);
   };
 
   /**

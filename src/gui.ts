@@ -67,11 +67,21 @@ export async function startGui(chef: ChefInternal) {
     editorEntry.setText(chef.getEditorCommand());
     editorEntry.setPlaceholderText("e.g. kgx -e hx");
 
+    const terminalLabel = new Label("Terminal Command:");
+    terminalLabel.setHalign(Align.START);
+    terminalLabel.setMarginTop(10);
+    const terminalEntry = new Entry();
+    chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
+    terminalEntry.setPlaceholderText("e.g. kgx -e");
+
     const saveSettingsBtn = new Button("Save");
     saveSettingsBtn.addCssClass("suggested-action");
+    saveSettingsBtn.setMarginTop(10);
 
     settingsBox.append(editorLabel);
     settingsBox.append(editorEntry);
+    settingsBox.append(terminalLabel);
+    settingsBox.append(terminalEntry);
     settingsBox.append(saveSettingsBtn);
     settingsPopover.setChild(settingsBox);
 
@@ -81,6 +91,7 @@ export async function startGui(chef: ChefInternal) {
 
     saveSettingsBtn.onClick(() => {
       chef.setEditorCommand(editorEntry.getText());
+      chef.setTerminalCommand(terminalEntry.getText());
       settingsPopover.popdown();
     });
 
@@ -363,6 +374,11 @@ function createRecipeRow(
   runBtn.addCssClass("flat");
   runBtn.setTooltipText("Run");
 
+  const runInTerminalBtn = new Button();
+  runInTerminalBtn.setIconName("utilities-terminal-symbolic");
+  runInTerminalBtn.addCssClass("flat");
+  runInTerminalBtn.setTooltipText("Run in Terminal");
+
   const changelogBtn = new Button();
   changelogBtn.setIconName("help-about-symbolic");
   changelogBtn.addCssClass("flat");
@@ -430,6 +446,7 @@ function createRecipeRow(
     uninstallBtn.setVisible(installed);
     updateBtn.setVisible(installed);
     runBtn.setVisible(installed);
+    runInTerminalBtn.setVisible(installed);
     changelogBtn.setVisible(!!recipe.changeLog);
   };
   updateButtons();
@@ -511,6 +528,10 @@ function createRecipeRow(
     chef.runBin(recipe.name, []);
   });
 
+  runInTerminalBtn.onClick(() => {
+    chef.runInTerminal(recipe.name, []);
+  });
+
   changelogBtn.onClick(() => {
     const version = chef.getVersion(recipe.name);
     if (recipe.changeLog && version) {
@@ -533,6 +554,7 @@ function createRecipeRow(
   actionBox.append(cancelBtn);
   actionBox.append(uninstallBtn);
   actionBox.append(runBtn);
+  actionBox.append(runInTerminalBtn);
   actionBox.append(changelogBtn);
 
   row.setChild(grid);
@@ -542,6 +564,7 @@ function createRecipeRow(
     uninstallBtn.setSensitive(sensitive);
     updateBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
+    runInTerminalBtn.setSensitive(sensitive);
     changelogBtn.setSensitive(sensitive);
     if (!sensitive && rowAbortController) {
       // If we are globally disabling, we might want to keep the cancel button enabled

@@ -133,3 +133,17 @@ export async function getExt(iconPath: string) {
     }
   }
 }
+
+export async function commandExists(cmd: string): Promise<boolean> {
+  try {
+    const process = new Deno.Command("which", {
+      args: [cmd],
+      stdout: "null",
+      stderr: "null",
+    });
+    const { success } = await process.output();
+    return success;
+  } catch {
+    return false;
+  }
+}
