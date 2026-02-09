@@ -7,6 +7,10 @@ Deno.test("getVersionFromUrl should extract version from JSR URL", () => {
     getVersionFromUrl("jsr:@sigmasd/chef@0.41.0-alpha.1/mod.ts"),
     "0.41.0-alpha.1",
   );
+  assertEquals(
+    getVersionFromUrl("https://jsr.io/@sigmasd/chef/0.45.0/mod.ts"),
+    "0.45.0",
+  );
 });
 
 Deno.test("getVersionFromUrl should extract version from import statement", () => {

@@ -10,7 +10,7 @@ export function getChefBasePath() {
 }
 
 export function getVersionFromUrl(text: string): string | undefined {
-  const match = text.match(/@sigmasd\/chef@([0-9]+\.[0-9]+\.[0-9]+[^"'/]*)/);
+  const match = text.match(/@sigmasd\/chef[@/]([0-9]+\.[0-9]+\.[0-9]+[^"'/]*)/);
   return match ? match[1] : undefined;
 }
 
