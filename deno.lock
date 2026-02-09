@@ -7,6 +7,8 @@
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
     "jsr:@sigma/parse@0.46": "0.46.0",
+    "jsr:@sigmasd/chef@0.40.0": "0.40.0",
+    "jsr:@sigmasd/gtk@0.35": "0.35.0",
     "jsr:@sigmasd/gtk@0.36": "0.36.0",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
@@ -52,6 +54,26 @@
     },
     "@sigma/parse@0.46.0": {
       "integrity": "f0a7f66d3446b00f0d2f499524ead1fee02943fd6af6e24106877bfc1eef6758"
+    },
+    "@sigmasd/chef@0.40.0": {
+      "integrity": "1353e8485be7fc21e1db0526d562895dd7455a26fa90a6deb9219ecc00ceda65",
+      "dependencies": [
+        "jsr:@david/dax",
+        "jsr:@sigma/parse",
+        "jsr:@sigmasd/gtk@0.35",
+        "jsr:@sigmasd/infer",
+        "jsr:@sigmasd/rust-types",
+        "jsr:@std/assert",
+        "jsr:@std/async",
+        "jsr:@std/fs@^1.0.22",
+        "jsr:@std/path@^1.1.4"
+      ]
+    },
+    "@sigmasd/gtk@0.35.0": {
+      "integrity": "82207a304537d6a52ba1a2ff1f052b4098104036edec28e3177470777bbbe294",
+      "dependencies": [
+        "jsr:@sigma/deno-compat"
+      ]
     },
     "@sigmasd/gtk@0.36.0": {
       "integrity": "dedec31f526a00158d991c3993d28259c304201921e802a974b4d8fa7f561084",

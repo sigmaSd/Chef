@@ -31,17 +31,29 @@ export async function startGui(chef: ChefInternal) {
     window.setDefaultSize(800, 600);
 
     const mainBox = new Box(Orientation.VERTICAL, 10);
-    mainBox.setMarginTop(10);
-    mainBox.setMarginBottom(10);
-    mainBox.setMarginStart(10);
-    mainBox.setMarginEnd(10);
+    mainBox.setMarginTop(8);
+    mainBox.setMarginBottom(8);
+    mainBox.setMarginStart(8);
+    mainBox.setMarginEnd(8);
 
     const headerBox = new Box(Orientation.HORIZONTAL, 10);
+
+    const titleBox = new Box(Orientation.HORIZONTAL, 6);
+    titleBox.setHexpand(true);
+    titleBox.setHalign(Align.START);
+    titleBox.setValign(Align.BASELINE);
+
     const titleLabel = new Label("Chef - Personal Package Manager");
     titleLabel.addCssClass("title-1");
-    titleLabel.setHexpand(true);
-    titleLabel.setHalign(Align.START);
-    headerBox.append(titleLabel);
+    titleLabel.setValign(Align.BASELINE);
+    titleBox.append(titleLabel);
+
+    const versionLabel = new Label(`v${chef.chefVersion}`);
+    versionLabel.addCssClass("dim-label");
+    versionLabel.setValign(Align.BASELINE);
+    titleBox.append(versionLabel);
+
+    headerBox.append(titleBox);
 
     const updateAllBtn = new Button("Update All");
     updateAllBtn.addCssClass("suggested-action");

@@ -6,6 +6,7 @@ import { DesktopFileManager } from "./desktop.ts";
 import { BinaryRunner } from "./binary-runner.ts";
 import { BinaryUpdater } from "./binary-updater.ts";
 import { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
+import denoJson from "../deno.json" with { type: "json" };
 
 /**
  * Main internal coordinator class for Chef
@@ -285,6 +286,13 @@ export class ChefInternal {
 
     console.log(`✅ Successfully uninstalled "${name}"`);
   };
+
+  /**
+   * Get the version of the Chef library being used
+   */
+  get chefVersion(): string {
+    return denoJson.version;
+  }
 
   /**
    * Get the path to the chef script for editing
