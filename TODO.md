@@ -3,8 +3,8 @@
 
 - [x] add a run in terminal button
 
-- if an app is running we should have visual feedback in the app, it should be
-  easy to tell if teh app is running and listen to its exit
+- [x] if an app is running we should have visual feedback in the app, it should
+      be easy to tell if teh app is running and listen to its exit
 
 - I just disoverd Gtk ColumnView it seems a perfect fit instead of the current
   usage of Gtk Grid port to it

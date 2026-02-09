@@ -15,16 +15,27 @@ import {
  * Handles running installed binaries
  */
 export class BinaryRunner {
+  private statusListener?: (name: string, running: boolean) => void;
+  private activeProcesses: Map<string, Set<Deno.ChildProcess>> = new Map();
+
   constructor(
     private binPath: string,
     private database: ChefDatabase,
     private recipes: Recipe[],
   ) {}
 
+  setStatusListener(listener: (name: string, running: boolean) => void) {
+    this.statusListener = listener;
+  }
+
+  notifyStatus(name: string, running: boolean) {
+    this.statusListener?.(name, running);
+  }
+
   /**
    * Run a binary with the provided arguments
    */
-  async run(name: string, binArgs: string[]) {
+  run(name: string, binArgs: string[]) {
     const db = this.database.read().expect("failed to read database");
     if (!name) {
       this.list();
@@ -49,10 +60,43 @@ export class BinaryRunner {
     let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
     finalArgs = finalArgs.concat(binArgs);
 
-    await new Deno.Command(binPath, {
+    const command = new Deno.Command(binPath, {
       args: finalArgs,
       env: recipe.cmdEnv,
-    }).spawn().status;
+    });
+    const process = command.spawn();
+
+    this.trackProcess(name, process);
+
+    return process;
+  }
+
+  trackProcess(name: string, process: Deno.ChildProcess) {
+    if (!this.activeProcesses.has(name)) {
+      this.activeProcesses.set(name, new Set());
+    }
+    const processes = this.activeProcesses.get(name)!;
+    processes.add(process);
+
+    this.statusListener?.(name, true);
+
+    process.status.then(() => {
+      processes.delete(process);
+      this.statusListener?.(name, false);
+    });
+  }
+
+  killAll(name: string) {
+    const processes = this.activeProcesses.get(name);
+    if (processes) {
+      for (const process of processes) {
+        try {
+          process.kill();
+        } catch (e) {
+          console.error(`Failed to kill process for ${name}:`, e);
+        }
+      }
+    }
   }
 
   /**

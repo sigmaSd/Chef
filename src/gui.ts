@@ -169,7 +169,11 @@ export async function startGui(chef: ChefInternal) {
     };
 
     let abortController: AbortController | null = null;
-    const recipeRows: { setSensitive: (sensitive: boolean) => void }[] = [];
+    const recipeRows: {
+      setSensitive: (sensitive: boolean) => void;
+      updateRunningStatus: (running: boolean) => void;
+      name: string;
+    }[] = [];
 
     const refreshList = () => {
       listBox.removeAll();
@@ -178,17 +182,32 @@ export async function startGui(chef: ChefInternal) {
       listBox.append(createHeader());
 
       for (const recipe of chef.recipes) {
-        const { row, setSensitive } = createRecipeRow(chef, recipe, {
-          nameGroup,
-          versionGroup,
-          latestVersionGroup,
-          statusGroup,
-          actionsGroup,
+        const { row, setSensitive, updateRunningStatus } = createRecipeRow(
+          chef,
+          recipe,
+          {
+            nameGroup,
+            versionGroup,
+            latestVersionGroup,
+            statusGroup,
+            actionsGroup,
+          },
+        );
+        recipeRows.push({
+          setSensitive,
+          updateRunningStatus,
+          name: recipe.name,
         });
-        recipeRows.push({ setSensitive });
         listBox.append(row);
       }
     };
+
+    chef.setBinaryStatusListener((name, running) => {
+      const row = recipeRows.find((r) => r.name === name);
+      if (row) {
+        row.updateRunningStatus(running);
+      }
+    });
 
     updateAllBtn.onClick(async () => {
       updateAllBtn.setSensitive(false);
@@ -306,7 +325,11 @@ function createRecipeRow(
     statusGroup: SizeGroup;
     actionsGroup: SizeGroup;
   },
-): { row: ListBoxRow; setSensitive: (sensitive: boolean) => void } {
+): {
+  row: ListBoxRow;
+  setSensitive: (sensitive: boolean) => void;
+  updateRunningStatus: (running: boolean) => void;
+} {
   const row = new ListBoxRow();
   const grid = new Grid();
   grid.setColumnSpacing(20);
@@ -338,12 +361,16 @@ function createRecipeRow(
   const statusBox = new Box(Orientation.HORIZONTAL, 5);
   statusBox.setHalign(Align.START);
   const statusLabel = new Label("");
+  const runningCounterLabel = new Label("");
+  runningCounterLabel.addCssClass("dim-label");
+
   const updateAvailableLabel = new Label("  ");
   updateAvailableLabel.addCssClass("warning");
   updateAvailableLabel.setHalign(Align.START);
   updateAvailableLabel.setTooltipText("Update available!");
 
   statusBox.append(statusLabel);
+  statusBox.append(runningCounterLabel);
   statusBox.append(updateAvailableLabel);
   groups.statusGroup.addWidget(statusBox);
   grid.attach(statusBox, 3, 0, 1, 1);
@@ -378,6 +405,13 @@ function createRecipeRow(
   runInTerminalBtn.setIconName("utilities-terminal-symbolic");
   runInTerminalBtn.addCssClass("flat");
   runInTerminalBtn.setTooltipText("Run in Terminal");
+
+  const killBtn = new Button();
+  killBtn.setIconName("process-stop-symbolic");
+  killBtn.addCssClass("flat");
+  killBtn.addCssClass("destructive-action");
+  killBtn.setTooltipText("Kill All Instances");
+  killBtn.setVisible(false);
 
   const changelogBtn = new Button();
   changelogBtn.setIconName("help-about-symbolic");
@@ -420,6 +454,26 @@ function createRecipeRow(
     }
   };
 
+  let runningCount = 0;
+  const updateRunningStatus = (running: boolean) => {
+    if (running) {
+      runningCount++;
+    } else {
+      runningCount = Math.max(0, runningCount - 1);
+    }
+
+    const isRunning = runningCount > 0;
+    if (isRunning) {
+      statusLabel.setText("Running");
+      statusLabel.addCssClass("success");
+      runningCounterLabel.setText(`(${runningCount})`);
+    } else {
+      runningCounterLabel.setText("");
+      updateStatus();
+    }
+    updateButtons();
+  };
+
   const updateStatus = () => {
     const installed = chef.isInstalled(recipe.name);
     statusLabel.setText(installed ? "Installed" : "Not Installed");
@@ -442,11 +496,13 @@ function createRecipeRow(
 
   const updateButtons = () => {
     const installed = chef.isInstalled(recipe.name);
+    const isRunning = runningCount > 0;
     installBtn.setVisible(!installed);
-    uninstallBtn.setVisible(installed);
-    updateBtn.setVisible(installed);
+    uninstallBtn.setVisible(installed && !isRunning);
+    updateBtn.setVisible(installed && !isRunning);
     runBtn.setVisible(installed);
     runInTerminalBtn.setVisible(installed);
+    killBtn.setVisible(isRunning);
     changelogBtn.setVisible(!!recipe.changeLog);
   };
   updateButtons();
@@ -532,6 +588,10 @@ function createRecipeRow(
     chef.runInTerminal(recipe.name, []);
   });
 
+  killBtn.onClick(() => {
+    chef.killAll(recipe.name);
+  });
+
   changelogBtn.onClick(() => {
     const version = chef.getVersion(recipe.name);
     if (recipe.changeLog && version) {
@@ -555,6 +615,7 @@ function createRecipeRow(
   actionBox.append(uninstallBtn);
   actionBox.append(runBtn);
   actionBox.append(runInTerminalBtn);
+  actionBox.append(killBtn);
   actionBox.append(changelogBtn);
 
   row.setChild(grid);
@@ -565,6 +626,7 @@ function createRecipeRow(
     updateBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
     runInTerminalBtn.setSensitive(sensitive);
+    killBtn.setSensitive(sensitive);
     changelogBtn.setSensitive(sensitive);
     if (!sensitive && rowAbortController) {
       // If we are globally disabling, we might want to keep the cancel button enabled
@@ -572,5 +634,5 @@ function createRecipeRow(
     }
   };
 
-  return { row, setSensitive };
+  return { row, setSensitive, updateRunningStatus };
 }

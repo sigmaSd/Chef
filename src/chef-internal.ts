@@ -42,20 +42,32 @@ export class ChefInternal {
   }
 
   // Lazy initialization of service classes
+  private _database?: ChefDatabase;
   private get database() {
-    return new ChefDatabase(this.dbPath, this.recipes);
+    return this._database ??= new ChefDatabase(this.dbPath, this.recipes);
   }
 
+  private _desktopManager?: DesktopFileManager;
   private get desktopManager() {
-    return new DesktopFileManager(this.iconsPath, this.chefPath, this.recipes);
+    return this._desktopManager ??= new DesktopFileManager(
+      this.iconsPath,
+      this.chefPath,
+      this.recipes,
+    );
   }
 
+  private _binaryRunner?: BinaryRunner;
   private get binaryRunner() {
-    return new BinaryRunner(this.binPath, this.database, this.recipes);
+    return this._binaryRunner ??= new BinaryRunner(
+      this.binPath,
+      this.database,
+      this.recipes,
+    );
   }
 
+  private _binaryUpdater?: BinaryUpdater;
   private get binaryUpdater() {
-    return new BinaryUpdater(
+    return this._binaryUpdater ??= new BinaryUpdater(
       this.binPath,
       this.database,
       this.recipes,
@@ -103,8 +115,8 @@ export class ChefInternal {
   /**
    * Run a binary
    */
-  runBin = async (name: string, args: string[]) => {
-    await this.binaryRunner.run(name, args);
+  runBin = (name: string, args: string[]) => {
+    return this.binaryRunner.run(name, args);
   };
 
   /**
@@ -119,17 +131,39 @@ export class ChefInternal {
     finalArgs = finalArgs.concat(args);
 
     const terminalCommand = await this.getTerminalCommand();
+
     const [termBin, ...termArgs] = terminalCommand.split(" ");
 
-    // For some modern terminals, if we have -- at the end, it's safer
-    // If user provided a custom command like "kgx --", we use it as is.
-    // If it's a simple binary name, we might want to ensure a separator if it's a known terminal.
-
-    await new Deno.Command(termBin, {
+    const process = new Deno.Command(termBin, {
       args: [...termArgs, binPath, ...finalArgs],
     }).spawn();
+
+    this.binaryRunner.trackProcess(name, process);
+
+    return process;
   };
 
+  /**
+
+         * Kill all running instances of a binary
+
+         */
+
+  killAll = (name: string) => {
+    this.binaryRunner.killAll(name);
+  };
+
+  /**
+
+         * Set a listener for binary status changes
+
+
+     */
+  setBinaryStatusListener = (
+    listener: (name: string, running: boolean) => void,
+  ) => {
+    this.binaryRunner.setStatusListener(listener);
+  };
   /**
    * Check if a binary is installed
    */
@@ -160,7 +194,10 @@ export class ChefInternal {
   start = async (args: string[]) => {
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
-        await this.binaryRunner.run(name, binArgs);
+        const process = await this.binaryRunner.run(name, binArgs);
+        if (process instanceof Deno.ChildProcess) {
+          await process.status;
+        }
       },
       list: () => {
         this.binaryRunner.list();
