@@ -388,47 +388,57 @@ function createRecipeRow(
   grid.attach(statusBox, 3, 0, 1, 1);
 
   const actionBox = new Box(Orientation.HORIZONTAL, 5);
+  actionBox.setHalign(Align.END);
   groups.actionsGroup.addWidget(actionBox);
   grid.attach(actionBox, 4, 0, 1, 1);
 
   const installBtn = new Button("Install");
   installBtn.addCssClass("suggested-action");
 
-  const uninstallBtn = new Button();
-  uninstallBtn.setIconName("user-trash-symbolic");
-  uninstallBtn.addCssClass("flat");
-  uninstallBtn.addCssClass("destructive-action");
-  uninstallBtn.setTooltipText("Uninstall");
-
-  const updateBtn = new Button("Update");
-
-  const cancelBtn = new Button();
-  cancelBtn.setIconName("process-stop-symbolic");
-  cancelBtn.addCssClass("flat");
-  cancelBtn.setVisible(false);
-  cancelBtn.setTooltipText("Cancel");
-
   const runBtn = new Button();
   runBtn.setIconName("media-playback-start-symbolic");
-  runBtn.addCssClass("flat");
   runBtn.setTooltipText("Run");
 
   const runInTerminalBtn = new Button();
   runInTerminalBtn.setIconName("utilities-terminal-symbolic");
-  runInTerminalBtn.addCssClass("flat");
   runInTerminalBtn.setTooltipText("Run in Terminal");
 
   const killBtn = new Button();
   killBtn.setIconName("process-stop-symbolic");
-  killBtn.addCssClass("flat");
   killBtn.addCssClass("destructive-action");
   killBtn.setTooltipText("Kill All Instances");
   killBtn.setVisible(false);
 
-  const changelogBtn = new Button();
-  changelogBtn.setIconName("help-about-symbolic");
-  changelogBtn.addCssClass("flat");
-  changelogBtn.setTooltipText("Changelog");
+  const cancelBtn = new Button();
+  cancelBtn.setIconName("process-stop-symbolic");
+  cancelBtn.setVisible(false);
+  cancelBtn.setTooltipText("Cancel");
+
+  const moreBtn = new Button();
+  moreBtn.setIconName("view-more-symbolic");
+  moreBtn.setTooltipText("More Actions");
+
+  const morePopover = new Popover();
+  morePopover.setParent(moreBtn);
+  const moreBox = new Box(Orientation.VERTICAL, 5);
+  moreBox.setMarginTop(8);
+  moreBox.setMarginBottom(8);
+  moreBox.setMarginStart(8);
+  moreBox.setMarginEnd(8);
+
+  const updateBtn = new Button("Update");
+  const changelogBtn = new Button("Changelog");
+  const removeBtn = new Button("Remove");
+  removeBtn.addCssClass("destructive-action");
+
+  moreBox.append(updateBtn);
+  moreBox.append(changelogBtn);
+  moreBox.append(removeBtn);
+  morePopover.setChild(moreBox);
+
+  moreBtn.onClick(() => {
+    morePopover.popup();
+  });
 
   let rowAbortController: AbortController | null = null;
 
@@ -509,13 +519,19 @@ function createRecipeRow(
   const updateButtons = () => {
     const installed = chef.isInstalled(recipe.name);
     const isRunning = runningCount > 0;
+
     installBtn.setVisible(!installed);
-    uninstallBtn.setVisible(installed && !isRunning);
-    updateBtn.setVisible(installed && !isRunning);
     runBtn.setVisible(installed);
     runInTerminalBtn.setVisible(installed);
     killBtn.setVisible(isRunning);
+
+    updateBtn.setVisible(installed && !isRunning);
+    removeBtn.setVisible(installed && !isRunning);
     changelogBtn.setVisible(!!recipe.changeLog);
+
+    moreBtn.setVisible(
+      (installed && !isRunning) || (!!recipe.changeLog),
+    );
   };
   updateButtons();
 
@@ -545,8 +561,9 @@ function createRecipeRow(
     }
   });
 
-  uninstallBtn.onClick(async () => {
-    uninstallBtn.setSensitive(false);
+  removeBtn.onClick(async () => {
+    morePopover.popdown();
+    removeBtn.setSensitive(false);
     try {
       await chef.uninstall(recipe.name);
       updateStatus();
@@ -554,11 +571,12 @@ function createRecipeRow(
     } catch (e) {
       console.error(e);
     } finally {
-      uninstallBtn.setSensitive(true);
+      removeBtn.setSensitive(true);
     }
   });
 
   updateBtn.onClick(async () => {
+    morePopover.popdown();
     const isReinstall = updateBtn.getLabel() === "Reinstall";
     updateBtn.setSensitive(false);
     updateBtn.setLabel(isReinstall ? "Reinstalling..." : "Updating...");
@@ -605,13 +623,11 @@ function createRecipeRow(
   });
 
   changelogBtn.onClick(() => {
+    morePopover.popdown();
     const version = chef.getVersion(recipe.name);
     if (recipe.changeLog && version) {
       const url = recipe.changeLog({ latestVersion: version });
-      // In a real GTK app we might use Gio.AppInfo.launch_default_for_uri
-      // For now, we can try to use dax to open it or just log it
       console.log(`Opening changelog: ${url}`);
-      // Try to open with system default browser
       const command = Deno.build.os === "windows"
         ? "start"
         : Deno.build.os === "darwin"
@@ -621,29 +637,23 @@ function createRecipeRow(
     }
   });
 
-  actionBox.append(installBtn);
-  actionBox.append(updateBtn);
-  actionBox.append(cancelBtn);
-  actionBox.append(uninstallBtn);
+  actionBox.append(killBtn);
   actionBox.append(runBtn);
   actionBox.append(runInTerminalBtn);
-  actionBox.append(killBtn);
-  actionBox.append(changelogBtn);
+  actionBox.append(installBtn);
+  actionBox.append(cancelBtn);
+  actionBox.append(moreBtn);
 
   row.setChild(grid);
 
   const setSensitive = (sensitive: boolean) => {
     installBtn.setSensitive(sensitive);
-    uninstallBtn.setSensitive(sensitive);
+    removeBtn.setSensitive(sensitive);
     updateBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
     runInTerminalBtn.setSensitive(sensitive);
     killBtn.setSensitive(sensitive);
     changelogBtn.setSensitive(sensitive);
-    if (!sensitive && rowAbortController) {
-      // If we are globally disabling, we might want to keep the cancel button enabled
-      // but usually updateAll handles its own cancellation globally.
-    }
   };
 
   return { row, setSensitive, updateRunningStatus };
