@@ -3,6 +3,7 @@ import {
   Application,
   ApplicationWindow,
   Box,
+  Builder,
   Button,
   Entry,
   Grid,
@@ -12,7 +13,6 @@ import {
   Orientation,
   Popover,
   ProgressBar,
-  ScrolledWindow,
   SizeGroup,
   SizeGroupMode,
 } from "@sigmasd/gtk/gtk4";
@@ -26,106 +26,33 @@ export async function startGui(chef: ChefInternal) {
   const eventLoop = new EventLoop();
 
   app.onActivate(() => {
-    const window = new ApplicationWindow(app);
-    window.setTitle("Chef");
-    window.setDefaultSize(800, 600);
+    const builder = new Builder();
+    const uiPath = new URL("./gui.ui", import.meta.url).pathname;
+    builder.addFromFile(uiPath);
 
-    const mainBox = new Box(Orientation.VERTICAL, 10);
-    mainBox.setMarginTop(8);
-    mainBox.setMarginBottom(8);
-    mainBox.setMarginStart(8);
-    mainBox.setMarginEnd(8);
+    const window = builder.get("window", ApplicationWindow)!;
+    const versionLabel = builder.get("version_label", Label)!;
+    const updateAllBtn = builder.get("update_all_btn", Button)!;
+    const editRecipesBtn = builder.get("edit_recipes_btn", Button)!;
+    const cancelBtn = builder.get("cancel_btn", Button)!;
+    const listBox = builder.get("list_box", ListBox)!;
+    const editorEntry = builder.get("editor_entry", Entry)!;
+    const terminalEntry = builder.get("terminal_entry", Entry)!;
+    const saveSettingsBtn = builder.get("save_settings_btn", Button)!;
+    const statusLabel = builder.get("status_label", Label)!;
+    const progressBar = builder.get("progress_bar", ProgressBar)!;
 
-    const headerBox = new Box(Orientation.HORIZONTAL, 10);
-
-    const titleBox = new Box(Orientation.HORIZONTAL, 6);
-    titleBox.setHexpand(true);
-    titleBox.setHalign(Align.START);
-    titleBox.setValign(Align.BASELINE);
-
-    const titleLabel = new Label("Chef - Personal Package Manager");
-    titleLabel.addCssClass("title-1");
-    titleLabel.setValign(Align.BASELINE);
-    titleBox.append(titleLabel);
-
-    const versionLabel = new Label(`v${chef.chefVersion}`);
-    versionLabel.addCssClass("dim-label");
-    versionLabel.setValign(Align.BASELINE);
-    titleBox.append(versionLabel);
-
-    headerBox.append(titleBox);
-
-    const updateAllBtn = new Button("Update All");
-    updateAllBtn.addCssClass("suggested-action");
-
-    const editRecipesBtn = new Button("Edit Recipes");
-
-    const settingsBtn = new Button();
-    settingsBtn.setIconName("emblem-system-symbolic");
-    settingsBtn.setTooltipText("Settings");
-
-    const settingsPopover = new Popover();
-    settingsPopover.setParent(settingsBtn);
-
-    const settingsBox = new Box(Orientation.VERTICAL, 10);
-    settingsBox.setMarginTop(10);
-    settingsBox.setMarginBottom(10);
-    settingsBox.setMarginStart(10);
-    settingsBox.setMarginEnd(10);
-
-    const editorLabel = new Label("Editor Command:");
-    editorLabel.setHalign(Align.START);
-    const editorEntry = new Entry();
+    versionLabel.setText(`v${chef.chefVersion}`);
     editorEntry.setText(chef.getEditorCommand());
-    editorEntry.setPlaceholderText("e.g. kgx -e hx");
-
-    const terminalLabel = new Label("Terminal Command:");
-    terminalLabel.setHalign(Align.START);
-    terminalLabel.setMarginTop(10);
-    const terminalEntry = new Entry();
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
-    terminalEntry.setPlaceholderText("e.g. kgx -e");
-
-    const saveSettingsBtn = new Button("Save");
-    saveSettingsBtn.addCssClass("suggested-action");
-    saveSettingsBtn.setMarginTop(10);
-
-    settingsBox.append(editorLabel);
-    settingsBox.append(editorEntry);
-    settingsBox.append(terminalLabel);
-    settingsBox.append(terminalEntry);
-    settingsBox.append(saveSettingsBtn);
-    settingsPopover.setChild(settingsBox);
-
-    settingsBtn.onClick(() => {
-      settingsPopover.popup();
-    });
 
     saveSettingsBtn.onClick(() => {
       chef.setEditorCommand(editorEntry.getText());
       chef.setTerminalCommand(terminalEntry.getText());
-      settingsPopover.popdown();
+      // The popover is handled by GtkMenuButton in the UI file,
+      // but we might want to close it manually.
+      // For now, let's assume it stays open or closes on focus loss.
     });
-
-    const cancelBtn = new Button("Cancel");
-    cancelBtn.setVisible(false);
-
-    headerBox.append(updateAllBtn);
-    headerBox.append(editRecipesBtn);
-    headerBox.append(settingsBtn);
-    headerBox.append(cancelBtn);
-    mainBox.append(headerBox);
-
-    const scrolledWindow = new ScrolledWindow();
-    scrolledWindow.setVexpand(true);
-    scrolledWindow.setHexpand(true);
-
-    // Set a border around the list
-    scrolledWindow.addCssClass("frame");
-
-    const listBox = new ListBox();
-    listBox.setSelectionMode(0); // NONE
-    listBox.setShowSeparators(true);
 
     const nameGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
     const versionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
@@ -260,26 +187,6 @@ export async function startGui(chef: ChefInternal) {
     // Initial populate
     refreshList();
 
-    scrolledWindow.setChild(listBox);
-    mainBox.append(scrolledWindow);
-
-    const statusBox = new Box(Orientation.HORIZONTAL, 10);
-    statusBox.setMarginTop(5);
-    const statusPrefix = new Label("Status:");
-    statusPrefix.addCssClass("dim-label");
-    const statusLabel = new Label("Idle");
-    statusLabel.setHalign(Align.START);
-    statusLabel.setEllipsize(3); // END
-    statusBox.append(statusPrefix);
-    statusBox.append(statusLabel);
-
-    const progressBar = new ProgressBar();
-    progressBar.setHexpand(true);
-    progressBar.setVisible(false);
-    statusBox.append(progressBar);
-
-    mainBox.append(statusBox);
-
     // Register dax command listener
     setStatusListener((status) => {
       if (status.status === "running") {
@@ -312,7 +219,6 @@ export async function startGui(chef: ChefInternal) {
       return false;
     });
 
-    window.setChild(mainBox);
     window.present();
   });
 

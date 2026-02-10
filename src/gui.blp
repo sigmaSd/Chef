@@ -1,0 +1,136 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ApplicationWindow window {
+  title: "Chef";
+  default-width: 800;
+  default-height: 600;
+
+  Box {
+    orientation: vertical;
+
+    Adw.HeaderBar {
+    }
+
+    Box {
+      orientation: vertical;
+      spacing: 10;
+      margin-top: 8;
+      margin-bottom: 8;
+      margin-start: 8;
+      margin-end: 8;
+      vexpand: true;
+
+      Box header_box {
+        orientation: horizontal;
+        spacing: 10;
+
+        Box {
+          orientation: horizontal;
+          spacing: 6;
+          hexpand: true;
+          halign: start;
+          valign: baseline;
+
+          Label {
+            label: "Chef - Personal Package Manager";
+            styles ["title-1"]
+            valign: baseline;
+          }
+
+          Label version_label {
+            styles ["dim-label"]
+            valign: baseline;
+          }
+        }
+
+        Button update_all_btn {
+          label: "Update All";
+          styles ["suggested-action"]
+        }
+
+        Button edit_recipes_btn {
+          label: "Edit Recipes";
+        }
+
+        MenuButton settings_btn {
+          icon-name: "emblem-system-symbolic";
+          tooltip-text: "Settings";
+          popover: Popover {
+            Box {
+              orientation: vertical;
+              spacing: 10;
+              margin-top: 10;
+              margin-bottom: 10;
+              margin-start: 10;
+              margin-end: 10;
+
+              Label {
+                label: "Editor Command:";
+                halign: start;
+              }
+
+              Entry editor_entry {
+                placeholder-text: "e.g. kgx -e hx";
+              }
+
+              Label {
+                label: "Terminal Command:";
+                halign: start;
+                margin-top: 10;
+              }
+
+              Entry terminal_entry {
+                placeholder-text: "e.g. kgx -e";
+              }
+
+              Button save_settings_btn {
+                label: "Save";
+                styles ["suggested-action"]
+                margin-top: 10;
+              }
+            }
+          };
+        }
+
+        Button cancel_btn {
+          label: "Cancel";
+          visible: false;
+        }
+      }
+
+      ScrolledWindow {
+        vexpand: true;
+        hexpand: true;
+        styles ["frame"]
+
+        ListBox list_box {
+          selection-mode: none;
+          show-separators: true;
+        }
+      }
+
+      Box {
+        orientation: horizontal;
+        spacing: 10;
+        margin-top: 5;
+
+        Label {
+          label: "Status:";
+          styles ["dim-label"]
+        }
+
+        Label status_label {
+          label: "Idle";
+          halign: start;
+          ellipsize: end;
+        }
+
+        ProgressBar progress_bar {
+          hexpand: true;
+          visible: false;
+        }
+      }
+    }
+  }
+}

@@ -16,4 +16,4 @@
       ? because when it disapers (when the prgoream runs) the other gets shifted
       left
 
-- [ ] Use gtk blueprint to reduce this too much imperative code
+- [x] Use gtk blueprint to reduce this too much imperative code
