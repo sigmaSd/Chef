@@ -6,6 +6,9 @@
     ".": "./mod.ts",
     "./utils": "./src/utils.ts"
   },
+  "tasks": {
+    "gen-ui": "deno run -A tasks.ts gen-ui"
+  },
   "imports": {
     "@sigma/parse": "jsr:@sigma/parse@^0.46.0",
     "@sigmasd/gtk": "jsr:@sigmasd/gtk@^0.38.0",

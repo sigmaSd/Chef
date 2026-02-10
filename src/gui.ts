@@ -24,7 +24,7 @@ export async function startGui(chef: ChefInternal) {
 
   app.onActivate(() => {
     const builder = new Builder();
-    const uiPath = new URL("./ui/gui.ui", import.meta.url).pathname;
+    const uiPath = new URL("./ui/gen/gui.ui", import.meta.url).pathname;
     builder.addFromFile(uiPath);
 
     const window = builder.get("window", ApplicationWindow)!;
@@ -201,7 +201,7 @@ function createRecipeRow(
   updateRunningStatus: (running: boolean) => void;
 } {
   const builder = new Builder();
-  const uiPath = new URL("./ui/recipe_row.ui", import.meta.url).pathname;
+  const uiPath = new URL("./ui/gen/recipe_row.ui", import.meta.url).pathname;
   builder.addFromFile(uiPath);
 
   const row = builder.get("recipe_row", ListBoxRow)!;
