@@ -136,9 +136,9 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                   <class name="frame"/>
                 </style>
                 <child>
-                  <object class="GtkListBox" id="list_box">
-                    <property name="selection-mode">0</property>
-                    <property name="show-separators">true</property>
+                  <object class="GtkColumnView" id="column_view">
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
                   </object>
                 </child>
               </object>
