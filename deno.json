@@ -6,9 +6,6 @@
     ".": "./mod.ts",
     "./utils": "./src/utils.ts"
   },
-  "unstable": [
-    "raw-imports"
-  ],
   "tasks": {
     "gen-ui": "deno run -A tasks.ts gen-ui"
   },

@@ -17,8 +17,6 @@ import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
-import guiUi from "./ui/gen/gui.ui" with { type: "text" };
-import recipeRowUi from "./ui/gen/recipe_row.ui" with { type: "text" };
 
 export async function startGui(chef: ChefInternal) {
   const app = new Application("io.github.sigmasd.chef", 0);
@@ -26,7 +24,8 @@ export async function startGui(chef: ChefInternal) {
 
   app.onActivate(() => {
     const builder = new Builder();
-    builder.addFromString(guiUi);
+    const uiPath = new URL("./ui/gen/gui.ui", import.meta.url).pathname;
+    builder.addFromFile(uiPath);
 
     const window = builder.get("window", ApplicationWindow)!;
     const versionLabel = builder.get("version_label", Label)!;
@@ -202,7 +201,8 @@ function createRecipeRow(
   updateRunningStatus: (running: boolean) => void;
 } {
   const builder = new Builder();
-  builder.addFromString(recipeRowUi);
+  const uiPath = new URL("./ui/gen/recipe_row.ui", import.meta.url).pathname;
+  builder.addFromFile(uiPath);
 
   const row = builder.get("recipe_row", ListBoxRow)!;
   const nameLabel = builder.get("name_label", Label)!;

@@ -3,9 +3,6 @@ import { ensureDirSync } from "@std/fs";
 import type { Recipe } from "../mod.ts";
 import { Colors, getExt } from "./internal_utils.ts";
 import { isUrl } from "./utils.ts";
-import chefSvg from "../distro/io.github.sigmasd.chef.svg" with {
-  type: "text",
-};
 
 /**
  * Manages desktop file creation and removal for installed binaries
@@ -108,9 +105,15 @@ export class DesktopFileManager {
 
     // Try to find and copy the chef icon
     try {
+      const svgUrl = new URL(`../distro/${appId}.svg`, import.meta.url);
       const destIconPath = path.join(iconDir, `${appId}.svg`);
-      await Deno.writeTextFile(destIconPath, chefSvg);
-      iconValue = appId;
+
+      const response = await fetch(svgUrl);
+      if (response.ok) {
+        const bytes = await response.bytes();
+        await Deno.writeFile(destIconPath, bytes);
+        iconValue = appId;
+      }
     } catch {
       // Fallback to generic icon if icon not found
     }
@@ -143,7 +146,7 @@ Icon=${iconValue}`;
     }
 
     try {
-      const configUrl = import.meta.resolve("../deno.json");
+      const configUrl = new URL("../deno.json", import.meta.url);
       const configPath = path.fromFileUrl(configUrl);
       Deno.statSync(configPath);
       return `--config ${configPath} `;
