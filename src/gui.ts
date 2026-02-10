@@ -1,20 +1,17 @@
 import {
-  Align,
   Application,
   ApplicationWindow,
   Box,
   Builder,
   Button,
   Entry,
-  Grid,
   Label,
   ListBox,
   ListBoxRow,
-  Orientation,
+  MenuButton,
   Popover,
   ProgressBar,
   SizeGroup,
-  SizeGroupMode,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
@@ -27,7 +24,7 @@ export async function startGui(chef: ChefInternal) {
 
   app.onActivate(() => {
     const builder = new Builder();
-    const uiPath = new URL("./gui.ui", import.meta.url).pathname;
+    const uiPath = new URL("./ui/gui.ui", import.meta.url).pathname;
     builder.addFromFile(uiPath);
 
     const window = builder.get("window", ApplicationWindow)!;
@@ -36,6 +33,7 @@ export async function startGui(chef: ChefInternal) {
     const editRecipesBtn = builder.get("edit_recipes_btn", Button)!;
     const cancelBtn = builder.get("cancel_btn", Button)!;
     const listBox = builder.get("list_box", ListBox)!;
+    const headerRow = builder.get("header_row", ListBoxRow)!;
     const editorEntry = builder.get("editor_entry", Entry)!;
     const terminalEntry = builder.get("terminal_entry", Entry)!;
     const saveSettingsBtn = builder.get("save_settings_btn", Button)!;
@@ -54,58 +52,11 @@ export async function startGui(chef: ChefInternal) {
       // For now, let's assume it stays open or closes on focus loss.
     });
 
-    const nameGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
-    const versionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
-    const latestVersionGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
-    const statusGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
-    const actionsGroup = new SizeGroup(SizeGroupMode.HORIZONTAL);
-
-    const createHeader = () => {
-      const row = new ListBoxRow();
-      row.setSensitive(false);
-      row.addCssClass("header");
-      const grid = new Grid();
-      grid.setColumnSpacing(20);
-      grid.setMarginTop(10);
-      grid.setMarginBottom(10);
-      grid.setMarginStart(10);
-      grid.setMarginEnd(10);
-
-      const nameLabel = new Label("Name");
-      nameLabel.setHalign(Align.START);
-      nameLabel.addCssClass("bold");
-      nameGroup.addWidget(nameLabel);
-      grid.attach(nameLabel, 0, 0, 1, 1);
-
-      const versionLabel = new Label("Installed");
-      versionLabel.setHalign(Align.START);
-      versionLabel.addCssClass("bold");
-      versionLabel.setProperty("width-chars", 12);
-      versionGroup.addWidget(versionLabel);
-      grid.attach(versionLabel, 1, 0, 1, 1);
-
-      const latestVersionLabel = new Label("Latest");
-      latestVersionLabel.setHalign(Align.START);
-      latestVersionLabel.addCssClass("bold");
-      latestVersionLabel.setProperty("width-chars", 12);
-      latestVersionGroup.addWidget(latestVersionLabel);
-      grid.attach(latestVersionLabel, 2, 0, 1, 1);
-
-      const statusLabel = new Label("Status");
-      statusLabel.setHalign(Align.START);
-      statusLabel.addCssClass("bold");
-      statusGroup.addWidget(statusLabel);
-      grid.attach(statusLabel, 3, 0, 1, 1);
-
-      const actionsLabel = new Label("Actions");
-      actionsLabel.setHalign(Align.START);
-      actionsLabel.addCssClass("bold");
-      actionsGroup.addWidget(actionsLabel);
-      grid.attach(actionsLabel, 4, 0, 1, 1);
-
-      row.setChild(grid);
-      return row;
-    };
+    const nameGroup = builder.get("name_group", SizeGroup)!;
+    const versionGroup = builder.get("version_group", SizeGroup)!;
+    const latestVersionGroup = builder.get("latest_version_group", SizeGroup)!;
+    const statusGroup = builder.get("status_group", SizeGroup)!;
+    const actionsGroup = builder.get("actions_group", SizeGroup)!;
 
     let abortController: AbortController | null = null;
     const recipeRows: {
@@ -116,9 +67,9 @@ export async function startGui(chef: ChefInternal) {
 
     const refreshList = () => {
       listBox.removeAll();
-      recipeRows.length = 0;
+      listBox.append(headerRow);
 
-      listBox.append(createHeader());
+      recipeRows.length = 0;
 
       for (const recipe of chef.recipes) {
         const { row, setSensitive, updateRunningStatus } = createRecipeRow(
@@ -249,103 +200,37 @@ function createRecipeRow(
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
 } {
-  const row = new ListBoxRow();
-  const grid = new Grid();
-  grid.setColumnSpacing(20);
-  grid.setMarginTop(5);
-  grid.setMarginBottom(5);
-  grid.setMarginStart(10);
-  grid.setMarginEnd(10);
+  const builder = new Builder();
+  const uiPath = new URL("./ui/recipe_row.ui", import.meta.url).pathname;
+  builder.addFromFile(uiPath);
 
-  const nameLabel = new Label(recipe.name);
-  nameLabel.setHalign(Align.START);
+  const row = builder.get("recipe_row", ListBoxRow)!;
+  const nameLabel = builder.get("name_label", Label)!;
+  const versionLabel = builder.get("version_label", Label)!;
+  const latestVersionLabel = builder.get("latest_version_label", Label)!;
+  const statusLabel = builder.get("status_label", Label)!;
+  const runningCounterLabel = builder.get("running_counter_label", Label)!;
+  const updateAvailableLabel = builder.get("update_available_label", Label)!;
+  const statusBox = builder.get("status_box", Box)!;
+  const actionBox = builder.get("action_box", Box)!;
+
+  const installBtn = builder.get("install_btn", Button)!;
+  const runBtn = builder.get("run_btn", Button)!;
+  const runInTerminalBtn = builder.get("run_in_terminal_btn", Button)!;
+  const killBtn = builder.get("kill_btn", Button)!;
+  const cancelBtn = builder.get("cancel_btn", Button)!;
+  const moreBtn = builder.get("more_btn", MenuButton)!;
+  const morePopover = builder.get("more_popover", Popover)!;
+  const updateBtn = builder.get("update_btn", Button)!;
+  const changelogBtn = builder.get("changelog_btn", Button)!;
+  const removeBtn = builder.get("remove_btn", Button)!;
+
+  nameLabel.setText(recipe.name);
   groups.nameGroup.addWidget(nameLabel);
-  grid.attach(nameLabel, 0, 0, 1, 1);
-
-  const versionLabel = new Label("");
-  versionLabel.setHalign(Align.START);
-  versionLabel.setProperty("width-chars", 12);
-  versionLabel.setEllipsize(3); // END
   groups.versionGroup.addWidget(versionLabel);
-  grid.attach(versionLabel, 1, 0, 1, 1);
-
-  const latestVersionLabel = new Label("Checking...");
-  latestVersionLabel.setHalign(Align.START);
-  latestVersionLabel.setProperty("width-chars", 12);
-  latestVersionLabel.setEllipsize(3); // END
-  latestVersionLabel.addCssClass("dim-label");
   groups.latestVersionGroup.addWidget(latestVersionLabel);
-  grid.attach(latestVersionLabel, 2, 0, 1, 1);
-
-  const statusBox = new Box(Orientation.HORIZONTAL, 5);
-  statusBox.setHalign(Align.START);
-  const statusLabel = new Label("");
-  const runningCounterLabel = new Label("");
-  runningCounterLabel.addCssClass("dim-label");
-
-  const updateAvailableLabel = new Label("  ");
-  updateAvailableLabel.addCssClass("warning");
-  updateAvailableLabel.setHalign(Align.START);
-  updateAvailableLabel.setTooltipText("Update available!");
-
-  statusBox.append(statusLabel);
-  statusBox.append(runningCounterLabel);
-  statusBox.append(updateAvailableLabel);
   groups.statusGroup.addWidget(statusBox);
-  grid.attach(statusBox, 3, 0, 1, 1);
-
-  const actionBox = new Box(Orientation.HORIZONTAL, 5);
-  actionBox.setHalign(Align.END);
   groups.actionsGroup.addWidget(actionBox);
-  grid.attach(actionBox, 4, 0, 1, 1);
-
-  const installBtn = new Button("Install");
-  installBtn.addCssClass("suggested-action");
-
-  const runBtn = new Button();
-  runBtn.setIconName("media-playback-start-symbolic");
-  runBtn.setTooltipText("Run");
-
-  const runInTerminalBtn = new Button();
-  runInTerminalBtn.setIconName("utilities-terminal-symbolic");
-  runInTerminalBtn.setTooltipText("Run in Terminal");
-
-  const killBtn = new Button();
-  killBtn.setIconName("process-stop-symbolic");
-  killBtn.addCssClass("destructive-action");
-  killBtn.setTooltipText("Kill All Instances");
-  killBtn.setVisible(false);
-
-  const cancelBtn = new Button();
-  cancelBtn.setIconName("process-stop-symbolic");
-  cancelBtn.setVisible(false);
-  cancelBtn.setTooltipText("Cancel");
-
-  const moreBtn = new Button();
-  moreBtn.setIconName("view-more-symbolic");
-  moreBtn.setTooltipText("More Actions");
-
-  const morePopover = new Popover();
-  morePopover.setParent(moreBtn);
-  const moreBox = new Box(Orientation.VERTICAL, 5);
-  moreBox.setMarginTop(8);
-  moreBox.setMarginBottom(8);
-  moreBox.setMarginStart(8);
-  moreBox.setMarginEnd(8);
-
-  const updateBtn = new Button("Update");
-  const changelogBtn = new Button("Changelog");
-  const removeBtn = new Button("Remove");
-  removeBtn.addCssClass("destructive-action");
-
-  moreBox.append(updateBtn);
-  moreBox.append(changelogBtn);
-  moreBox.append(removeBtn);
-  morePopover.setChild(moreBox);
-
-  moreBtn.onClick(() => {
-    morePopover.popup();
-  });
 
   let rowAbortController: AbortController | null = null;
 
@@ -543,15 +428,6 @@ function createRecipeRow(
       new Deno.Command(command, { args: [url] }).spawn();
     }
   });
-
-  actionBox.append(killBtn);
-  actionBox.append(runBtn);
-  actionBox.append(runInTerminalBtn);
-  actionBox.append(installBtn);
-  actionBox.append(cancelBtn);
-  actionBox.append(moreBtn);
-
-  row.setChild(grid);
 
   const setSensitive = (sensitive: boolean) => {
     installBtn.setSensitive(sensitive);

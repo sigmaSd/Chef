@@ -139,6 +139,91 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                   <object class="GtkListBox" id="list_box">
                     <property name="selection-mode">0</property>
                     <property name="show-separators">true</property>
+                    <child>
+                      <object class="GtkListBoxRow" id="header_row">
+                        <property name="activatable">false</property>
+                        <property name="selectable">false</property>
+                        <style>
+                          <class name="header"/>
+                        </style>
+                        <child>
+                          <object class="GtkGrid">
+                            <property name="column-spacing">20</property>
+                            <property name="margin-top">10</property>
+                            <property name="margin-bottom">10</property>
+                            <property name="margin-start">10</property>
+                            <property name="margin-end">10</property>
+                            <child>
+                              <object class="GtkLabel" id="header_name">
+                                <property name="label">Name</property>
+                                <property name="halign">1</property>
+                                <style>
+                                  <class name="bold"/>
+                                </style>
+                                <layout>
+                                  <property name="column">0</property>
+                                  <property name="row">0</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="header_installed">
+                                <property name="label">Installed</property>
+                                <property name="halign">1</property>
+                                <style>
+                                  <class name="bold"/>
+                                </style>
+                                <property name="width-chars">12</property>
+                                <layout>
+                                  <property name="column">1</property>
+                                  <property name="row">0</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="header_latest">
+                                <property name="label">Latest</property>
+                                <property name="halign">1</property>
+                                <style>
+                                  <class name="bold"/>
+                                </style>
+                                <property name="width-chars">12</property>
+                                <layout>
+                                  <property name="column">2</property>
+                                  <property name="row">0</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="header_status">
+                                <property name="label">Status</property>
+                                <property name="halign">1</property>
+                                <style>
+                                  <class name="bold"/>
+                                </style>
+                                <layout>
+                                  <property name="column">3</property>
+                                  <property name="row">0</property>
+                                </layout>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="header_actions">
+                                <property name="label">Actions</property>
+                                <property name="halign">1</property>
+                                <style>
+                                  <class name="bold"/>
+                                </style>
+                                <layout>
+                                  <property name="column">4</property>
+                                  <property name="row">0</property>
+                                </layout>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
@@ -175,5 +260,35 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         </child>
       </object>
     </child>
+  </object>
+  <object class="GtkSizeGroup" id="name_group">
+    <property name="mode">1</property>
+    <widgets>
+      <widget name="header_name"/>
+    </widgets>
+  </object>
+  <object class="GtkSizeGroup" id="version_group">
+    <property name="mode">1</property>
+    <widgets>
+      <widget name="header_installed"/>
+    </widgets>
+  </object>
+  <object class="GtkSizeGroup" id="latest_version_group">
+    <property name="mode">1</property>
+    <widgets>
+      <widget name="header_latest"/>
+    </widgets>
+  </object>
+  <object class="GtkSizeGroup" id="status_group">
+    <property name="mode">1</property>
+    <widgets>
+      <widget name="header_status"/>
+    </widgets>
+  </object>
+  <object class="GtkSizeGroup" id="actions_group">
+    <property name="mode">1</property>
+    <widgets>
+      <widget name="header_actions"/>
+    </widgets>
   </object>
 </interface>

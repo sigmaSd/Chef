@@ -107,6 +107,72 @@ Adw.ApplicationWindow window {
         ListBox list_box {
           selection-mode: none;
           show-separators: true;
+
+          ListBoxRow header_row {
+            activatable: false;
+            selectable: false;
+            styles ["header"]
+
+            Grid {
+              column-spacing: 20;
+              margin-top: 10;
+              margin-bottom: 10;
+              margin-start: 10;
+              margin-end: 10;
+
+              Label header_name {
+                label: "Name";
+                halign: start;
+                styles ["bold"]
+                layout {
+                  column: 0;
+                  row: 0;
+                }
+              }
+
+              Label header_installed {
+                label: "Installed";
+                halign: start;
+                styles ["bold"]
+                width-chars: 12;
+                layout {
+                  column: 1;
+                  row: 0;
+                }
+              }
+
+              Label header_latest {
+                label: "Latest";
+                halign: start;
+                styles ["bold"]
+                width-chars: 12;
+                layout {
+                  column: 2;
+                  row: 0;
+                }
+              }
+
+              Label header_status {
+                label: "Status";
+                halign: start;
+                styles ["bold"]
+                layout {
+                  column: 3;
+                  row: 0;
+                }
+              }
+
+              Label header_actions {
+                label: "Actions";
+                halign: start;
+                styles ["bold"]
+                layout {
+                  column: 4;
+                  row: 0;
+                }
+              }
+            }
+          }
         }
       }
 
@@ -133,4 +199,29 @@ Adw.ApplicationWindow window {
       }
     }
   }
+}
+
+SizeGroup name_group {
+  mode: horizontal;
+  widgets [header_name]
+}
+
+SizeGroup version_group {
+  mode: horizontal;
+  widgets [header_installed]
+}
+
+SizeGroup latest_version_group {
+  mode: horizontal;
+  widgets [header_latest]
+}
+
+SizeGroup status_group {
+  mode: horizontal;
+  widgets [header_status]
+}
+
+SizeGroup actions_group {
+  mode: horizontal;
+  widgets [header_actions]
 }

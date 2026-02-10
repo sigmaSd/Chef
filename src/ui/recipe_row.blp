@@ -1,0 +1,132 @@
+using Gtk 4.0;
+
+ListBoxRow recipe_row {
+  Grid {
+    column-spacing: 20;
+    margin-top: 5;
+    margin-bottom: 5;
+    margin-start: 10;
+    margin-end: 10;
+
+    Label name_label {
+      halign: start;
+      layout {
+        column: 0;
+        row: 0;
+      }
+    }
+
+    Label version_label {
+      halign: start;
+      width-chars: 12;
+      ellipsize: end;
+      layout {
+        column: 1;
+        row: 0;
+      }
+    }
+
+    Label latest_version_label {
+      label: "Checking...";
+      halign: start;
+      width-chars: 12;
+      ellipsize: end;
+      styles ["dim-label"]
+      layout {
+        column: 2;
+        row: 0;
+      }
+    }
+
+    Box status_box {
+      orientation: horizontal;
+      spacing: 5;
+      halign: start;
+      layout {
+        column: 3;
+        row: 0;
+      }
+
+      Label status_label {
+      }
+
+      Label running_counter_label {
+        styles ["dim-label"]
+      }
+
+      Label update_available_label {
+        label: "  ";
+        halign: start;
+        tooltip-text: "Update available!";
+        styles ["warning"]
+      }
+    }
+
+    Box action_box {
+      orientation: horizontal;
+      spacing: 5;
+      halign: end;
+      layout {
+        column: 4;
+        row: 0;
+      }
+
+      Button install_btn {
+        label: "Install";
+        styles ["suggested-action"]
+      }
+
+      Button run_btn {
+        icon-name: "media-playback-start-symbolic";
+        tooltip-text: "Run";
+      }
+
+      Button run_in_terminal_btn {
+        icon-name: "utilities-terminal-symbolic";
+        tooltip-text: "Run in Terminal";
+      }
+
+      Button kill_btn {
+        icon-name: "process-stop-symbolic";
+        styles ["destructive-action"]
+        tooltip-text: "Kill All Instances";
+        visible: false;
+      }
+
+      Button cancel_btn {
+        icon-name: "process-stop-symbolic";
+        tooltip-text: "Cancel";
+        visible: false;
+      }
+
+      MenuButton more_btn {
+        icon-name: "view-more-symbolic";
+        tooltip-text: "More Actions";
+
+        popover: Popover more_popover {
+          Box {
+            orientation: vertical;
+            spacing: 5;
+            margin-top: 8;
+            margin-bottom: 8;
+            margin-start: 8;
+            margin-end: 8;
+
+            Button update_btn {
+              label: "Update";
+            }
+
+            Button changelog_btn {
+              label: "Changelog";
+            }
+
+            Button remove_btn {
+              label: "Remove";
+              styles ["destructive-action"]
+            }
+          }
+        };
+      }
+    }
+  }
+}
