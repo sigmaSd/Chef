@@ -17,15 +17,17 @@ import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
+import { decodeBase64 } from "@std/encoding/base64";
+import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
+import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
 export async function startGui(chef: ChefInternal) {
   const app = new Application("io.github.sigmasd.chef", 0);
   const eventLoop = new EventLoop();
 
-  app.onActivate(async () => {
+  app.onActivate(() => {
     const builder = new Builder();
-    const uiData = await fetch(new URL("./ui/gen/gui.ui", import.meta.url))
-      .then((r) => r.text());
+    const uiData = new TextDecoder().decode(decodeBase64(guiUiJson.value));
     builder.addFromString(uiData);
 
     const window = builder.get("window", ApplicationWindow)!;
@@ -66,25 +68,24 @@ export async function startGui(chef: ChefInternal) {
       name: string;
     }[] = [];
 
-    const refreshList = async () => {
+    const refreshList = () => {
       listBox.removeAll();
       listBox.append(headerRow);
 
       recipeRows.length = 0;
 
       for (const recipe of chef.recipes) {
-        const { row, setSensitive, updateRunningStatus } =
-          await createRecipeRow(
-            chef,
-            recipe,
-            {
-              nameGroup,
-              versionGroup,
-              latestVersionGroup,
-              statusGroup,
-              actionsGroup,
-            },
-          );
+        const { row, setSensitive, updateRunningStatus } = createRecipeRow(
+          chef,
+          recipe,
+          {
+            nameGroup,
+            versionGroup,
+            latestVersionGroup,
+            statusGroup,
+            actionsGroup,
+          },
+        );
         recipeRows.push({
           setSensitive,
           updateRunningStatus,
@@ -110,7 +111,7 @@ export async function startGui(chef: ChefInternal) {
       abortController = new AbortController();
       try {
         await chef.updateAll({ signal: abortController.signal });
-        await refreshList();
+        refreshList();
       } catch (e) {
         console.error(e);
       } finally {
@@ -138,7 +139,7 @@ export async function startGui(chef: ChefInternal) {
     });
 
     // Initial populate
-    await refreshList();
+    refreshList();
 
     // Register dax command listener
     setStatusListener((status) => {
@@ -187,7 +188,7 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
-async function createRecipeRow(
+function createRecipeRow(
   chef: ChefInternal,
   recipe: Recipe,
   groups: {
@@ -197,14 +198,13 @@ async function createRecipeRow(
     statusGroup: SizeGroup;
     actionsGroup: SizeGroup;
   },
-): Promise<{
+): {
   row: ListBoxRow;
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
-}> {
+} {
   const builder = new Builder();
-  const uiData = await fetch(new URL("./ui/gen/recipe_row.ui", import.meta.url))
-    .then((r) => r.text());
+  const uiData = new TextDecoder().decode(decodeBase64(recipeRowUiJson.value));
   builder.addFromString(uiData);
 
   const row = builder.get("recipe_row", ListBoxRow)!;

@@ -1,6 +1,7 @@
 import $ from "@david/dax";
 import { expandGlob } from "@std/fs";
 import { parse } from "@std/path";
+import { encodeBase64 } from "@std/encoding/base64";
 
 async function genUi() {
   const uiDir = $.path("src/ui");
@@ -14,6 +15,15 @@ async function genUi() {
     const out = genDir.join(stem + ".ui");
     console.log(`  ${file.basename()} -> gen/${out.basename()}`);
     await $`blueprint-compiler compile ${file} --output ${out}`;
+
+    const uiContent = await Deno.readFile(out.toString());
+    const base64 = encodeBase64(uiContent);
+    const jsonPath = genDir.join(stem + ".json");
+    console.log(`  ${out.basename()} -> gen/${jsonPath.basename()}`);
+    await Deno.writeTextFile(
+      jsonPath.toString(),
+      JSON.stringify({ value: base64 }),
+    );
   }
 }
 
