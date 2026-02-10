@@ -19,7 +19,7 @@ With chef you can:
 Install Chef globally to manage your binaries from anywhere:
 
 ```bash
-deno install -gA jsr:@sigmasd/chef
+deno install -gA --unstable-raw-imports jsr:@sigmasd/chef
 
 # Now you can use the chef command directly
 chef gui
@@ -74,10 +74,10 @@ await chef.start(import.meta.url);
 
 ```bash
 # Run your script directly
-deno run -A chef.ts list
+deno run -A --unstable-raw-imports chef.ts list
 
 # You can also install your custom script as the global 'chef' command
-deno install -gA -n chef chef.ts
+deno install -gA --unstable-raw-imports -n chef chef.ts
 chef gui
 ```
 

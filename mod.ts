@@ -187,7 +187,7 @@ if (import.meta.main) {
   const path = await import("@std/path");
 
   const libUrl = import.meta.url;
-  const utilsUrl = new URL("./src/utils.ts", libUrl).toString();
+  const utilsUrl = import.meta.resolve("./src/utils.ts");
 
   const defaultChefPath = await ensureDefaultChefFile(libUrl, utilsUrl);
 
