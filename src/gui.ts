@@ -6,29 +6,19 @@ import {
   Builder,
   Button,
   ColumnView,
-  ColumnViewColumn,
   Entry,
   Label,
-  ListItem,
   Orientation,
   Popover,
   ProgressBar,
-  SignalListItemFactory,
   SingleSelection,
 } from "@sigmasd/gtk/gtk4";
 import { ListStore } from "@sigmasd/gtk/gio";
-import { createGObject, G_TYPE_OBJECT, GObject } from "@sigmasd/gtk/gobject";
+import { G_TYPE_OBJECT, GObject } from "@sigmasd/gtk/gobject";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
-
-const recipeItemMap = new Map<bigint, RecipeItem>();
-const uiElementsMap = new Map<bigint, any>();
-
-function getPtrValue(ptr: Deno.PointerValue): bigint {
-  return ptr ? BigInt(Deno.UnsafePointer.value(ptr)) : 0n;
-}
 
 class RecipeItem extends GObject {
   recipe: Recipe;
@@ -59,16 +49,114 @@ class RecipeItem extends GObject {
   morePopover?: Popover;
 
   constructor(recipe: Recipe) {
-    const ptr = createGObject("GObject")!;
-    super(ptr);
+    super();
     this.recipe = recipe;
-    recipeItemMap.set(getPtrValue(ptr), this);
   }
 }
 
-function getRecipeItem(obj: GObject | null): RecipeItem | undefined {
-  if (!obj || !obj.ptr) return undefined;
-  return recipeItemMap.get(getPtrValue(obj.ptr));
+class StatusBox extends Box {
+  statusLabel = new Label("");
+  runningCounterLabel = new Label("");
+  updateAvailableLabel = new Label("  ");
+
+  constructor() {
+    super(Orientation.HORIZONTAL, 5);
+    this.setHalign(Align.START);
+    this.setMarginStart(10);
+    this.setMarginEnd(10);
+
+    this.runningCounterLabel.addCssClass("dim-label");
+    this.updateAvailableLabel.addCssClass("warning");
+    this.updateAvailableLabel.setHalign(Align.START);
+    this.updateAvailableLabel.setTooltipText("Update available!");
+
+    this.append(this.statusLabel);
+    this.append(this.runningCounterLabel);
+    this.append(this.updateAvailableLabel);
+  }
+}
+
+class ActionBox extends Box {
+  installBtn = new Button("Install");
+  runBtn = new Button();
+  runInTerminalBtn = new Button();
+  killBtn = new Button();
+  cancelBtn = new Button();
+  moreBtn = new Button();
+  updateBtn = new Button("Update");
+  changelogBtn = new Button("Changelog");
+  removeBtn = new Button("Remove");
+  morePopover = new Popover();
+
+  // The item currently "bound" to this UI component
+  boundItem?: RecipeItem;
+
+  constructor(chef: ChefInternal) {
+    super(Orientation.HORIZONTAL, 5);
+    this.setHalign(Align.END);
+    this.setMarginStart(10);
+    this.setMarginEnd(10);
+
+    this.installBtn.addCssClass("suggested-action");
+    this.runBtn.setIconName("media-playback-start-symbolic");
+    this.runBtn.setTooltipText("Run");
+    this.runInTerminalBtn.setIconName("utilities-terminal-symbolic");
+    this.runInTerminalBtn.setTooltipText("Run in Terminal");
+    this.killBtn.setIconName("process-stop-symbolic");
+    this.killBtn.addCssClass("destructive-action");
+    this.killBtn.setTooltipText("Kill All Instances");
+    this.killBtn.setVisible(false);
+    this.cancelBtn.setIconName("process-stop-symbolic");
+    this.cancelBtn.setVisible(false);
+    this.cancelBtn.setTooltipText("Cancel");
+    this.moreBtn.setIconName("view-more-symbolic");
+    this.moreBtn.setTooltipText("More Actions");
+
+    this.morePopover.setParent(this.moreBtn);
+    const moreBox = new Box(Orientation.VERTICAL, 5);
+    this.removeBtn.addCssClass("destructive-action");
+    moreBox.append(this.updateBtn);
+    moreBox.append(this.changelogBtn);
+    moreBox.append(this.removeBtn);
+    this.morePopover.setChild(moreBox);
+
+    // Setup listeners ONCE. They use this.boundItem to act on the correct data.
+    this.moreBtn.onClick(() => this.morePopover.popup());
+
+    this.installBtn.onClick(async () => {
+      if (this.boundItem) await handleInstall(chef, this.boundItem);
+    });
+    this.removeBtn.onClick(async () => {
+      if (this.boundItem) await handleRemove(chef, this.boundItem);
+    });
+    this.updateBtn.onClick(async () => {
+      if (this.boundItem) await handleUpdate(chef, this.boundItem);
+    });
+    this.cancelBtn.onClick(() => {
+      if (this.boundItem?.rowAbortController) {
+        this.boundItem.rowAbortController.abort();
+      }
+    });
+    this.runBtn.onClick(() => {
+      if (this.boundItem) chef.runBin(this.boundItem.recipe.name, []);
+    });
+    this.runInTerminalBtn.onClick(() => {
+      if (this.boundItem) chef.runInTerminal(this.boundItem.recipe.name, []);
+    });
+    this.killBtn.onClick(() => {
+      if (this.boundItem) chef.killAll(this.boundItem.recipe.name);
+    });
+    this.changelogBtn.onClick(() => {
+      if (this.boundItem) handleChangelog(chef, this.boundItem);
+    });
+
+    this.append(this.killBtn);
+    this.append(this.runBtn);
+    this.append(this.runInTerminalBtn);
+    this.append(this.installBtn);
+    this.append(this.cancelBtn);
+    this.append(this.moreBtn);
+  }
 }
 
 export async function startGui(chef: ChefInternal) {
@@ -106,270 +194,103 @@ export async function startGui(chef: ChefInternal) {
     columnView.model = selection;
 
     // Name Column
-    const nameFactory = new SignalListItemFactory();
-    nameFactory.onSetup((listItem) => {
-      const label = new Label("");
-      label.setHalign(Align.START);
-      label.setMarginStart(10);
-      label.setMarginEnd(10);
-      listItem.child = label;
-      uiElementsMap.set(getPtrValue(label.ptr), label);
+    columnView.addColumn<RecipeItem, Label>({
+      title: "Name",
+      setup: () => {
+        const label = new Label("");
+        label.setHalign(Align.START);
+        label.setMarginStart(10);
+        label.setMarginEnd(10);
+        return label;
+      },
+      bind: (item, label) => {
+        label.setText(item.recipe.name);
+      },
     });
-    nameFactory.onBind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      const child = listItem.child;
-      if (!item || !child) return;
-      const label = uiElementsMap.get(getPtrValue(child.ptr)) as Label;
-      if (label) label.setText(item.recipe.name);
-    });
-    nameFactory.onTeardown((listItem) => {
-      const child = listItem.child;
-      if (child) uiElementsMap.delete(getPtrValue(child.ptr));
-    });
-    columnView.appendColumn(new ColumnViewColumn("Name", nameFactory));
 
     // Installed Column
-    const installedFactory = new SignalListItemFactory();
-    installedFactory.onSetup((listItem) => {
-      const label = new Label("");
-      label.setHalign(Align.START);
-      label.setMarginStart(10);
-      label.setMarginEnd(10);
-      label.setProperty("width-chars", 12);
-      label.setEllipsize(3); // END
-      listItem.child = label;
-      uiElementsMap.set(getPtrValue(label.ptr), label);
+    columnView.addColumn<RecipeItem, Label>({
+      title: "Installed",
+      setup: () => {
+        const label = new Label("");
+        label.setHalign(Align.START);
+        label.setMarginStart(10);
+        label.setMarginEnd(10);
+        label.setProperty("width-chars", 12);
+        label.setEllipsize(3); // END
+        return label;
+      },
+      bind: (item, label) => {
+        item.versionLabel = label;
+        updateItemStatus(chef, item);
+      },
+      unbind: (item, _label) => {
+        item.versionLabel = undefined;
+      },
     });
-    installedFactory.onBind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      const child = listItem.child;
-      if (!item || !child) return;
-      const label = uiElementsMap.get(getPtrValue(child.ptr)) as Label;
-      item.versionLabel = label;
-      updateItemStatus(chef, item);
-    });
-    installedFactory.onUnbind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      if (item) item.versionLabel = undefined;
-    });
-    installedFactory.onTeardown((listItem) => {
-      const child = listItem.child;
-      if (child) uiElementsMap.delete(getPtrValue(child.ptr));
-    });
-    columnView.appendColumn(
-      new ColumnViewColumn("Installed", installedFactory),
-    );
 
     // Latest Column
-    const latestFactory = new SignalListItemFactory();
-    latestFactory.onSetup((listItem) => {
-      const label = new Label("");
-      label.setHalign(Align.START);
-      label.setMarginStart(10);
-      label.setMarginEnd(10);
-      label.setProperty("width-chars", 12);
-      label.setEllipsize(3); // END
-      listItem.child = label;
-      uiElementsMap.set(getPtrValue(label.ptr), label);
+    columnView.addColumn<RecipeItem, Label>({
+      title: "Latest",
+      setup: () => {
+        const label = new Label("");
+        label.setHalign(Align.START);
+        label.setMarginStart(10);
+        label.setMarginEnd(10);
+        label.setProperty("width-chars", 12);
+        label.setEllipsize(3); // END
+        return label;
+      },
+      bind: (item, label) => {
+        item.latestVersionLabel = label;
+        updateItemStatus(chef, item);
+      },
+      unbind: (item, _label) => {
+        item.latestVersionLabel = undefined;
+      },
     });
-    latestFactory.onBind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      const child = listItem.child;
-      if (!item || !child) return;
-      const label = uiElementsMap.get(getPtrValue(child.ptr)) as Label;
-      item.latestVersionLabel = label;
-      updateItemStatus(chef, item);
-    });
-    latestFactory.onUnbind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      if (item) item.latestVersionLabel = undefined;
-    });
-    latestFactory.onTeardown((listItem) => {
-      const child = listItem.child;
-      if (child) uiElementsMap.delete(getPtrValue(child.ptr));
-    });
-    columnView.appendColumn(new ColumnViewColumn("Latest", latestFactory));
 
     // Status Column
-    const statusFactory = new SignalListItemFactory();
-    statusFactory.onSetup((listItem) => {
-      const statusBox = new Box(Orientation.HORIZONTAL, 5);
-      statusBox.setHalign(Align.START);
-      statusBox.setMarginStart(10);
-      statusBox.setMarginEnd(10);
-
-      const statusLabel = new Label("");
-      const runningCounterLabel = new Label("");
-      runningCounterLabel.addCssClass("dim-label");
-
-      const updateAvailableLabel = new Label("  ");
-      updateAvailableLabel.addCssClass("warning");
-      updateAvailableLabel.setHalign(Align.START);
-      updateAvailableLabel.setTooltipText("Update available!");
-
-      statusBox.append(statusLabel);
-      statusBox.append(runningCounterLabel);
-      statusBox.append(updateAvailableLabel);
-      listItem.child = statusBox;
-      uiElementsMap.set(getPtrValue(statusBox.ptr), {
-        statusLabel,
-        runningCounterLabel,
-        updateAvailableLabel,
-      });
-    });
-    statusFactory.onBind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      const child = listItem.child;
-      if (!item || !child) return;
-      const elements = uiElementsMap.get(getPtrValue(child.ptr));
-      if (elements) {
-        item.statusLabel = elements.statusLabel;
-        item.runningCounterLabel = elements.runningCounterLabel;
-        item.updateAvailableLabel = elements.updateAvailableLabel;
+    columnView.addColumn<RecipeItem, StatusBox>({
+      title: "Status",
+      setup: () => new StatusBox(),
+      bind: (item, box) => {
+        item.statusLabel = box.statusLabel;
+        item.runningCounterLabel = box.runningCounterLabel;
+        item.updateAvailableLabel = box.updateAvailableLabel;
         updateItemStatus(chef, item);
-      }
-    });
-    statusFactory.onUnbind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      if (item) {
+      },
+      unbind: (item, _box) => {
         item.statusLabel = undefined;
         item.runningCounterLabel = undefined;
         item.updateAvailableLabel = undefined;
-      }
+      },
     });
-    statusFactory.onTeardown((listItem) => {
-      const child = listItem.child;
-      if (child) uiElementsMap.delete(getPtrValue(child.ptr));
-    });
-    columnView.appendColumn(new ColumnViewColumn("Status", statusFactory));
 
     // Actions Column
-    const actionsFactory = new SignalListItemFactory();
-    actionsFactory.onSetup((listItem) => {
-      const actionBox = new Box(Orientation.HORIZONTAL, 5);
-      actionBox.setHalign(Align.END);
-      actionBox.setMarginStart(10);
-      actionBox.setMarginEnd(10);
+    columnView.addColumn<RecipeItem, ActionBox>({
+      title: "Actions",
+      expand: true,
+      setup: () => new ActionBox(chef),
+      bind: (item, box) => {
+        box.boundItem = item; // IMPORTANT: Link the box to this item
 
-      const installBtn = new Button("Install");
-      installBtn.addCssClass("suggested-action");
-
-      const runBtn = new Button();
-      runBtn.setIconName("media-playback-start-symbolic");
-      runBtn.setTooltipText("Run");
-
-      const runInTerminalBtn = new Button();
-      runInTerminalBtn.setIconName("utilities-terminal-symbolic");
-      runInTerminalBtn.setTooltipText("Run in Terminal");
-
-      const killBtn = new Button();
-      killBtn.setIconName("process-stop-symbolic");
-      killBtn.addCssClass("destructive-action");
-      killBtn.setTooltipText("Kill All Instances");
-      killBtn.setVisible(false);
-
-      const cancelBtn = new Button();
-      cancelBtn.setIconName("process-stop-symbolic");
-      cancelBtn.setVisible(false);
-      cancelBtn.setTooltipText("Cancel");
-
-      const moreBtn = new Button();
-      moreBtn.setIconName("view-more-symbolic");
-      moreBtn.setTooltipText("More Actions");
-
-      const morePopover = new Popover();
-      morePopover.setParent(moreBtn);
-      const moreBox = new Box(Orientation.VERTICAL, 5);
-      moreBox.setMarginTop(8);
-      moreBox.setMarginBottom(8);
-      moreBox.setMarginStart(8);
-      moreBox.setMarginEnd(8);
-
-      const updateBtn = new Button("Update");
-      const changelogBtn = new Button("Changelog");
-      const removeBtn = new Button("Remove");
-      removeBtn.addCssClass("destructive-action");
-
-      moreBox.append(updateBtn);
-      moreBox.append(changelogBtn);
-      moreBox.append(removeBtn);
-      morePopover.setChild(moreBox);
-
-      moreBtn.onClick(() => {
-        morePopover.popup();
-      });
-
-      actionBox.append(killBtn);
-      actionBox.append(runBtn);
-      actionBox.append(runInTerminalBtn);
-      actionBox.append(installBtn);
-      actionBox.append(cancelBtn);
-      actionBox.append(moreBtn);
-
-      listItem.child = actionBox;
-      uiElementsMap.set(getPtrValue(actionBox.ptr), {
-        installBtn,
-        runBtn,
-        runInTerminalBtn,
-        killBtn,
-        cancelBtn,
-        moreBtn,
-        updateBtn,
-        removeBtn,
-        changelogBtn,
-        morePopover,
-      });
-    });
-    actionsFactory.onBind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      const child = listItem.child;
-      if (!item || !child) return;
-      const elements = uiElementsMap.get(getPtrValue(child.ptr));
-      if (elements) {
-        item.installBtn = elements.installBtn;
-        item.runBtn = elements.runBtn;
-        item.runInTerminalBtn = elements.runInTerminalBtn;
-        item.killBtn = elements.killBtn;
-        item.cancelBtn = elements.cancelBtn;
-        item.moreBtn = elements.moreBtn;
-        item.updateBtn = elements.updateBtn;
-        item.removeBtn = elements.removeBtn;
-        item.changelogBtn = elements.changelogBtn;
-        item.morePopover = elements.morePopover;
-
-        item.installBtn!.onClick(async () => {
-          await handleInstall(chef, item);
-        });
-        item.removeBtn!.onClick(async () => {
-          await handleRemove(chef, item);
-        });
-        item.updateBtn!.onClick(async () => {
-          await handleUpdate(chef, item);
-        });
-        item.cancelBtn!.onClick(() => {
-          if (item.rowAbortController) {
-            item.rowAbortController.abort();
-          }
-        });
-        item.runBtn!.onClick(() => {
-          chef.runBin(item.recipe.name, []);
-        });
-        item.runInTerminalBtn!.onClick(() => {
-          chef.runInTerminal(item.recipe.name, []);
-        });
-        item.killBtn!.onClick(() => {
-          chef.killAll(item.recipe.name);
-        });
-        item.changelogBtn!.onClick(() => {
-          handleChangelog(chef, item);
-        });
+        item.installBtn = box.installBtn;
+        item.runBtn = box.runBtn;
+        item.runInTerminalBtn = box.runInTerminalBtn;
+        item.killBtn = box.killBtn;
+        item.cancelBtn = box.cancelBtn;
+        item.moreBtn = box.moreBtn;
+        item.updateBtn = box.updateBtn;
+        item.removeBtn = box.removeBtn;
+        item.changelogBtn = box.changelogBtn;
+        item.morePopover = box.morePopover;
 
         updateItemStatus(chef, item);
-      }
-    });
-    actionsFactory.onUnbind((listItem) => {
-      const item = getRecipeItem(listItem.item);
-      if (item) {
+      },
+      unbind: (item, box) => {
+        box.boundItem = undefined; // IMPORTANT: Unlink
+
         item.installBtn = undefined;
         item.runBtn = undefined;
         item.runInTerminalBtn = undefined;
@@ -380,15 +301,8 @@ export async function startGui(chef: ChefInternal) {
         item.removeBtn = undefined;
         item.changelogBtn = undefined;
         item.morePopover = undefined;
-      }
+      },
     });
-    actionsFactory.onTeardown((listItem) => {
-      const child = listItem.child;
-      if (child) uiElementsMap.delete(getPtrValue(child.ptr));
-    });
-    const actionsColumn = new ColumnViewColumn("Actions", actionsFactory);
-    actionsColumn.expand = true;
-    columnView.appendColumn(actionsColumn);
 
     let abortController: AbortController | null = null;
     const recipeItems: RecipeItem[] = [];
@@ -642,11 +556,13 @@ async function handleInstall(chef: ChefInternal, item: RecipeItem) {
       console.log(`Installation of ${item.recipe.name} cancelled`);
     } else {
       console.error(e);
-      item.installBtn.setLabel("Failed");
+      if (item.installBtn) item.installBtn.setLabel("Failed");
     }
   } finally {
-    item.installBtn.setSensitive(true);
-    item.installBtn.setLabel("Install");
+    if (item.installBtn) {
+      item.installBtn.setSensitive(true);
+      item.installBtn.setLabel("Install");
+    }
     if (item.cancelBtn) item.cancelBtn.setVisible(false);
     item.rowAbortController = null;
   }
@@ -662,7 +578,7 @@ async function handleRemove(chef: ChefInternal, item: RecipeItem) {
   } catch (e) {
     console.error(e);
   } finally {
-    item.removeBtn.setSensitive(true);
+    if (item.removeBtn) item.removeBtn.setSensitive(true);
   }
 }
 
@@ -690,9 +606,11 @@ async function handleUpdate(chef: ChefInternal, item: RecipeItem) {
     } else {
       console.error(e);
     }
-    item.updateBtn.setLabel(isReinstall ? "Reinstall" : "Update");
+    if (item.updateBtn) {
+      item.updateBtn.setLabel(isReinstall ? "Reinstall" : "Update");
+    }
   } finally {
-    item.updateBtn.setSensitive(true);
+    if (item.updateBtn) item.updateBtn.setSensitive(true);
     if (item.cancelBtn) item.cancelBtn.setVisible(false);
     item.rowAbortController = null;
   }
