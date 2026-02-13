@@ -183,6 +183,16 @@ export class Chef {
 }
 
 if (import.meta.main) {
+  if (Deno.build.standalone) {
+    console.error(
+      "Error: The Chef library (mod.ts) cannot be compiled directly.",
+    );
+    console.error(
+      "To create a compiled binary, you should compile your recipe script (e.g., 'deno compile -A chef.ts')",
+    );
+    Deno.exit(1);
+  }
+
   const { ensureDefaultChefFile } = await import("./src/internal_utils.ts");
   const path = await import("@std/path");
 
