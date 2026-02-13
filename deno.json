@@ -1,6 +1,6 @@
 {
   "name": "@sigmasd/chef",
-  "version": "0.47.0",
+  "version": "0.47.1",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
