@@ -225,6 +225,7 @@ function createRecipeRow(
   const moreBtn = builder.get("more_btn", MenuButton)!;
   const morePopover = builder.get("more_popover", Popover)!;
   const updateBtn = builder.get("update_btn", Button)!;
+  const reinstallBtn = builder.get("reinstall_btn", Button)!;
   const changelogBtn = builder.get("changelog_btn", Button)!;
   const removeBtn = builder.get("remove_btn", Button)!;
 
@@ -252,17 +253,21 @@ function createRecipeRow(
           updateAvailableLabel.setText("✨");
           updateBtn.addCssClass("success");
           updateBtn.setLabel("Update");
+          updateBtn.setVisible(true);
+          reinstallBtn.setVisible(false);
         } else if (
           info.currentVersion && info.latestVersion &&
           info.currentVersion === info.latestVersion
         ) {
           updateAvailableLabel.setText("  ");
           updateBtn.removeCssClass("success");
-          updateBtn.setLabel("Reinstall");
+          updateBtn.setVisible(false);
+          reinstallBtn.setVisible(true);
         } else {
           updateAvailableLabel.setText("  ");
           updateBtn.removeCssClass("success");
-          updateBtn.setLabel("Update");
+          updateBtn.setVisible(false);
+          reinstallBtn.setVisible(true);
         }
       }
     } catch (e) {
@@ -305,6 +310,8 @@ function createRecipeRow(
       statusLabel.removeCssClass("success");
       updateAvailableLabel.setText("  ");
       updateBtn.removeCssClass("success");
+      updateBtn.setVisible(false);
+      reinstallBtn.setVisible(false);
     }
     // Always check for latest version regardless of installation status
     checkUpdate();
@@ -320,8 +327,16 @@ function createRecipeRow(
     runInTerminalBtn.setVisible(installed);
     killBtn.setVisible(isRunning);
 
-    updateBtn.setVisible(installed && !isRunning);
-    removeBtn.setVisible(installed && !isRunning);
+    // updateBtn visibility is handled in checkUpdate but we also need to respect isRunning
+    if (isRunning) {
+      updateBtn.setVisible(false);
+      reinstallBtn.setVisible(false);
+      removeBtn.setVisible(false);
+    } else {
+      // If not running, checkUpdate will have set visibility for updateBtn/reinstallBtn
+      removeBtn.setVisible(installed);
+    }
+
     changelogBtn.setVisible(!!recipe.changeLog);
 
     moreBtn.setVisible(
@@ -370,16 +385,20 @@ function createRecipeRow(
     }
   });
 
-  updateBtn.onClick(async () => {
-    morePopover.popdown();
-    const isReinstall = updateBtn.getLabel() === "Reinstall";
-    updateBtn.setSensitive(false);
-    updateBtn.setLabel(isReinstall ? "Reinstalling..." : "Updating...");
+  const onUpdateOrReinstall = async (force: boolean) => {
+    const isReinstall = force;
+    const btn = isReinstall ? reinstallBtn : updateBtn;
+    if (isReinstall) {
+      morePopover.popdown();
+    }
+    btn.setSensitive(false);
+    const oldLabel = btn.getLabel();
+    btn.setLabel(isReinstall ? "Reinstalling..." : "Updating...");
     cancelBtn.setVisible(true);
     rowAbortController = new AbortController();
     try {
       await chef.installOrUpdate(recipe.name, {
-        force: true,
+        force,
         signal: rowAbortController.signal,
       });
       updateStatus();
@@ -391,13 +410,16 @@ function createRecipeRow(
       } else {
         console.error(e);
       }
-      updateBtn.setLabel(isReinstall ? "Reinstall" : "Update");
+      btn.setLabel(oldLabel);
     } finally {
-      updateBtn.setSensitive(true);
+      btn.setSensitive(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
     }
-  });
+  };
+
+  updateBtn.onClick(() => onUpdateOrReinstall(false));
+  reinstallBtn.onClick(() => onUpdateOrReinstall(true));
 
   cancelBtn.onClick(() => {
     if (rowAbortController) {
@@ -436,6 +458,7 @@ function createRecipeRow(
     installBtn.setSensitive(sensitive);
     removeBtn.setSensitive(sensitive);
     updateBtn.setSensitive(sensitive);
+    reinstallBtn.setSensitive(sensitive);
     runBtn.setSensitive(sensitive);
     runInTerminalBtn.setSensitive(sensitive);
     killBtn.setSensitive(sensitive);

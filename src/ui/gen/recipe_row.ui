@@ -98,6 +98,12 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               </object>
             </child>
             <child>
+              <object class="GtkButton" id="update_btn">
+                <property name="label">Update</property>
+                <property name="visible">false</property>
+              </object>
+            </child>
+            <child>
               <object class="GtkButton" id="run_btn">
                 <property name="icon-name">media-playback-start-symbolic</property>
                 <property name="tooltip-text">Run</property>
@@ -141,8 +147,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                         <property name="margin-start">8</property>
                         <property name="margin-end">8</property>
                         <child>
-                          <object class="GtkButton" id="update_btn">
-                            <property name="label">Update</property>
+                          <object class="GtkButton" id="reinstall_btn">
+                            <property name="label">Reinstall</property>
                           </object>
                         </child>
                         <child>

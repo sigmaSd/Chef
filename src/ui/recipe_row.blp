@@ -62,71 +62,256 @@ ListBoxRow recipe_row {
       }
     }
 
-    Box action_box {
-      orientation: horizontal;
-      spacing: 5;
-      halign: end;
-      layout {
-        column: 4;
-        row: 0;
-      }
+        Box action_box {
 
-      Button install_btn {
-        label: "Install";
-        styles ["suggested-action"]
-      }
+          orientation: horizontal;
 
-      Button run_btn {
-        icon-name: "media-playback-start-symbolic";
-        tooltip-text: "Run";
-      }
+          spacing: 5;
 
-      Button run_in_terminal_btn {
-        icon-name: "utilities-terminal-symbolic";
-        tooltip-text: "Run in Terminal";
-      }
+          halign: end;
 
-      Button kill_btn {
-        icon-name: "process-stop-symbolic";
-        styles ["destructive-action"]
-        tooltip-text: "Kill All Instances";
-        visible: false;
-      }
+          layout {
 
-      Button cancel_btn {
-        icon-name: "process-stop-symbolic";
-        tooltip-text: "Cancel";
-        visible: false;
-      }
+            column: 4;
 
-      MenuButton more_btn {
-        icon-name: "view-more-symbolic";
-        tooltip-text: "More Actions";
+            row: 0;
 
-        popover: Popover more_popover {
-          Box {
-            orientation: vertical;
-            spacing: 5;
-            margin-top: 8;
-            margin-bottom: 8;
-            margin-start: 8;
-            margin-end: 8;
-
-            Button update_btn {
-              label: "Update";
-            }
-
-            Button changelog_btn {
-              label: "Changelog";
-            }
-
-            Button remove_btn {
-              label: "Remove";
-              styles ["destructive-action"]
-            }
           }
-        };
-      }
-    }
+
+    
+
+          Button install_btn {
+
+            label: "Install";
+
+            styles ["suggested-action"]
+
+          }
+
+    
+
+                Button update_btn {
+
+    
+
+                  label: "Update";
+
+    
+
+                  visible: false;
+
+    
+
+                }
+
+    
+
+          
+
+    
+
+                Button run_btn {
+
+    
+
+                  icon-name: "media-playback-start-symbolic";
+
+    
+
+                  tooltip-text: "Run";
+
+    
+
+                }
+
+    
+
+          
+
+    
+
+                Button run_in_terminal_btn {
+
+    
+
+                  icon-name: "utilities-terminal-symbolic";
+
+    
+
+                  tooltip-text: "Run in Terminal";
+
+    
+
+                }
+
+    
+
+          
+
+    
+
+                Button kill_btn {
+
+    
+
+                  icon-name: "process-stop-symbolic";
+
+    
+
+                  styles ["destructive-action"]
+
+    
+
+                  tooltip-text: "Kill All Instances";
+
+    
+
+                  visible: false;
+
+    
+
+                }
+
+    
+
+          
+
+    
+
+                Button cancel_btn {
+
+    
+
+                  icon-name: "process-stop-symbolic";
+
+    
+
+                  tooltip-text: "Cancel";
+
+    
+
+                  visible: false;
+
+    
+
+                }
+
+    
+
+          
+
+    
+
+                MenuButton more_btn {
+
+    
+
+                  icon-name: "view-more-symbolic";
+
+    
+
+                  tooltip-text: "More Actions";
+
+    
+
+          
+
+    
+
+                  popover: Popover more_popover {
+
+    
+
+                    Box {
+
+    
+
+                      orientation: vertical;
+
+    
+
+                      spacing: 5;
+
+    
+
+                      margin-top: 8;
+
+    
+
+                      margin-bottom: 8;
+
+    
+
+                      margin-start: 8;
+
+    
+
+                      margin-end: 8;
+
+    
+
+          
+
+    
+
+                      Button reinstall_btn {
+
+    
+
+                        label: "Reinstall";
+
+    
+
+                      }
+
+    
+
+          
+
+    
+
+                      Button changelog_btn {
+
+    
+
+                        label: "Changelog";
+
+    
+
+                      }
+
+    
+
+          
+
+    
+
+                      Button remove_btn {
+
+    
+
+                        label: "Remove";
+
+    
+
+                        styles ["destructive-action"]
+
+    
+
+                      }
+
+    
+
+                    }
+
+    
+
+                  };
+
+    
+
+                }
+
+        }
   }
 }

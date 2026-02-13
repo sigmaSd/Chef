@@ -49,6 +49,12 @@ Adw.ApplicationWindow window {
           styles ["suggested-action"]
         }
 
+        Button cancel_btn {
+          icon-name: "process-stop-symbolic";
+          tooltip-text: "Cancel";
+          visible: false;
+        }
+
         Button edit_recipes_btn {
           label: "Edit Recipes";
         }
@@ -91,11 +97,6 @@ Adw.ApplicationWindow window {
               }
             }
           };
-        }
-
-        Button cancel_btn {
-          label: "Cancel";
-          visible: false;
         }
       }
 
