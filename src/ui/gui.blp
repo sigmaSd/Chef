@@ -2,227 +2,287 @@ using Gtk 4.0;
 using Adw 1;
 
 Adw.ApplicationWindow window {
-  title: "Chef";
-  default-width: 800;
-  default-height: 600;
-
-  Box {
-    orientation: vertical;
-
-    Adw.HeaderBar {
-    }
+    title: "Chef";
+    default-width: 800;
+    default-height: 600;
 
     Box {
-      orientation: vertical;
-      spacing: 10;
-      margin-top: 8;
-      margin-bottom: 8;
-      margin-start: 8;
-      margin-end: 8;
-      vexpand: true;
+        orientation: vertical;
 
-      Box header_box {
-        orientation: horizontal;
-        spacing: 10;
+        Adw.HeaderBar {}
 
         Box {
-          orientation: horizontal;
-          spacing: 6;
-          hexpand: true;
-          halign: start;
-          valign: baseline;
+            orientation: vertical;
+            spacing: 10;
+            margin-top: 8;
+            margin-bottom: 8;
+            margin-start: 8;
+            margin-end: 8;
+            vexpand: true;
 
-          Label {
-            label: "Chef - Personal Package Manager";
-            styles ["title-1"]
-            valign: baseline;
-          }
+            Box header_box {
+                orientation: horizontal;
+                spacing: 10;
 
-          Label version_label {
-            styles ["dim-label"]
-            valign: baseline;
-          }
-        }
+                Box {
+                    orientation: horizontal;
+                    spacing: 6;
+                    hexpand: true;
+                    halign: start;
+                    valign: baseline;
 
-        Button update_all_btn {
-          label: "Update All";
-          styles ["suggested-action"]
-        }
+                    Label {
+                        label: "Chef - Personal Package Manager";
 
-        Button cancel_btn {
-          icon-name: "process-stop-symbolic";
-          tooltip-text: "Cancel";
-          visible: false;
-        }
+                        styles [
+                            "title-1",
+                        ]
 
-        Button edit_recipes_btn {
-          label: "Edit Recipes";
-        }
+                        valign: baseline;
+                    }
 
-        MenuButton settings_btn {
-          icon-name: "emblem-system-symbolic";
-          tooltip-text: "Settings";
-          popover: Popover {
+                    Label version_label {
+                        styles [
+                            "dim-label",
+                        ]
+
+                        valign: baseline;
+                    }
+                }
+
+                Button update_all_btn {
+                    label: "Update All";
+
+                    styles [
+                        "suggested-action",
+                    ]
+                }
+
+                Button cancel_btn {
+                    icon-name: "process-stop-symbolic";
+                    tooltip-text: "Cancel";
+                    visible: false;
+                }
+
+                Button edit_recipes_btn {
+                    label: "Edit Recipes";
+                }
+
+                MenuButton settings_btn {
+                    icon-name: "emblem-system-symbolic";
+                    tooltip-text: "Settings";
+
+                    popover: Popover {
+                        Box {
+                            orientation: vertical;
+                            spacing: 10;
+                            margin-top: 10;
+                            margin-bottom: 10;
+                            margin-start: 10;
+                            margin-end: 10;
+
+                            Label {
+                                label: "Editor Command:";
+                                halign: start;
+                            }
+
+                            Entry editor_entry {
+                                placeholder-text: "e.g. kgx -e hx";
+                            }
+
+                            Label {
+                                label: "Terminal Command:";
+                                halign: start;
+                                margin-top: 10;
+                            }
+
+                            Entry terminal_entry {
+                                placeholder-text: "e.g. kgx -e";
+                            }
+
+                            Button save_settings_btn {
+                                label: "Save";
+
+                                styles [
+                                    "suggested-action",
+                                ]
+
+                                margin-top: 10;
+                            }
+                        }
+                    };
+                }
+            }
+
+            ScrolledWindow {
+                vexpand: true;
+                hexpand: true;
+
+                styles [
+                    "frame",
+                ]
+
+                ListBox list_box {
+                    selection-mode: none;
+                    show-separators: true;
+
+                    ListBoxRow header_row {
+                        activatable: false;
+                        selectable: false;
+
+                        styles [
+                            "header",
+                        ]
+
+                        Grid {
+                            column-spacing: 20;
+                            margin-top: 10;
+                            margin-bottom: 10;
+                            margin-start: 10;
+                            margin-end: 10;
+
+                            Label header_name {
+                                label: "Name";
+                                halign: start;
+
+                                styles [
+                                    "bold",
+                                ]
+
+                                layout {
+                                    column: 0;
+                                    row: 0;
+                                }
+                            }
+
+                            Label header_installed {
+                                label: "Installed";
+                                halign: start;
+
+                                styles [
+                                    "bold",
+                                ]
+
+                                width-chars: 12;
+
+                                layout {
+                                    column: 1;
+                                    row: 0;
+                                }
+                            }
+
+                            Label header_latest {
+                                label: "Latest";
+                                halign: start;
+
+                                styles [
+                                    "bold",
+                                ]
+
+                                width-chars: 12;
+
+                                layout {
+                                    column: 2;
+                                    row: 0;
+                                }
+                            }
+
+                            Label header_status {
+                                label: "Status";
+                                halign: start;
+
+                                styles [
+                                    "bold",
+                                ]
+
+                                layout {
+                                    column: 3;
+                                    row: 0;
+                                }
+                            }
+
+                            Label header_actions {
+                                label: "Actions";
+                                halign: start;
+
+                                styles [
+                                    "bold",
+                                ]
+
+                                layout {
+                                    column: 4;
+                                    row: 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Box {
-              orientation: vertical;
-              spacing: 10;
-              margin-top: 10;
-              margin-bottom: 10;
-              margin-start: 10;
-              margin-end: 10;
+                orientation: horizontal;
+                spacing: 10;
+                margin-top: 5;
 
-              Label {
-                label: "Editor Command:";
-                halign: start;
-              }
+                Label {
+                    label: "Status:";
 
-              Entry editor_entry {
-                placeholder-text: "e.g. kgx -e hx";
-              }
+                    styles [
+                        "dim-label",
+                    ]
+                }
 
-              Label {
-                label: "Terminal Command:";
-                halign: start;
-                margin-top: 10;
-              }
+                Label status_label {
+                    label: "Idle";
+                    halign: start;
+                    ellipsize: end;
+                }
 
-              Entry terminal_entry {
-                placeholder-text: "e.g. kgx -e";
-              }
-
-              Button save_settings_btn {
-                label: "Save";
-                styles ["suggested-action"]
-                margin-top: 10;
-              }
+                ProgressBar progress_bar {
+                    hexpand: true;
+                    visible: false;
+                }
             }
-          };
         }
-      }
-
-      ScrolledWindow {
-        vexpand: true;
-        hexpand: true;
-        styles ["frame"]
-
-        ListBox list_box {
-          selection-mode: none;
-          show-separators: true;
-
-          ListBoxRow header_row {
-            activatable: false;
-            selectable: false;
-            styles ["header"]
-
-            Grid {
-              column-spacing: 20;
-              margin-top: 10;
-              margin-bottom: 10;
-              margin-start: 10;
-              margin-end: 10;
-
-              Label header_name {
-                label: "Name";
-                halign: start;
-                styles ["bold"]
-                layout {
-                  column: 0;
-                  row: 0;
-                }
-              }
-
-              Label header_installed {
-                label: "Installed";
-                halign: start;
-                styles ["bold"]
-                width-chars: 12;
-                layout {
-                  column: 1;
-                  row: 0;
-                }
-              }
-
-              Label header_latest {
-                label: "Latest";
-                halign: start;
-                styles ["bold"]
-                width-chars: 12;
-                layout {
-                  column: 2;
-                  row: 0;
-                }
-              }
-
-              Label header_status {
-                label: "Status";
-                halign: start;
-                styles ["bold"]
-                layout {
-                  column: 3;
-                  row: 0;
-                }
-              }
-
-              Label header_actions {
-                label: "Actions";
-                halign: start;
-                styles ["bold"]
-                layout {
-                  column: 4;
-                  row: 0;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      Box {
-        orientation: horizontal;
-        spacing: 10;
-        margin-top: 5;
-
-        Label {
-          label: "Status:";
-          styles ["dim-label"]
-        }
-
-        Label status_label {
-          label: "Idle";
-          halign: start;
-          ellipsize: end;
-        }
-
-        ProgressBar progress_bar {
-          hexpand: true;
-          visible: false;
-        }
-      }
     }
-  }
 }
 
 SizeGroup name_group {
-  mode: horizontal;
-  widgets [header_name]
+    mode: horizontal;
+
+    widgets [
+        header_name,
+    ]
 }
 
 SizeGroup version_group {
-  mode: horizontal;
-  widgets [header_installed]
+    mode: horizontal;
+
+    widgets [
+        header_installed,
+    ]
 }
 
 SizeGroup latest_version_group {
-  mode: horizontal;
-  widgets [header_latest]
+    mode: horizontal;
+
+    widgets [
+        header_latest,
+    ]
 }
 
 SizeGroup status_group {
-  mode: horizontal;
-  widgets [header_status]
+    mode: horizontal;
+
+    widgets [
+        header_status,
+    ]
 }
 
 SizeGroup actions_group {
-  mode: horizontal;
-  widgets [header_actions]
+    mode: horizontal;
+
+    widgets [
+        header_actions,
+    ]
 }
