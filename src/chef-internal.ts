@@ -7,6 +7,13 @@ import { BinaryRunner } from "./binary-runner.ts";
 import { BinaryUpdater } from "./binary-updater.ts";
 import { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
 import denoJson from "../deno.json" with { type: "json" };
+import { TextLineStream } from "@std/streams/text-line-stream";
+
+interface ProviderSession {
+  process: Deno.ChildProcess;
+  writer: WritableStreamDefaultWriter<string>;
+  stream: ReadableStream<string>;
+}
 
 /**
  * Main internal coordinator class for Chef
@@ -15,6 +22,7 @@ import denoJson from "../deno.json" with { type: "json" };
 export class ChefInternal {
   chefPath: string = Deno.mainModule;
   recipes: Recipe[] = [];
+  private providerSessions: Map<string, ProviderSession> = new Map();
 
   // Get the script name for namespacing
   private get scriptName() {
@@ -91,12 +99,178 @@ export class ChefInternal {
   };
 
   /**
+   * Add an external provider
+   */
+  addProvider = (name: string, command: string) => {
+    this.database.addProvider({ name, command });
+  };
+
+  /**
+   * Remove an external provider
+   */
+  removeProvider = (name: string) => {
+    this.database.removeProvider(name);
+  };
+
+  /**
+   * List all registered providers
+   */
+  getProviders = () => {
+    return this.database.getProviders();
+  };
+
+  /**
+   * Get or create a persistent session with a provider
+   */
+  private getProviderSession(
+    name: string,
+    commandStr: string,
+  ): ProviderSession | null {
+    if (this.providerSessions.has(name)) {
+      return this.providerSessions.get(name)!;
+    }
+
+    try {
+      const [cmd, ...args] = commandStr.split(" ");
+      const finalArgs = [...args];
+      if (!finalArgs.includes("--chef")) {
+        finalArgs.push("--chef");
+      }
+
+      const command = new Deno.Command(cmd, {
+        args: finalArgs,
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "inherit",
+      });
+
+      const process = command.spawn();
+
+      const encoder = new TextEncoderStream();
+      encoder.readable.pipeTo(process.stdin);
+      const writer = encoder.writable.getWriter();
+
+      const stream = process.stdout
+        .pipeThrough(new TextDecoderStream())
+        .pipeThrough(new TextLineStream());
+
+      const session = { process, writer, stream };
+      this.providerSessions.set(name, session);
+      return session;
+    } catch (e) {
+      console.error(`Failed to start provider session for "${name}":`, e);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch recipes from all registered providers
+   */
+  getProviderRecipes = async (): Promise<Recipe[]> => {
+    const providers = this.getProviders();
+    const providerRecipes: Recipe[] = [];
+
+    for (const provider of providers) {
+      try {
+        const session = this.getProviderSession(
+          provider.name,
+          provider.command,
+        );
+        if (!session) continue;
+
+        const request = JSON.stringify({ command: "list" }) + "\n";
+        await session.writer.write(request);
+
+        interface ProviderApp {
+          name: string;
+          version: string;
+          latestVersion: string;
+          description?: string;
+        }
+        let apps: ProviderApp[] = [];
+        for await (const line of session.stream) {
+          if (!line || !line.trim()) continue;
+
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type !== "list") {
+              console.error(`Unexpected message from provider:`, msg);
+              continue;
+            }
+            apps = msg.data;
+            break;
+          } catch {
+            // Ignore non-JSON output
+            continue;
+          }
+        }
+
+        for (const app of apps) {
+          providerRecipes.push(
+            {
+              name: app.name,
+              provider: provider.name,
+              version: () => Promise.resolve(app.latestVersion),
+              download: async ({ signal: _signal }) => {
+                const session = this.getProviderSession(
+                  provider.name,
+                  provider.command,
+                );
+                if (!session) throw new Error(`Provider session lost`);
+
+                await session.writer.write(
+                  JSON.stringify({ command: "update", name: app.name }) + "\n",
+                );
+
+                // Wait for update_done
+                for await (const line of session.stream) {
+                  if (!line || !line.trim()) continue;
+
+                  try {
+                    const msg = JSON.parse(line);
+                    if (msg.type === "update_done" && msg.name === app.name) {
+                      if (!msg.success) {
+                        throw new Error(`Update failed for ${app.name}`);
+                      }
+                      break;
+                    }
+                  } catch {
+                    // Ignore non-JSON
+                    continue;
+                  }
+                }
+                return { exe: "" };
+              },
+              _currentVersion: app.version,
+              _latestVersion: app.latestVersion,
+            } as Recipe & { _currentVersion?: string; _latestVersion?: string },
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Failed to fetch recipes from provider "${provider.name}":`,
+          error,
+        );
+      }
+    }
+
+    return providerRecipes;
+  };
+
+  /**
    * Install or update a single binary
    */
   installOrUpdate = async (
     name: string,
     options: { force?: boolean; signal?: AbortSignal } = {},
   ) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      // If it's a provider recipe, we just run its download (which is the update command)
+      await recipe.download({ latestVersion: "", signal: options.signal });
+      return;
+    }
+
     await this.binaryUpdater.update({
       force: options.force,
       binary: [name],
@@ -110,7 +284,26 @@ export class ChefInternal {
   updateAll = async (
     options: { force?: boolean; signal?: AbortSignal } = {},
   ) => {
+    // Update native recipes
     await this.binaryUpdater.update(options);
+
+    // Update provider recipes
+    const providerRecipes = this.recipes.filter((r) => r.provider);
+    for (const recipe of providerRecipes) {
+      if (options.signal?.aborted) break;
+      const info = await this.checkUpdate(recipe.name);
+      if (options.force || info.needsUpdate) {
+        console.log(`🔄 Updating ${recipe.name} (via ${recipe.provider})...`);
+        try {
+          await recipe.download({
+            latestVersion: info.latestVersion || "",
+            signal: options.signal,
+          });
+        } catch (e) {
+          console.error(`Failed to update ${recipe.name}:`, e);
+        }
+      }
+    }
   };
 
   /**
@@ -124,7 +317,7 @@ export class ChefInternal {
    * Run a binary in a terminal
    */
   runInTerminal = async (name: string, args: string[]) => {
-    const binPath = this.binaryRunner.getBinaryPath(name);
+    const binPath = await this.binaryRunner.getBinaryPath(name);
     if (!binPath) return;
 
     const recipe = this.recipes.find((r) => r.name === name);
@@ -166,9 +359,24 @@ export class ChefInternal {
     this.binaryRunner.setStatusListener(listener);
   };
   /**
+   * Fetch recipes from all registered providers and add them to internal list
+   */
+  refreshRecipes = async () => {
+    // Remove old provider recipes
+    this.recipes = this.recipes.filter((r) => !r.provider);
+    const providerRecipes = await this.getProviderRecipes();
+    this.addMany(providerRecipes);
+  };
+
+  /**
    * Check if a binary is installed
    */
   isInstalled = (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      const r = recipe as Recipe & { _currentVersion?: string };
+      return !!r._currentVersion && r._currentVersion !== "-";
+    }
     return this.database.isInstalled(name);
   };
 
@@ -176,6 +384,11 @@ export class ChefInternal {
    * Get the installed version of a binary
    */
   getVersion = (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      const r = recipe as Recipe & { _currentVersion?: string };
+      return r._currentVersion;
+    }
     return this.database.getVersion(name);
   };
 
@@ -185,6 +398,20 @@ export class ChefInternal {
   checkUpdate = async (name: string) => {
     const recipe = this.recipes.find((r) => r.name === name);
     if (!recipe) return { needsUpdate: false };
+
+    if (recipe.provider) {
+      // Provider recipes are special
+      const r = recipe as Recipe & {
+        _currentVersion?: string;
+        _latestVersion?: string;
+      };
+      return {
+        needsUpdate: r._currentVersion !== r._latestVersion,
+        currentVersion: r._currentVersion,
+        latestVersion: r._latestVersion,
+      };
+    }
+
     return await this.binaryUpdater.needsUpdate(recipe);
   };
 
@@ -200,8 +427,9 @@ export class ChefInternal {
           await process.status;
         }
       },
-      list: () => {
-        this.binaryRunner.list();
+      list: async () => {
+        await this.refreshRecipes();
+        await this.binaryRunner.list();
       },
       update: async (options) => {
         await this.binaryUpdater.update(options);
@@ -217,14 +445,17 @@ export class ChefInternal {
       gui: async (options) => {
         if (options?.install) {
           await this.desktopManager.installGui();
+          await this.cleanup();
           Deno.exit(0);
         }
         if (options?.uninstall) {
           this.desktopManager.uninstallGui();
+          await this.cleanup();
           Deno.exit(0);
         }
         const { startGui } = await import("./gui.ts");
         await startGui(this);
+        await this.cleanup();
         Deno.exit(0);
       },
       createDesktop: async (name: string, options) => {
@@ -239,15 +470,92 @@ export class ChefInternal {
       unlink: async (name: string) => {
         await this.unlink(name);
       },
+      providerAdd: (name, command) => {
+        this.addProvider(name, command);
+        console.log(`✅ Added provider "${name}"`);
+      },
+      providerRemove: (name) => {
+        this.removeProvider(name);
+        console.log(`✅ Removed provider "${name}"`);
+      },
+      providerList: () => {
+        const providers = this.getProviders();
+        if (providers.length === 0) {
+          console.log("No providers registered.");
+          return;
+        }
+        console.log("Registered Providers:");
+        for (const p of providers) {
+          console.log(`- ${p.name}: ${p.command}`);
+        }
+      },
     };
 
     await parseAndExecute(args, handlers);
   };
 
   /**
+   * Close all provider sessions
+   */
+  cleanup = async () => {
+    for (const [name, session] of this.providerSessions) {
+      try {
+        await session.writer.close();
+        await session.process.status;
+      } catch (e) {
+        console.error(`Error closing provider session "${name}":`, e);
+      }
+    }
+    this.providerSessions.clear();
+  };
+
+  /**
    * Uninstall a binary
    */
   uninstall = async (name: string) => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      console.log(`🗑️ Uninstalling "${name}" (via ${recipe.provider})...`);
+      try {
+        const providerEntry = this.database.getProviders().find((p) =>
+          p.name === recipe.provider
+        );
+        if (!providerEntry) throw new Error(`Provider entry not found`);
+
+        const session = await this.getProviderSession(
+          providerEntry.name,
+          providerEntry.command,
+        );
+        if (!session) throw new Error(`Provider session lost`);
+
+        await session.writer.write(
+          JSON.stringify({ command: "remove", name: name }) + "\n",
+        );
+
+        for await (const line of session.stream) {
+          if (!line || !line.trim()) continue;
+
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === "remove_done" && msg.name === name) {
+              if (msg.success) {
+                console.log(`✅ Successfully uninstalled "${name}"`);
+              } else {
+                console.error(`❌ Failed to uninstall "${name}"`);
+              }
+              break;
+            }
+          } catch {
+            // Ignore non-JSON
+            continue;
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to uninstall ${name}:`, e);
+      }
+      return;
+    }
+
     const entry = this.database.getEntry(name);
     if (!entry) {
       console.error(`Binary "${name}" is not installed.`);

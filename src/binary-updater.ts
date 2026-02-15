@@ -65,7 +65,7 @@ export class BinaryUpdater {
     sectionHeader("Checking for Updates");
 
     const runner = new BinaryRunner(this.binPath, this.database, this.recipes);
-    runner.list();
+    await runner.list();
 
     ensureDirSync(this.binPath);
     const currentDb = this.database.read().expect("failed to read database");

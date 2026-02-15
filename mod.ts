@@ -117,6 +117,10 @@ export interface Recipe {
   /** Change log URL */
   changeLog?: ({ latestVersion }: { latestVersion: string }) => string;
   /**
+   * The name of the provider if this recipe comes from an external integration.
+   */
+  provider?: string;
+  /**
    * Desktop file configuration
    */
   desktopFile?: {
@@ -178,6 +182,8 @@ export class Chef {
         console.error("Chef failed with unknown error:", error);
       }
       Deno.exit(1);
+    } finally {
+      await this.#chefInternal.cleanup();
     }
   };
 }

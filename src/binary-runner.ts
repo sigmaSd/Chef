@@ -2,6 +2,7 @@ import * as path from "@std/path";
 import { assert } from "@std/assert";
 import type { Recipe } from "../mod.ts";
 import type { ChefDatabase } from "./database.ts";
+import { commandExists } from "./internal_utils.ts";
 import {
   printTable,
   sectionHeader,
@@ -35,26 +36,38 @@ export class BinaryRunner {
   /**
    * Run a binary with the provided arguments
    */
-  run(name: string, binArgs: string[]) {
-    const db = this.database.read().expect("failed to read database");
+  async run(name: string, binArgs: string[]) {
     if (!name) {
-      this.list();
+      await this.list();
       return;
     }
-    if (!db[name]) {
+
+    const recipe = this.recipes.find((recipe) => recipe.name === name);
+    if (!recipe) {
       statusMessage("error", `Unknown binary: ${name}`);
       spacer();
       console.log(
         `%c${Symbols.info} Available binaries:`,
         `color: ${UIColors.info}; font-weight: bold`,
       );
-      this.list();
+      await this.list();
       return;
     }
 
-    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const binPath = path.join(this.binPath, name + exeExtension);
-    const recipe = this.recipes.find((recipe) => recipe.name === name);
+    let binPath: string;
+    if (recipe.provider) {
+      // For provider binaries, assume they are in PATH
+      binPath = name;
+    } else {
+      const db = this.database.read().expect("failed to read database");
+      if (!db[name]) {
+        statusMessage("error", `Binary "${name}" is not installed.`);
+        return;
+      }
+      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+      binPath = path.join(this.binPath, name + exeExtension);
+    }
+
     assert(recipe, "Recipe for this binary doesn't exist");
 
     let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
@@ -102,7 +115,7 @@ export class BinaryRunner {
   /**
    * List all installed and available binaries with improved formatting
    */
-  list() {
+  async list() {
     const dbData = this.database.getInstalledBinaries();
 
     const installedBinaries = Object.entries(dbData);
@@ -120,14 +133,16 @@ export class BinaryRunner {
       sectionHeader("Installed Binaries");
 
       const headers = ["Binary", "Version", "Status"];
-      const rows = installedBinaries.map(([name, entry]) => {
-        const isExecutable = this.isInstalled(name);
-        return [
-          name,
-          entry.version,
-          isExecutable ? "Ready" : "Not Found",
-        ];
-      });
+      const rows = await Promise.all(
+        installedBinaries.map(async ([name, entry]) => {
+          const isExecutable = await this.isInstalled(name);
+          return [
+            name,
+            entry.version,
+            isExecutable ? "Ready" : "Not Found",
+          ];
+        }),
+      );
 
       const colors = rows.map((row) =>
         row[2] === "Ready" ? UIColors.success : UIColors.warning
@@ -144,7 +159,9 @@ export class BinaryRunner {
       const headers = ["Name", "Description"];
       const rows = availableToInstall.map((recipe) => [
         recipe.name,
-        "Available for installation",
+        recipe.provider
+          ? `(via ${recipe.provider})`
+          : "Available for installation",
       ]);
 
       printTable(headers, rows);
@@ -161,7 +178,12 @@ export class BinaryRunner {
   /**
    * Check if a binary is installed and executable
    */
-  isInstalled(name: string): boolean {
+  async isInstalled(name: string): Promise<boolean> {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      return await commandExists(name);
+    }
+
     if (!this.database.isInstalled(name)) {
       return false;
     }
@@ -169,7 +191,7 @@ export class BinaryRunner {
     try {
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
       const binPath = path.join(this.binPath, name + exeExtension);
-      const stat = Deno.statSync(binPath);
+      const stat = await Deno.stat(binPath);
       return stat.isFile;
     } catch {
       return false;
@@ -179,10 +201,16 @@ export class BinaryRunner {
   /**
    * Get the path to an installed binary
    */
-  getBinaryPath(name: string): string | null {
-    if (!this.isInstalled(name)) {
+  async getBinaryPath(name: string): Promise<string | null> {
+    if (!await this.isInstalled(name)) {
       return null;
     }
+
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?.provider) {
+      return name;
+    }
+
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
     return path.join(this.binPath, name + exeExtension);
   }
@@ -190,17 +218,23 @@ export class BinaryRunner {
   /**
    * Get all installed binaries with their paths
    */
-  getInstalledBinaries(): Array<
-    { name: string; path: string; version: string }
+  async getInstalledBinaries(): Promise<
+    Array<
+      { name: string; path: string; version: string }
+    >
   > {
     const dbData = this.database.read().expect("failed to read database");
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    return Object.entries(dbData)
-      .filter(([name]) => this.isInstalled(name))
-      .map(([name, entry]) => ({
-        name,
-        path: path.join(this.binPath, name + exeExtension),
-        version: entry.version,
-      }));
+    const result = [];
+    for (const [name, entry] of Object.entries(dbData)) {
+      if (await this.isInstalled(name)) {
+        result.push({
+          name,
+          path: path.join(this.binPath, name + exeExtension),
+          version: entry.version,
+        });
+      }
+    }
+    return result;
   }
 }

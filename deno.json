@@ -10,7 +10,7 @@
     "gen-ui": "deno run -A tasks.ts gen-ui"
   },
   "imports": {
-    "@sigma/parse": "jsr:@sigma/parse@^0.46.0",
+    "@sigma/parse": "jsr:@sigma/parse@^0.52.0",
     "@sigmasd/gtk": "jsr:@sigmasd/gtk@^0.38.0",
     "@sigmasd/infer": "jsr:@sigmasd/infer@^3.1.3",
     "@sigmasd/rust-types": "jsr:@sigmasd/rust-types@^0.6.1",
@@ -19,7 +19,8 @@
     "@std/fs": "jsr:@std/fs@^1.0.22",
     "@std/path": "jsr:@std/path@^1.1.4",
     "@std/semver": "jsr:@std/semver@^1.0.8",
-    "@std/encoding": "jsr:@std/encoding@^1.0.7",
+    "@std/encoding": "jsr:@std/encoding@^1.0.10",
+    "@std/streams": "jsr:@std/streams@^1.0.17",
     "@david/dax": "jsr:@david/dax@^0.45.0"
   }
 }

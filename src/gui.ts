@@ -68,13 +68,16 @@ export async function startGui(chef: ChefInternal) {
       name: string;
     }[] = [];
 
-    const refreshList = () => {
+    const refreshList = async () => {
       listBox.removeAll();
       listBox.append(headerRow);
 
       recipeRows.length = 0;
 
-      for (const recipe of chef.recipes) {
+      await chef.refreshRecipes();
+      const allRecipes = chef.recipes;
+
+      for (const recipe of allRecipes) {
         const { row, setSensitive, updateRunningStatus } = createRecipeRow(
           chef,
           recipe,
@@ -111,7 +114,7 @@ export async function startGui(chef: ChefInternal) {
       abortController = new AbortController();
       try {
         await chef.updateAll({ signal: abortController.signal });
-        refreshList();
+        await refreshList();
       } catch (e) {
         console.error(e);
       } finally {
@@ -229,7 +232,11 @@ function createRecipeRow(
   const changelogBtn = builder.get("changelog_btn", Button)!;
   const removeBtn = builder.get("remove_btn", Button)!;
 
-  nameLabel.setText(recipe.name);
+  let displayName = recipe.name;
+  if (recipe.provider) {
+    displayName += ` (via ${recipe.provider})`;
+  }
+  nameLabel.setText(displayName);
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
   groups.latestVersionGroup.addWidget(latestVersionLabel);
@@ -277,7 +284,7 @@ function createRecipeRow(
   };
 
   let runningCount = 0;
-  const updateRunningStatus = (running: boolean) => {
+  const updateRunningStatus = async (running: boolean) => {
     if (running) {
       runningCount++;
     } else {
@@ -291,13 +298,13 @@ function createRecipeRow(
       runningCounterLabel.setText(`(${runningCount})`);
     } else {
       runningCounterLabel.setText("");
-      updateStatus();
+      await updateStatus();
     }
-    updateButtons();
+    await updateButtons();
   };
 
-  const updateStatus = () => {
-    const installed = chef.isInstalled(recipe.name);
+  const updateStatus = async () => {
+    const installed = await chef.isInstalled(recipe.name);
     statusLabel.setText(installed ? "Installed" : "Not Installed");
     const version = chef.getVersion(recipe.name);
     versionLabel.setText(version || "-");
@@ -314,12 +321,12 @@ function createRecipeRow(
       reinstallBtn.setVisible(false);
     }
     // Always check for latest version regardless of installation status
-    checkUpdate();
+    await checkUpdate();
   };
   updateStatus();
 
-  const updateButtons = () => {
-    const installed = chef.isInstalled(recipe.name);
+  const updateButtons = async () => {
+    const installed = await chef.isInstalled(recipe.name);
     const isRunning = runningCount > 0;
 
     installBtn.setVisible(!installed);
@@ -354,8 +361,8 @@ function createRecipeRow(
       await chef.installOrUpdate(recipe.name, {
         signal: rowAbortController.signal,
       });
-      updateStatus();
-      updateButtons();
+      await updateStatus();
+      await updateButtons();
     } catch (e) {
       if ((e as Error).name === "AbortError") {
         console.log(`Installation of ${recipe.name} cancelled`);
@@ -376,8 +383,8 @@ function createRecipeRow(
     removeBtn.setSensitive(false);
     try {
       await chef.uninstall(recipe.name);
-      updateStatus();
-      updateButtons();
+      await updateStatus();
+      await updateButtons();
     } catch (e) {
       console.error(e);
     } finally {
@@ -401,7 +408,7 @@ function createRecipeRow(
         force,
         signal: rowAbortController.signal,
       });
-      updateStatus();
+      await updateStatus();
     } catch (e) {
       if ((e as Error).name === "AbortError") {
         console.log(

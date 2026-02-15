@@ -101,6 +101,48 @@ export class UnlinkCommand {
   name!: string;
 }
 
+@command
+export class ProviderAddCommand {
+  @arg({
+    description: "alias for the provider",
+    required: true,
+    type: "string",
+  })
+  name!: string;
+
+  @arg({
+    description: "command to run for the provider",
+    required: true,
+    type: "string",
+  })
+  command!: string;
+}
+
+@command
+export class ProviderRemoveCommand {
+  @arg({
+    description: "name of the provider to remove",
+    required: true,
+    type: "string",
+  })
+  name!: string;
+}
+
+@command
+export class ProviderListCommand {}
+
+@command({ defaultCommand: "list" })
+export class ProviderCommand {
+  @subCommand(ProviderAddCommand, { description: "add a provider" })
+  add?: ProviderAddCommand;
+
+  @subCommand(ProviderRemoveCommand, { description: "remove a provider" })
+  remove?: ProviderRemoveCommand;
+
+  @subCommand(ProviderListCommand, { description: "list registered providers" })
+  list?: ProviderListCommand;
+}
+
 @command({ defaultCommand: "help" })
 export class DesktopFileCommand {
   @subCommand(CreateDesktopCommand, { description: "create a desktop file" })
@@ -115,7 +157,7 @@ export class DesktopFileCommand {
  */
 export interface CommandHandlers {
   run?: (name: string, binArgs: string[]) => Promise<void>;
-  list?: () => void;
+  list?: () => Promise<void> | void;
   update?: (options: {
     force?: boolean;
     skip?: string;
@@ -133,6 +175,9 @@ export interface CommandHandlers {
   removeDesktop?: (name: string) => void;
   link?: (name: string) => Promise<void>;
   unlink?: (name: string) => Promise<void>;
+  providerAdd?: (name: string, command: string) => void;
+  providerRemove?: (name: string) => void;
+  providerList?: () => void;
 }
 
 // Using new @cli decorator and Args class pattern
@@ -184,6 +229,9 @@ class ChefArgs extends Args {
     description: "remove symlink from exports directory",
   })
   unlink?: UnlinkCommand;
+
+  @subCommand(ProviderCommand, { description: "manage external providers" })
+  provider?: ProviderCommand;
 }
 
 /**
@@ -241,5 +289,16 @@ export async function parseAndExecute(
     await handlers.link(parsedArgs.link.name!);
   } else if (parsedArgs.unlink && handlers.unlink) {
     await handlers.unlink(parsedArgs.unlink.name!);
+  } else if (parsedArgs.provider) {
+    if (parsedArgs.provider.add && handlers.providerAdd) {
+      handlers.providerAdd(
+        parsedArgs.provider.add.name!,
+        parsedArgs.provider.add.command!,
+      );
+    } else if (parsedArgs.provider.remove && handlers.providerRemove) {
+      handlers.providerRemove(parsedArgs.provider.remove.name!);
+    } else if (parsedArgs.provider.list && handlers.providerList) {
+      handlers.providerList();
+    }
   }
 }

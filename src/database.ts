@@ -6,9 +6,20 @@ export interface DbEntry {
   dir?: string;
 }
 
+export interface ProviderEntry {
+  name: string;
+  command: string;
+}
+
 interface DbStructure {
   _settings?: Record<string, string>;
-  [key: string]: string | DbEntry | Record<string, string> | undefined;
+  _providers?: ProviderEntry[];
+  [key: string]:
+    | string
+    | DbEntry
+    | Record<string, string>
+    | ProviderEntry[]
+    | undefined;
 }
 
 /**
@@ -41,7 +52,7 @@ export class ChefDatabase {
     // Normalize entries to DbEntry and filter out entries for recipes that no longer exist
     const normalized: Record<string, DbEntry> = {};
     for (const [name, value] of Object.entries(dbParsed.ok)) {
-      if (name === "_settings") continue;
+      if (name === "_settings" || name === "_providers") continue;
       if (this.recipes.find((r) => r.name === name)) {
         if (typeof value === "string") {
           normalized[name] = { version: value };
@@ -60,6 +71,36 @@ export class ChefDatabase {
   write(db: DbStructure) {
     Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
       .expect("failed to write to database");
+  }
+
+  /**
+   * Get all registered providers
+   */
+  getProviders(): ProviderEntry[] {
+    const db = this.readRaw().expect("failed to read database");
+    return db._providers || [];
+  }
+
+  /**
+   * Add a provider
+   */
+  addProvider(provider: ProviderEntry) {
+    const db = this.readRaw().expect("failed to read database");
+    if (!db._providers) db._providers = [];
+    // Remove if already exists with same name
+    db._providers = db._providers.filter((p) => p.name !== provider.name);
+    db._providers.push(provider);
+    this.write(db);
+  }
+
+  /**
+   * Remove a provider
+   */
+  removeProvider(name: string) {
+    const db = this.readRaw().expect("failed to read database");
+    if (!db._providers) return;
+    db._providers = db._providers.filter((p) => p.name !== name);
+    this.write(db);
   }
 
   /**
