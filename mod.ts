@@ -54,6 +54,7 @@
  * - **Zero Config**: Works out of the box with a default recipes file.
  * - **GUI**: Modern GTK4 interface for visual management.
  * - **Desktop Integration**: Automatically creates `.desktop` files for your binaries.
+ * - **External Providers**: Support for external package managers and custom binary sources.
  * - **Portable**: Recipes are just TypeScript files.
  *
  * @module

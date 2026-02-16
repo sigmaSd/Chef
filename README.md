@@ -92,6 +92,33 @@ deno run -A lsp.ts update
 deno run -A work.ts list
 ```
 
+## External Providers
+
+Chef supports external providers, which allow you to integrate other package
+managers or custom binary sources. Providers are external commands that
+communicate with Chef using a JSON-based protocol.
+
+You can use the Chef provider SDK to create your own providers.
+
+Example provider: [rustman](https://jsr.io/@sigmasd/rustman) (A provider for
+Rust binaries).
+
+### Managing Providers
+
+```bash
+# Add a provider
+chef provider add rustman "deno run -A jsr:@sigmasd/rustman"
+
+# List providers
+chef provider list
+
+# Remove a provider
+chef provider remove rustman
+```
+
+Once a provider is added, its binaries will appear in `chef list` and can be
+managed just like native recipes.
+
 ## CLI Commands
 
 - `chef update` to update all binaries
