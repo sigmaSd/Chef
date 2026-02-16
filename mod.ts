@@ -139,6 +139,8 @@ export interface Recipe {
   };
   /** @internal */
   _dynamic?: boolean;
+  /** @internal */
+  _group?: string;
 }
 
 /**

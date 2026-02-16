@@ -260,9 +260,7 @@ export class BinaryUpdater {
         }
 
         // Automatically create desktop file if specified in recipe
-        if (
-          recipe.desktopFile && this.desktopManager
-        ) {
+        if (recipe.desktopFile && this.desktopManager) {
           try {
             console.log(
               `%c  ${Symbols.desktop} Creating desktop entry...`,
@@ -279,11 +277,10 @@ export class BinaryUpdater {
           }
         }
 
-        currentDb[info.name] = {
+        this.database.setEntry(info.name, {
           version: latestVersion,
           dir: installInfo.destDir,
-        };
-        this.database.write(currentDb);
+        });
         statusMessage(
           "success",
           `${info.name} ${latestVersion} installed successfully`,

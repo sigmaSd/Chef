@@ -73,15 +73,23 @@ export class BinaryRunner {
     let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
     finalArgs = finalArgs.concat(binArgs);
 
-    const command = new Deno.Command(binPath, {
-      args: finalArgs,
-      env: recipe.cmdEnv,
-    });
-    const process = command.spawn();
+    try {
+      const command = new Deno.Command(binPath, {
+        args: finalArgs,
+        env: recipe.cmdEnv,
+      });
+      const process = command.spawn();
 
-    this.trackProcess(name, process);
+      this.trackProcess(name, process);
 
-    return process;
+      return process;
+    } catch (e) {
+      statusMessage(
+        "error",
+        `Failed to run ${name}: ${e instanceof Error ? e.message : e}`,
+      );
+      return;
+    }
   }
 
   trackProcess(name: string, process: Deno.ChildProcess) {

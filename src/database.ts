@@ -138,6 +138,15 @@ export class ChefDatabase {
   }
 
   /**
+   * Update the entry for a specific binary
+   */
+  setEntry(binaryName: string, entry: DbEntry) {
+    const db = this.readRaw().expect("failed to read database");
+    db[binaryName] = entry;
+    this.write(db);
+  }
+
+  /**
    * Update the version of a specific binary
    */
   setVersion(binaryName: string, version: string) {
@@ -166,7 +175,7 @@ export class ChefDatabase {
    * Remove a binary from the database
    */
   removeBinary(binaryName: string) {
-    const db = this.read().expect("failed to read database");
+    const db = this.readRaw().expect("failed to read database");
     delete db[binaryName];
     this.write(db);
   }

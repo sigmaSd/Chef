@@ -20,6 +20,7 @@ interface ProviderResponse {
   type?: string;
   data?: unknown;
   success?: boolean;
+  error?: string;
 }
 
 /**
@@ -148,18 +149,53 @@ export class ChefInternal {
         args: finalArgs,
         stdin: "piped",
         stdout: "piped",
-        stderr: "inherit",
+        stderr: "piped",
       });
 
       const process = command.spawn();
 
+      // Check if process is still alive after a short delay
+      // This helps catch "Module not found" or "Command not found" errors immediately
+      (async () => {
+        try {
+          const status = await process.status;
+          if (!status.success) {
+            this.providerSessions.delete(name);
+          }
+        } catch {
+          this.providerSessions.delete(name);
+        }
+      })();
+
       const encoder = new TextEncoderStream();
-      encoder.readable.pipeTo(process.stdin);
+      encoder.readable.pipeTo(process.stdin).catch((e) => {
+        // Only log if it's not a broken pipe (which is expected if process exits)
+        if (!(e instanceof Deno.errors.BrokenPipe)) {
+          console.error(`Provider "${name}" stdin pipe error:`, e);
+        }
+        this.providerSessions.delete(name);
+      });
       const writer = encoder.writable.getWriter();
 
       const stream = process.stdout
         .pipeThrough(new TextDecoderStream())
         .pipeThrough(new TextLineStream());
+
+      // Also consume stderr so it doesn't block, but log it if it's not empty
+      (async () => {
+        try {
+          const stderrStream = process.stderr
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(new TextLineStream());
+          for await (const line of stderrStream) {
+            if (line.trim()) {
+              console.error(`Provider "${name}" stderr: ${line}`);
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      })();
 
       const pendingRequests = new Map<string, (msg: unknown) => void>();
       const session: ProviderSession = { process, writer, pendingRequests };
@@ -172,9 +208,12 @@ export class ChefInternal {
             if (!line || !line.trim()) continue;
             try {
               const msg = JSON.parse(line);
-              if (msg.id && pendingRequests.has(msg.id)) {
-                const resolve = pendingRequests.get(msg.id)!;
-                pendingRequests.delete(msg.id);
+              if (
+                typeof msg === "object" && msg !== null && "id" in msg &&
+                pendingRequests.has(msg.id as string)
+              ) {
+                const resolve = pendingRequests.get(msg.id as string)!;
+                pendingRequests.delete(msg.id as string);
                 resolve(msg);
               }
             } catch {
@@ -183,6 +222,13 @@ export class ChefInternal {
           }
         } catch (e) {
           console.error(`Provider session "${name}" reader error:`, e);
+        } finally {
+          this.providerSessions.delete(name);
+          // Reject all pending requests
+          for (const resolve of pendingRequests.values()) {
+            resolve({ success: false, error: "Provider session closed" });
+          }
+          pendingRequests.clear();
         }
       })();
 
@@ -200,6 +246,7 @@ export class ChefInternal {
     name: string,
     command: string,
     payload: Record<string, unknown> = {},
+    signal?: AbortSignal,
   ): Promise<unknown> {
     const provider = this.getProviders().find((p) => p.name === name);
     if (!provider) throw new Error(`Provider "${name}" not found`);
@@ -207,15 +254,39 @@ export class ChefInternal {
     const session = this.getProviderSession(provider.name, provider.command);
     if (!session) throw new Error(`Could not start provider "${name}"`);
 
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
     const id = crypto.randomUUID();
-    const { promise, resolve } = Promise.withResolvers<unknown>();
+    const { promise, resolve, reject } = Promise.withResolvers<unknown>();
     session.pendingRequests.set(id, resolve);
 
-    await session.writer.write(
-      JSON.stringify({ id, command, ...payload }) + "\n",
-    );
+    const onAbort = () => {
+      session.pendingRequests.delete(id);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort);
 
-    return promise;
+    try {
+      // Check if session is still alive before writing
+      if (!this.providerSessions.has(name)) {
+        throw new Error("Provider session closed");
+      }
+      await session.writer.write(
+        JSON.stringify({ id, command, ...payload }) + "\n",
+      );
+      const result = await promise;
+      return result;
+    } catch (e) {
+      session.pendingRequests.delete(id);
+      if (!(e instanceof DOMException && e.name === "AbortError")) {
+        this.providerSessions.delete(name);
+      }
+      throw e;
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
+    }
   }
 
   /**
@@ -229,6 +300,7 @@ export class ChefInternal {
       try {
         interface ProviderApp {
           name: string;
+          group?: string;
           version: string;
           latestVersion: string;
           description?: string;
@@ -238,6 +310,16 @@ export class ChefInternal {
           provider.name,
           "list",
         ) as ProviderResponse;
+
+        if (msg.success === false) {
+          console.error(
+            `Failed to fetch recipes from provider "${provider.name}": ${
+              msg.error || "Unknown error"
+            }`,
+          );
+          continue;
+        }
+
         if (msg.type !== "list") {
           console.error(`Unexpected response type from provider: ${msg.type}`);
           continue;
@@ -251,6 +333,7 @@ export class ChefInternal {
               name: app.name,
               provider: provider.name,
               _dynamic: true,
+              _group: app.group,
               version: () => Promise.resolve(app.latestVersion),
               download: async ({ signal: _signal }) => {
                 const msg = await this.callProvider(provider.name, "update", {
@@ -297,10 +380,15 @@ export class ChefInternal {
           options.force ? "Reinstalling" : "Updating"
         } "${name}" via provider "${recipe.provider}"...`,
       );
-      const msg = await this.callProvider(recipe.provider, "update", {
-        name: recipe.name,
-        force: !!options.force,
-      }) as ProviderResponse;
+      const msg = await this.callProvider(
+        recipe.provider,
+        "update",
+        {
+          name: recipe.name,
+          force: !!options.force,
+        },
+        options.signal,
+      ) as ProviderResponse;
 
       if (!msg.success) {
         throw new Error(
@@ -336,11 +424,16 @@ export class ChefInternal {
 
     // Update provider recipes
     const providerRecipes = this.recipes.filter((r) => r.provider);
+    const updatedGroups = new Set<string>();
     for (const recipe of providerRecipes) {
       if (options.signal?.aborted) break;
+      const group = recipe._group || recipe.name;
+      if (updatedGroups.has(group)) continue;
+
       const info = await this.checkUpdate(recipe.name);
       if (options.force || info.needsUpdate) {
         await this.installOrUpdate(recipe.name, options);
+        updatedGroups.add(group);
       }
     }
   };
@@ -367,13 +460,17 @@ export class ChefInternal {
 
     const [termBin, ...termArgs] = terminalCommand.split(" ");
 
-    const process = new Deno.Command(termBin, {
-      args: [...termArgs, binPath, ...finalArgs],
-    }).spawn();
+    try {
+      const process = new Deno.Command(termBin, {
+        args: [...termArgs, binPath, ...finalArgs],
+      }).spawn();
 
-    this.binaryRunner.trackProcess(name, process);
+      this.binaryRunner.trackProcess(name, process);
 
-    return process;
+      return process;
+    } catch (e) {
+      console.error(`Failed to run in terminal: ${e}`);
+    }
   };
 
   /**
@@ -407,9 +504,12 @@ export class ChefInternal {
     );
     const providerRecipes = await this.getProviderRecipes();
 
-    this.recipes.length = 0;
-    this.recipes.push(...nativeRecipes);
-    this.recipes.push(...providerRecipes);
+    this.recipes.splice(
+      0,
+      this.recipes.length,
+      ...nativeRecipes,
+      ...providerRecipes,
+    );
 
     if (providerRecipes.length > 0) {
       console.log(
@@ -455,8 +555,9 @@ export class ChefInternal {
         _currentVersion?: string;
         _latestVersion?: string;
       };
+      const hasLatest = r._latestVersion && r._latestVersion !== "-";
       return {
-        needsUpdate: r._currentVersion !== r._latestVersion,
+        needsUpdate: !!(hasLatest && r._currentVersion !== r._latestVersion),
         currentVersion: r._currentVersion,
         latestVersion: r._latestVersion,
       };
@@ -575,14 +676,22 @@ export class ChefInternal {
   /**
    * Uninstall a binary
    */
-  uninstall = async (name: string) => {
+  uninstall = async (
+    name: string,
+    options: { signal?: AbortSignal } = {},
+  ) => {
     const recipe = this.recipes.find((r) => r.name === name);
     if (recipe?.provider) {
       console.log(`🗑️ Uninstalling "${name}" (via ${recipe.provider})...`);
       try {
-        const msg = await this.callProvider(recipe.provider, "remove", {
-          name: name,
-        }) as ProviderResponse;
+        const msg = await this.callProvider(
+          recipe.provider,
+          "remove",
+          {
+            name: name,
+          },
+          options.signal,
+        ) as ProviderResponse;
 
         if (msg.success) {
           console.log(`✅ Successfully uninstalled "${name}"`);
