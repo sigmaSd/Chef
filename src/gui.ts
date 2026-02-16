@@ -6,6 +6,7 @@ import {
   Button,
   Entry,
   EventControllerKey,
+  ExpanderRow,
   Label,
   ListBox,
   ListBoxRow,
@@ -63,8 +64,42 @@ export async function startGui(chef: ChefInternal) {
       searchBtn.setActive(searchBar.getSearchMode());
     });
 
+    const nameGroup = builder.get("name_group", SizeGroup)!;
+    const versionGroup = builder.get("version_group", SizeGroup)!;
+    const latestVersionGroup = builder.get("latest_version_group", SizeGroup)!;
+    const statusGroup = builder.get("status_group", SizeGroup)!;
+    const actionsGroup = builder.get("actions_group", SizeGroup)!;
+
+    let abortController: AbortController | null = null;
+    const recipeRows: {
+      row: ListBoxRow;
+      setSensitive: (sensitive: boolean) => void;
+      updateRunningStatus: (running: boolean) => void;
+      updateStatusLabel: (text: string) => void;
+      name: string;
+      group?: string;
+      expanderRow: ExpanderRow;
+    }[] = [];
+
     searchEntry.onChanged(() => {
-      listBox.invalidateFilter();
+      const filterText = searchEntry.getText().toLowerCase();
+
+      // Track which expanders should be visible
+      const expanderVisibility = new Map<ExpanderRow, boolean>();
+
+      for (const r of recipeRows) {
+        const matches = !filterText ||
+          r.name.toLowerCase().includes(filterText);
+        r.row.setVisible(matches);
+        if (matches) {
+          expanderVisibility.set(r.expanderRow, true);
+        }
+      }
+
+      // Set visibility of expanders based on their children
+      for (const r of recipeRows) {
+        r.expanderRow.setVisible(!!expanderVisibility.get(r.expanderRow));
+      }
     });
 
     const keyController = new EventControllerKey();
@@ -91,19 +126,6 @@ export async function startGui(chef: ChefInternal) {
     });
     window.addController(keyController);
 
-    listBox.setFilterFunc((row) => {
-      if (row.equals(headerRow)) return true;
-      const filterText = searchEntry.getText().toLowerCase();
-      if (!filterText) return true;
-
-      const recipeRow = recipeRows.find((r) => r.row.equals(row));
-
-      if (recipeRow) {
-        return recipeRow.name.toLowerCase().includes(filterText);
-      }
-      return true;
-    });
-
     versionLabel.setText(`v${chef.chefVersion}`);
     editorEntry.setText(chef.getEditorCommand());
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
@@ -115,22 +137,6 @@ export async function startGui(chef: ChefInternal) {
       // but we might want to close it manually.
       // For now, let's assume it stays open or closes on focus loss.
     });
-
-    const nameGroup = builder.get("name_group", SizeGroup)!;
-    const versionGroup = builder.get("version_group", SizeGroup)!;
-    const latestVersionGroup = builder.get("latest_version_group", SizeGroup)!;
-    const statusGroup = builder.get("status_group", SizeGroup)!;
-    const actionsGroup = builder.get("actions_group", SizeGroup)!;
-
-    let abortController: AbortController | null = null;
-    const recipeRows: {
-      row: ListBoxRow;
-      setSensitive: (sensitive: boolean) => void;
-      updateRunningStatus: (running: boolean) => void;
-      updateStatusLabel: (text: string) => void;
-      name: string;
-      group?: string;
-    }[] = [];
 
     const refreshList = async (skipProviderRefresh = false) => {
       if (!skipProviderRefresh) {
@@ -147,34 +153,63 @@ export async function startGui(chef: ChefInternal) {
       const allRecipes = chef.recipes;
       statusLabel.setText("Idle");
 
+      const recipesByProvider: Record<string, Recipe[]> = {};
       for (const recipe of allRecipes) {
-        const {
-          row,
-          setSensitive,
-          updateRunningStatus,
-          updateStatusLabel,
-        } = createRecipeRow(
-          chef,
-          recipe,
-          {
-            nameGroup,
-            versionGroup,
-            latestVersionGroup,
-            statusGroup,
-            actionsGroup,
-          },
-          refreshList,
-          recipeRows,
+        const provider = recipe.provider || "Native chef apps";
+        if (!recipesByProvider[provider]) recipesByProvider[provider] = [];
+        recipesByProvider[provider].push(recipe);
+      }
+
+      // Sort providers: "Native chef apps" first, then others alphabetically
+      const sortedProviders = Object.keys(recipesByProvider).sort((a, b) => {
+        if (a === "Native chef apps") return -1;
+        if (b === "Native chef apps") return 1;
+        return a.localeCompare(b);
+      });
+
+      for (const provider of sortedProviders) {
+        const expander = new ExpanderRow();
+        expander.setTitle(
+          `${provider} (${recipesByProvider[provider].length})`,
         );
-        recipeRows.push({
-          row,
-          setSensitive,
-          updateRunningStatus,
-          updateStatusLabel,
-          name: recipe.name,
-          group: recipe._group,
-        });
-        listBox.append(row);
+        expander.setExpanded(true);
+        listBox.append(expander);
+
+        // Sort recipes within each provider alphabetically
+        const providerRecipes = recipesByProvider[provider].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+
+        for (const recipe of providerRecipes) {
+          const {
+            row,
+            setSensitive,
+            updateRunningStatus,
+            updateStatusLabel,
+          } = createRecipeRow(
+            chef,
+            recipe,
+            {
+              nameGroup,
+              versionGroup,
+              latestVersionGroup,
+              statusGroup,
+              actionsGroup,
+            },
+            refreshList,
+            recipeRows,
+          );
+          recipeRows.push({
+            row,
+            setSensitive,
+            updateRunningStatus,
+            updateStatusLabel,
+            name: recipe.name,
+            group: recipe._group,
+            expanderRow: expander,
+          });
+          expander.addRow(row);
+        }
       }
     };
 
@@ -287,6 +322,7 @@ function createRecipeRow(
     updateStatusLabel: (text: string) => void;
     name: string;
     group?: string;
+    expanderRow: ExpanderRow;
   }[],
 ): {
   row: ListBoxRow;
@@ -349,12 +385,7 @@ function createRecipeRow(
     }
   };
 
-  let displayName = recipe.name;
-  if (recipe.provider) {
-    displayName +=
-      ` <span size='smaller' foreground='gray'>via ${recipe.provider}</span>`;
-  }
-  nameLabel.setMarkup(displayName);
+  nameLabel.setMarkup(recipe.name);
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
   groups.latestVersionGroup.addWidget(latestVersionLabel);
