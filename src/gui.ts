@@ -68,14 +68,20 @@ export async function startGui(chef: ChefInternal) {
       name: string;
     }[] = [];
 
-    const refreshList = async () => {
+    const refreshList = async (skipProviderRefresh = false) => {
+      if (!skipProviderRefresh) {
+        statusLabel.setText("Refreshing recipes...");
+      }
       listBox.removeAll();
       listBox.append(headerRow);
 
       recipeRows.length = 0;
 
-      await chef.refreshRecipes();
+      if (!skipProviderRefresh) {
+        await chef.refreshRecipes();
+      }
       const allRecipes = chef.recipes;
+      statusLabel.setText("Idle");
 
       for (const recipe of allRecipes) {
         const { row, setSensitive, updateRunningStatus } = createRecipeRow(
@@ -88,6 +94,7 @@ export async function startGui(chef: ChefInternal) {
             statusGroup,
             actionsGroup,
           },
+          refreshList,
         );
         recipeRows.push({
           setSensitive,
@@ -201,6 +208,7 @@ function createRecipeRow(
     statusGroup: SizeGroup;
     actionsGroup: SizeGroup;
   },
+  refreshList: (skipProviderRefresh?: boolean) => Promise<void>,
 ): {
   row: ListBoxRow;
   setSensitive: (sensitive: boolean) => void;
@@ -231,6 +239,17 @@ function createRecipeRow(
   const reinstallBtn = builder.get("reinstall_btn", Button)!;
   const changelogBtn = builder.get("changelog_btn", Button)!;
   const removeBtn = builder.get("remove_btn", Button)!;
+
+  const setSensitive = (sensitive: boolean) => {
+    installBtn.setSensitive(sensitive);
+    removeBtn.setSensitive(sensitive);
+    updateBtn.setSensitive(sensitive);
+    reinstallBtn.setSensitive(sensitive);
+    runBtn.setSensitive(sensitive);
+    runInTerminalBtn.setSensitive(sensitive);
+    killBtn.setSensitive(sensitive);
+    changelogBtn.setSensitive(sensitive);
+  };
 
   let displayName = recipe.name;
   if (recipe.provider) {
@@ -353,16 +372,17 @@ function createRecipeRow(
   updateButtons();
 
   installBtn.onClick(async () => {
-    installBtn.setSensitive(false);
+    setSensitive(false);
     installBtn.setLabel("Installing...");
+    statusLabel.setText("Installing...");
+    statusLabel.removeCssClass("success");
     cancelBtn.setVisible(true);
     rowAbortController = new AbortController();
     try {
       await chef.installOrUpdate(recipe.name, {
         signal: rowAbortController.signal,
       });
-      await updateStatus();
-      await updateButtons();
+      await refreshList(true);
     } catch (e) {
       if ((e as Error).name === "AbortError") {
         console.log(`Installation of ${recipe.name} cancelled`);
@@ -371,8 +391,8 @@ function createRecipeRow(
         installBtn.setLabel("Failed");
       }
     } finally {
-      installBtn.setSensitive(true);
       installBtn.setLabel("Install");
+      setSensitive(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
     }
@@ -380,15 +400,16 @@ function createRecipeRow(
 
   removeBtn.onClick(async () => {
     morePopover.popdown();
-    removeBtn.setSensitive(false);
+    setSensitive(false);
+    statusLabel.setText("Removing...");
+    statusLabel.removeCssClass("success");
     try {
       await chef.uninstall(recipe.name);
-      await updateStatus();
-      await updateButtons();
+      await refreshList(true);
     } catch (e) {
       console.error(e);
     } finally {
-      removeBtn.setSensitive(true);
+      setSensitive(true);
     }
   });
 
@@ -398,9 +419,11 @@ function createRecipeRow(
     if (isReinstall) {
       morePopover.popdown();
     }
-    btn.setSensitive(false);
+    setSensitive(false);
     const oldLabel = btn.getLabel();
     btn.setLabel(isReinstall ? "Reinstalling..." : "Updating...");
+    statusLabel.setText(isReinstall ? "Reinstalling..." : "Updating...");
+    statusLabel.removeCssClass("success");
     cancelBtn.setVisible(true);
     rowAbortController = new AbortController();
     try {
@@ -408,7 +431,7 @@ function createRecipeRow(
         force,
         signal: rowAbortController.signal,
       });
-      await updateStatus();
+      await refreshList(true);
     } catch (e) {
       if ((e as Error).name === "AbortError") {
         console.log(
@@ -417,9 +440,9 @@ function createRecipeRow(
       } else {
         console.error(e);
       }
-      btn.setLabel(oldLabel);
     } finally {
-      btn.setSensitive(true);
+      btn.setLabel(oldLabel);
+      setSensitive(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
     }
@@ -460,17 +483,6 @@ function createRecipeRow(
       new Deno.Command(command, { args: [url] }).spawn();
     }
   });
-
-  const setSensitive = (sensitive: boolean) => {
-    installBtn.setSensitive(sensitive);
-    removeBtn.setSensitive(sensitive);
-    updateBtn.setSensitive(sensitive);
-    reinstallBtn.setSensitive(sensitive);
-    runBtn.setSensitive(sensitive);
-    runInTerminalBtn.setSensitive(sensitive);
-    killBtn.setSensitive(sensitive);
-    changelogBtn.setSensitive(sensitive);
-  };
 
   return { row, setSensitive, updateRunningStatus };
 }

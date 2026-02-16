@@ -72,7 +72,8 @@ export class BinaryUpdater {
 
     // Collect update information with parallel processing
     const recipesToCheck = this.recipes.filter((recipe) =>
-      targetBinaries.size === 0 || targetBinaries.has(recipe.name)
+      !recipe.provider &&
+      (targetBinaries.size === 0 || targetBinaries.has(recipe.name))
     );
 
     console.log(

@@ -6,13 +6,20 @@ import { DesktopFileManager } from "./desktop.ts";
 import { BinaryRunner } from "./binary-runner.ts";
 import { BinaryUpdater } from "./binary-updater.ts";
 import { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
+import { UIColors } from "./ui.ts";
 import denoJson from "../deno.json" with { type: "json" };
 import { TextLineStream } from "@std/streams/text-line-stream";
 
 interface ProviderSession {
   process: Deno.ChildProcess;
   writer: WritableStreamDefaultWriter<string>;
-  stream: ReadableStream<string>;
+  pendingRequests: Map<string, (msg: unknown) => void>;
+}
+
+interface ProviderResponse {
+  type?: string;
+  data?: unknown;
+  success?: boolean;
 }
 
 /**
@@ -154,13 +161,61 @@ export class ChefInternal {
         .pipeThrough(new TextDecoderStream())
         .pipeThrough(new TextLineStream());
 
-      const session = { process, writer, stream };
+      const pendingRequests = new Map<string, (msg: unknown) => void>();
+      const session: ProviderSession = { process, writer, pendingRequests };
       this.providerSessions.set(name, session);
+
+      // Start background listener
+      (async () => {
+        try {
+          for await (const line of stream) {
+            if (!line || !line.trim()) continue;
+            try {
+              const msg = JSON.parse(line);
+              if (msg.id && pendingRequests.has(msg.id)) {
+                const resolve = pendingRequests.get(msg.id)!;
+                pendingRequests.delete(msg.id);
+                resolve(msg);
+              }
+            } catch {
+              // Ignore non-JSON
+            }
+          }
+        } catch (e) {
+          console.error(`Provider session "${name}" reader error:`, e);
+        }
+      })();
+
       return session;
     } catch (e) {
       console.error(`Failed to start provider session for "${name}":`, e);
       return null;
     }
+  }
+
+  /**
+   * Send a command to a provider and wait for response
+   */
+  private async callProvider(
+    name: string,
+    command: string,
+    payload: Record<string, unknown> = {},
+  ): Promise<unknown> {
+    const provider = this.getProviders().find((p) => p.name === name);
+    if (!provider) throw new Error(`Provider "${name}" not found`);
+
+    const session = this.getProviderSession(provider.name, provider.command);
+    if (!session) throw new Error(`Could not start provider "${name}"`);
+
+    const id = crypto.randomUUID();
+    const { promise, resolve } = Promise.withResolvers<unknown>();
+    session.pendingRequests.set(id, resolve);
+
+    await session.writer.write(
+      JSON.stringify({ id, command, ...payload }) + "\n",
+    );
+
+    return promise;
   }
 
   /**
@@ -172,72 +227,38 @@ export class ChefInternal {
 
     for (const provider of providers) {
       try {
-        const session = this.getProviderSession(
-          provider.name,
-          provider.command,
-        );
-        if (!session) continue;
-
-        const request = JSON.stringify({ command: "list" }) + "\n";
-        await session.writer.write(request);
-
         interface ProviderApp {
           name: string;
           version: string;
           latestVersion: string;
           description?: string;
         }
-        let apps: ProviderApp[] = [];
-        for await (const line of session.stream) {
-          if (!line || !line.trim()) continue;
 
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type !== "list") {
-              console.error(`Unexpected message from provider:`, msg);
-              continue;
-            }
-            apps = msg.data;
-            break;
-          } catch {
-            // Ignore non-JSON output
-            continue;
-          }
+        const msg = await this.callProvider(
+          provider.name,
+          "list",
+        ) as ProviderResponse;
+        if (msg.type !== "list") {
+          console.error(`Unexpected response type from provider: ${msg.type}`);
+          continue;
         }
+
+        const apps: ProviderApp[] = msg.data as ProviderApp[];
 
         for (const app of apps) {
           providerRecipes.push(
             {
               name: app.name,
               provider: provider.name,
+              _dynamic: true,
               version: () => Promise.resolve(app.latestVersion),
               download: async ({ signal: _signal }) => {
-                const session = this.getProviderSession(
-                  provider.name,
-                  provider.command,
-                );
-                if (!session) throw new Error(`Provider session lost`);
+                const msg = await this.callProvider(provider.name, "update", {
+                  name: app.name,
+                }) as ProviderResponse;
 
-                await session.writer.write(
-                  JSON.stringify({ command: "update", name: app.name }) + "\n",
-                );
-
-                // Wait for update_done
-                for await (const line of session.stream) {
-                  if (!line || !line.trim()) continue;
-
-                  try {
-                    const msg = JSON.parse(line);
-                    if (msg.type === "update_done" && msg.name === app.name) {
-                      if (!msg.success) {
-                        throw new Error(`Update failed for ${app.name}`);
-                      }
-                      break;
-                    }
-                  } catch {
-                    // Ignore non-JSON
-                    continue;
-                  }
+                if (!msg.success) {
+                  throw new Error(`Update failed for ${app.name}`);
                 }
                 return { exe: "" };
               },
@@ -265,9 +286,35 @@ export class ChefInternal {
     options: { force?: boolean; signal?: AbortSignal } = {},
   ) => {
     const recipe = this.recipes.find((r) => r.name === name);
-    if (recipe?.provider) {
-      // If it's a provider recipe, we just run its download (which is the update command)
-      await recipe.download({ latestVersion: "", signal: options.signal });
+    if (!recipe) {
+      console.error(`❌ Recipe "${name}" not found`);
+      return;
+    }
+
+    if (recipe.provider) {
+      console.log(
+        `📦 ${
+          options.force ? "Reinstalling" : "Updating"
+        } "${name}" via provider "${recipe.provider}"...`,
+      );
+      const msg = await this.callProvider(recipe.provider, "update", {
+        name: recipe.name,
+        force: !!options.force,
+      }) as ProviderResponse;
+
+      if (!msg.success) {
+        throw new Error(
+          `${options.force ? "Reinstall" : "Update"} failed for ${recipe.name}`,
+        );
+      }
+
+      await this.refreshRecipes();
+
+      // Use console.error for provider success messages so they are interleaved correctly with provider's stderr
+      console.error(
+        `%c✅ ${options.force ? "Reinstall" : "Update"} of "${name}" finished`,
+        `color: ${UIColors.success}`,
+      );
       return;
     }
 
@@ -293,15 +340,7 @@ export class ChefInternal {
       if (options.signal?.aborted) break;
       const info = await this.checkUpdate(recipe.name);
       if (options.force || info.needsUpdate) {
-        console.log(`🔄 Updating ${recipe.name} (via ${recipe.provider})...`);
-        try {
-          await recipe.download({
-            latestVersion: info.latestVersion || "",
-            signal: options.signal,
-          });
-        } catch (e) {
-          console.error(`Failed to update ${recipe.name}:`, e);
-        }
+        await this.installOrUpdate(recipe.name, options);
       }
     }
   };
@@ -362,10 +401,21 @@ export class ChefInternal {
    * Fetch recipes from all registered providers and add them to internal list
    */
   refreshRecipes = async () => {
-    // Remove old provider recipes
-    this.recipes = this.recipes.filter((r) => !r.provider);
+    // Remove old provider recipes that were dynamically discovered
+    const nativeRecipes = this.recipes.filter((r) =>
+      !(r.provider && r._dynamic)
+    );
     const providerRecipes = await this.getProviderRecipes();
-    this.addMany(providerRecipes);
+
+    this.recipes.length = 0;
+    this.recipes.push(...nativeRecipes);
+    this.recipes.push(...providerRecipes);
+
+    if (providerRecipes.length > 0) {
+      console.log(
+        `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
+      );
+    }
   };
 
   /**
@@ -422,6 +472,7 @@ export class ChefInternal {
   start = async (args: string[]) => {
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
+        await this.refreshRecipes();
         const process = await this.binaryRunner.run(name, binArgs);
         if (process instanceof Deno.ChildProcess) {
           await process.status;
@@ -432,7 +483,19 @@ export class ChefInternal {
         await this.binaryRunner.list();
       },
       update: async (options) => {
-        await this.binaryUpdater.update(options);
+        await this.refreshRecipes();
+        if (options.only || (options.binary && options.binary.length > 0)) {
+          const binaries = options.only ? [options.only] : options.binary!;
+          for (const name of binaries) {
+            await this.installOrUpdate(name, {
+              force: options.force,
+            });
+          }
+        } else {
+          await this.updateAll({
+            force: options.force,
+          });
+        }
       },
       uninstall: async (binary) => {
         for (const name of binary) {
@@ -517,38 +580,15 @@ export class ChefInternal {
     if (recipe?.provider) {
       console.log(`🗑️ Uninstalling "${name}" (via ${recipe.provider})...`);
       try {
-        const providerEntry = this.database.getProviders().find((p) =>
-          p.name === recipe.provider
-        );
-        if (!providerEntry) throw new Error(`Provider entry not found`);
+        const msg = await this.callProvider(recipe.provider, "remove", {
+          name: name,
+        }) as ProviderResponse;
 
-        const session = await this.getProviderSession(
-          providerEntry.name,
-          providerEntry.command,
-        );
-        if (!session) throw new Error(`Provider session lost`);
-
-        await session.writer.write(
-          JSON.stringify({ command: "remove", name: name }) + "\n",
-        );
-
-        for await (const line of session.stream) {
-          if (!line || !line.trim()) continue;
-
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === "remove_done" && msg.name === name) {
-              if (msg.success) {
-                console.log(`✅ Successfully uninstalled "${name}"`);
-              } else {
-                console.error(`❌ Failed to uninstall "${name}"`);
-              }
-              break;
-            }
-          } catch {
-            // Ignore non-JSON
-            continue;
-          }
+        if (msg.success) {
+          console.log(`✅ Successfully uninstalled "${name}"`);
+          await this.refreshRecipes();
+        } else {
+          console.error(`❌ Failed to uninstall "${name}"`);
         }
       } catch (e) {
         console.error(`Failed to uninstall ${name}:`, e);

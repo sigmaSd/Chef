@@ -137,6 +137,8 @@ export interface Recipe {
     /** Terminal field in the desktop entry */
     terminal?: boolean;
   };
+  /** @internal */
+  _dynamic?: boolean;
 }
 
 /**

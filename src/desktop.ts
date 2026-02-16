@@ -232,9 +232,12 @@ Icon=${iconValue}`;
     terminal: boolean,
     icon?: string,
   ): string {
+    const exec = recipe.provider
+      ? `${recipe.name}`
+      : `deno run ${this.getConfigArg()}-A ${this.chefPath} run ${recipe.name}`;
     return `[Desktop Entry]
 Name=${recipe.desktopFile?.name ?? name}
-Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} run ${recipe.name}
+Exec=${exec}
 Type=Application
 Terminal=${terminal}
 ${recipe.desktopFile?.comment ? `Comment=${recipe.desktopFile.comment}` : ""}
