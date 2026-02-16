@@ -1,6 +1,6 @@
 {
   "name": "@sigmasd/chef",
-  "version": "0.50.0",
+  "version": "0.51.0",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",
@@ -10,7 +10,7 @@
     "gen-ui": "deno run -A tasks.ts gen-ui"
   },
   "imports": {
-    "@sigma/parse": "jsr:@sigma/parse@^0.52.0",
+    "@sigma/parse": "jsr:@sigma/parse@^0.53.0",
     "@sigmasd/gtk": "jsr:@sigmasd/gtk@^0.39.0",
     "@sigmasd/infer": "jsr:@sigmasd/infer@^3.1.3",
     "@sigmasd/rust-types": "jsr:@sigmasd/rust-types@^0.6.1",

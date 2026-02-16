@@ -7,7 +7,7 @@
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
     "jsr:@sigma/parse@0.46": "0.46.0",
-    "jsr:@sigma/parse@0.52": "0.52.0",
+    "jsr:@sigma/parse@0.53": "0.53.0",
     "jsr:@sigmasd/gtk@0.39": "0.39.0",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
@@ -61,8 +61,8 @@
     "@sigma/parse@0.46.0": {
       "integrity": "f0a7f66d3446b00f0d2f499524ead1fee02943fd6af6e24106877bfc1eef6758"
     },
-    "@sigma/parse@0.52.0": {
-      "integrity": "65e7aecc409fe53c04fc57a3300125589e54c6c22c7015df72305802cee62945"
+    "@sigma/parse@0.53.0": {
+      "integrity": "40a409349a448f591d2f8a7df704d15c83155d343403e322c55f562b5bae95ff"
     },
     "@sigmasd/gtk@0.39.0": {
       "integrity": "e0f8a35af91257f8552dab88dc5576c0e8f20c71bdd88ae42fe0b6e1d3a9d444",
@@ -147,7 +147,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@david/dax@0.45",
-      "jsr:@sigma/parse@0.52",
+      "jsr:@sigma/parse@0.53",
       "jsr:@sigmasd/gtk@0.39",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@sigmasd/rust-types@~0.6.1",
