@@ -510,6 +510,7 @@ export class ChefInternal {
       ...nativeRecipes,
       ...providerRecipes,
     );
+    this.recipes.sort((a, b) => a.name.localeCompare(b.name));
 
     if (providerRecipes.length > 0) {
       console.log(

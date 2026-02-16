@@ -5,13 +5,18 @@ import {
   Builder,
   Button,
   Entry,
+  EventControllerKey,
   Label,
   ListBox,
   ListBoxRow,
   MenuButton,
+  ModifierType,
   Popover,
   ProgressBar,
+  SearchBar,
+  SearchEntry,
   SizeGroup,
+  ToggleButton,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
 import type { ChefInternal } from "./chef-internal.ts";
@@ -43,6 +48,62 @@ export async function startGui(chef: ChefInternal) {
     const statusLabel = builder.get("status_label", Label)!;
     const progressBar = builder.get("progress_bar", ProgressBar)!;
 
+    const searchBtn = builder.get("search_btn", ToggleButton)!;
+    const searchBar = builder.get("search_bar", SearchBar)!;
+    const searchEntry = builder.get("search_entry", SearchEntry)!;
+
+    searchBar.connectEntry(searchEntry);
+    searchBar.setKeyCaptureWidget(window);
+
+    searchBtn.onToggled(() => {
+      searchBar.setSearchMode(searchBtn.getActive());
+    });
+
+    searchBar.onNotify("search-mode-enabled", () => {
+      searchBtn.setActive(searchBar.getSearchMode());
+    });
+
+    searchEntry.onChanged(() => {
+      listBox.invalidateFilter();
+    });
+
+    const keyController = new EventControllerKey();
+    keyController.onKeyPressed((keyval, _keycode, state) => {
+      // Ctrl+f
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === 102 || keyval === 70)
+      ) {
+        searchBar.setSearchMode(!searchBar.getSearchMode());
+        if (searchBar.getSearchMode()) {
+          searchEntry.grabFocus();
+        }
+        return true;
+      }
+      // Escape
+      if (keyval === 65307) {
+        if (searchBar.getSearchMode()) {
+          searchBar.setSearchMode(false);
+          return true;
+        }
+      }
+      return false;
+    });
+    window.addController(keyController);
+
+    listBox.setFilterFunc((row) => {
+      if (row.equals(headerRow)) return true;
+      const filterText = searchEntry.getText().toLowerCase();
+      if (!filterText) return true;
+
+      const recipeRow = recipeRows.find((r) => r.row.equals(row));
+
+      if (recipeRow) {
+        return recipeRow.name.toLowerCase().includes(filterText);
+      }
+      return true;
+    });
+
     versionLabel.setText(`v${chef.chefVersion}`);
     editorEntry.setText(chef.getEditorCommand());
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
@@ -63,6 +124,7 @@ export async function startGui(chef: ChefInternal) {
 
     let abortController: AbortController | null = null;
     const recipeRows: {
+      row: ListBoxRow;
       setSensitive: (sensitive: boolean) => void;
       updateRunningStatus: (running: boolean) => void;
       updateStatusLabel: (text: string) => void;
@@ -105,6 +167,7 @@ export async function startGui(chef: ChefInternal) {
           recipeRows,
         );
         recipeRows.push({
+          row,
           setSensitive,
           updateRunningStatus,
           updateStatusLabel,

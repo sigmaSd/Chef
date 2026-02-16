@@ -9,7 +9,20 @@ Adw.ApplicationWindow window {
     Box {
         orientation: vertical;
 
-        Adw.HeaderBar {}
+        Adw.HeaderBar {
+            [end]
+            ToggleButton search_btn {
+                icon-name: "system-search-symbolic";
+                tooltip-text: "Search";
+            }
+        }
+
+        SearchBar search_bar {
+            child: SearchEntry search_entry {
+                placeholder-text: "Search recipes...";
+                hexpand: true;
+            };
+        }
 
         Box {
             orientation: vertical;
