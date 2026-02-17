@@ -7,17 +7,18 @@ class TestChef extends ChefInternal {
   private testBasePath = path.join(Deno.makeTempDirSync(), "chef");
 
   override get binPath() {
-    return path.join(this.testBasePath, "bin", this.getScriptName());
+    return path.join(this.testBasePath, this.getScriptName(), "bin");
   }
 
   override get iconsPath() {
-    return path.join(this.testBasePath, "icons", this.getScriptName());
+    return path.join(this.testBasePath, this.getScriptName(), "icons");
   }
 
   override get dbPath() {
     return path.join(
       this.testBasePath,
-      `db_${this.getScriptName()}.json`,
+      this.getScriptName(),
+      "db.json",
     );
   }
 

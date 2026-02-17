@@ -44,9 +44,11 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
       "../src/internal_utils.ts"
     );
     const basePath = getChefBasePath();
-    await Deno.mkdir(basePath, { recursive: true });
+    const scriptName = "chefjsrdefault";
+    const scriptDir = `${basePath}/${scriptName}`;
+    await Deno.mkdir(scriptDir, { recursive: true });
 
-    const chefFile = `${basePath}/chef-default-jsr.ts`;
+    const chefFile = `${scriptDir}/${scriptName}.ts`;
     const oldVersion = "0.40.0";
     const newVersion = "0.41.0";
     const libUrl = `jsr:@sigmasd/chef@${newVersion}/mod.ts`;

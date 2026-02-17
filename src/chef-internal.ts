@@ -42,16 +42,20 @@ export class ChefInternal {
 
   private readonly basePath = getChefBasePath();
 
+  get scriptDir() {
+    return path.join(this.basePath, this.scriptName);
+  }
+
   get binPath() {
-    return path.join(this.basePath, "bin", this.scriptName);
+    return path.join(this.scriptDir, "bin");
   }
 
   get iconsPath() {
-    return path.join(this.basePath, "icons", this.scriptName);
+    return path.join(this.scriptDir, "icons");
   }
 
   get dbPath() {
-    return path.join(this.basePath, `db_${this.scriptName}.json`);
+    return path.join(this.scriptDir, "db.json");
   }
 
   get exportsPath() {
@@ -61,7 +65,9 @@ export class ChefInternal {
   // Lazy initialization of service classes
   private _database?: ChefDatabase;
   private get database() {
-    return this._database ??= new ChefDatabase(this.dbPath, this.recipes);
+    if (this._database) return this._database;
+    Deno.mkdirSync(this.scriptDir, { recursive: true });
+    return this._database = new ChefDatabase(this.dbPath, this.recipes);
   }
 
   private _desktopManager?: DesktopFileManager;

@@ -20,8 +20,9 @@ export async function ensureDefaultChefFile(
 ): Promise<string> {
   const basePath = getChefBasePath();
   const isLocal = libUrl.startsWith("file://");
-  const filename = isLocal ? "chef-default-local.ts" : "chef-default-jsr.ts";
-  const defaultChefPath = path.join(basePath, filename);
+  const scriptName = isLocal ? "cheflocaldefault" : "chefjsrdefault";
+  const scriptDir = path.join(basePath, scriptName);
+  const defaultChefPath = path.join(scriptDir, `${scriptName}.ts`);
 
   try {
     await Deno.stat(defaultChefPath);
@@ -47,7 +48,7 @@ export async function ensureDefaultChefFile(
             const { statusMessage } = await import("./ui.ts");
             statusMessage(
               "update",
-              `Updated ${filename} from version ${fileVersion} to ${runningVersion}`,
+              `Updated ${scriptName}.ts from version ${fileVersion} to ${runningVersion}`,
             );
           }
         }
@@ -77,7 +78,7 @@ chef.add({
 
 await chef.start(import.meta.url);
 `.trim();
-      await Deno.mkdir(basePath, { recursive: true });
+      await Deno.mkdir(scriptDir, { recursive: true });
       await Deno.writeTextFile(defaultChefPath, template);
     } else {
       throw err;

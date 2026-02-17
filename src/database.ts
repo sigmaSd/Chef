@@ -1,5 +1,7 @@
 import { Err, Ok, Result } from "@sigmasd/rust-types/result";
 import type { Recipe } from "../mod.ts";
+import * as path from "@std/path";
+import { ensureDirSync } from "@std/fs";
 
 export interface DbEntry {
   version: string;
@@ -70,6 +72,7 @@ export class ChefDatabase {
    * Write the database to disk
    */
   write(db: DbStructure) {
+    ensureDirSync(path.dirname(this.dbPath));
     Result.wrap(() => Deno.writeTextFileSync(this.dbPath, JSON.stringify(db)))
       .expect("failed to write to database");
   }
