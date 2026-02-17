@@ -51,6 +51,7 @@ export async function startGui(chef: ChefInternal) {
     const progressBar = builder.get("progress_bar", ProgressBar)!;
 
     const searchBtn = builder.get("search_btn", ToggleButton)!;
+    const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton)!;
     const searchBar = builder.get("search_bar", SearchBar)!;
     const searchEntry = builder.get("search_entry", SearchEntry)!;
 
@@ -64,6 +65,35 @@ export async function startGui(chef: ChefInternal) {
     searchBar.onNotify("search-mode-enabled", () => {
       searchBtn.setActive(searchBar.getSearchMode());
     });
+
+    const applyFilters = () => {
+      const filterText = searchEntry.getText().toLowerCase();
+      const updatesOnly = updatesOnlyBtn.getActive();
+
+      // Track which expanders should be visible
+      const expanderVisibility = new Map<ExpanderRow, boolean>();
+
+      for (const r of recipeRows) {
+        const matchesSearch = !filterText ||
+          r.name.toLowerCase().includes(filterText);
+        const matchesUpdate = !updatesOnly || (r.isInstalled && r.hasUpdate);
+        const matches = matchesSearch && matchesUpdate;
+
+        r.row.setVisible(matches);
+        if (matches) {
+          expanderVisibility.set(r.expanderRow, true);
+        }
+      }
+
+      // Set visibility of expanders based on their children
+      for (const r of recipeRows) {
+        r.expanderRow.setVisible(!!expanderVisibility.get(r.expanderRow));
+      }
+
+      updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
+    };
+
+    updatesOnlyBtn.onToggled(applyFilters);
 
     const nameGroup = builder.get("name_group", SizeGroup)!;
     const versionGroup = builder.get("version_group", SizeGroup)!;
@@ -80,28 +110,11 @@ export async function startGui(chef: ChefInternal) {
       name: string;
       group?: string;
       expanderRow: ExpanderRow;
+      isInstalled: boolean;
+      hasUpdate: boolean;
     }[] = [];
 
-    searchEntry.onChanged(() => {
-      const filterText = searchEntry.getText().toLowerCase();
-
-      // Track which expanders should be visible
-      const expanderVisibility = new Map<ExpanderRow, boolean>();
-
-      for (const r of recipeRows) {
-        const matches = !filterText ||
-          r.name.toLowerCase().includes(filterText);
-        r.row.setVisible(matches);
-        if (matches) {
-          expanderVisibility.set(r.expanderRow, true);
-        }
-      }
-
-      // Set visibility of expanders based on their children
-      for (const r of recipeRows) {
-        r.expanderRow.setVisible(!!expanderVisibility.get(r.expanderRow));
-      }
-    });
+    searchEntry.onChanged(applyFilters);
 
     const keyController = new EventControllerKey();
     keyController.onKeyPressed((keyval, _keycode, state) => {
@@ -199,6 +212,14 @@ export async function startGui(chef: ChefInternal) {
             },
             refreshList,
             recipeRows,
+            (isInstalled, hasUpdate) => {
+              const rowObj = recipeRows.find((r) => r.name === recipe.name);
+              if (rowObj) {
+                rowObj.isInstalled = isInstalled;
+                rowObj.hasUpdate = hasUpdate;
+                applyFilters();
+              }
+            },
           );
           recipeRows.push({
             row,
@@ -208,10 +229,13 @@ export async function startGui(chef: ChefInternal) {
             name: recipe.name,
             group: recipe._group,
             expanderRow: expander,
+            isInstalled: false,
+            hasUpdate: false,
           });
           expander.addRow(row);
         }
       }
+      applyFilters();
     };
 
     chef.setBinaryStatusListener((name, running) => {
@@ -222,20 +246,35 @@ export async function startGui(chef: ChefInternal) {
     });
 
     updateAllBtn.onClick(async () => {
+      const updatesOnly = updatesOnlyBtn.getActive();
       updateAllBtn.setSensitive(false);
-      updateAllBtn.setLabel("Updating All...");
+      updateAllBtn.setLabel(
+        updatesOnly ? "Updating Available..." : "Updating All...",
+      );
       cancelBtn.setVisible(true);
       recipeRows.forEach((r) => r.setSensitive(false));
 
       abortController = new AbortController();
       try {
-        await chef.updateAll({ signal: abortController.signal });
+        if (updatesOnly) {
+          const toUpdate = recipeRows.filter((r) =>
+            r.row.getVisible() && r.isInstalled && r.hasUpdate
+          );
+          for (const r of toUpdate) {
+            if (abortController.signal.aborted) break;
+            await chef.installOrUpdate(r.name, {
+              signal: abortController.signal,
+            });
+          }
+        } else {
+          await chef.updateAll({ signal: abortController.signal });
+        }
         await refreshList();
       } catch (e) {
         console.error(e);
       } finally {
         updateAllBtn.setSensitive(true);
-        updateAllBtn.setLabel("Update All");
+        updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
         cancelBtn.setVisible(false);
         recipeRows.forEach((r) => r.setSensitive(true));
         abortController = null;
@@ -325,6 +364,7 @@ function createRecipeRow(
     group?: string;
     expanderRow: ExpanderRow;
   }[],
+  onStatusChanged: (isInstalled: boolean, hasUpdate: boolean) => void,
 ): {
   row: ListBoxRow;
   setSensitive: (sensitive: boolean) => void;
@@ -405,7 +445,11 @@ function createRecipeRow(
         latestVersionLabel.setText("-");
       }
 
-      if (chef.isInstalled(recipe.name)) {
+      const installed = chef.isInstalled(recipe.name);
+      const hasUpdate = !!(installed && info.needsUpdate);
+      onStatusChanged(installed, hasUpdate);
+
+      if (installed) {
         const hasLatest = info.latestVersion && info.latestVersion !== "-";
         if (info.needsUpdate) {
           updateAvailableLabel.setText("✨");
@@ -464,6 +508,8 @@ function createRecipeRow(
     statusLabel.setText(installed ? "Installed" : "Not Installed");
     const version = chef.getVersion(recipe.name);
     versionLabel.setText(version || "-");
+
+    onStatusChanged(installed, false);
 
     if (installed) {
       statusLabel.addCssClass("success");

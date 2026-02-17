@@ -16,6 +16,12 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="AdwHeaderBar">
             <child type="end">
+              <object class="GtkToggleButton" id="updates_only_btn">
+                <property name="icon-name">software-update-available-symbolic</property>
+                <property name="tooltip-text">Show updates only</property>
+              </object>
+            </child>
+            <child type="end">
               <object class="GtkToggleButton" id="search_btn">
                 <property name="icon-name">system-search-symbolic</property>
                 <property name="tooltip-text">Search</property>

@@ -11,6 +11,12 @@ Adw.ApplicationWindow window {
 
         Adw.HeaderBar {
             [end]
+            ToggleButton updates_only_btn {
+                icon-name: "software-update-available-symbolic";
+                tooltip-text: "Show updates only";
+            }
+
+            [end]
             ToggleButton search_btn {
                 icon-name: "system-search-symbolic";
                 tooltip-text: "Search";
