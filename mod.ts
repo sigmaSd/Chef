@@ -81,6 +81,12 @@ export type App = {
     /** The path to the executable relative to the directory */
     exe: string;
   };
+} | {
+  /**
+   * The name of the external application.
+   * This app is managed externally and won't be run with chef run.
+   */
+  extern: string;
 };
 
 /**
@@ -232,9 +238,6 @@ if (import.meta.main) {
 
   const command = new Deno.Command(Deno.execPath(), {
     args,
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "inherit",
   });
 
   const status = await command.spawn().status;

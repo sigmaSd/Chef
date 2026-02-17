@@ -720,22 +720,24 @@ export class ChefInternal {
     // Remove symlink from exports
     await this.unlink(name, { silent: true });
 
-    // Remove binary file
-    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const binaryPath = path.join(this.binPath, name + exeExtension);
-    try {
-      await Deno.remove(binaryPath);
-    } catch {
-      // Ignore
-    }
-
-    // Remove directory if it was a directory install
-    if (entry.dir) {
+    if (!entry.extern) {
+      // Remove binary file
+      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+      const binaryPath = path.join(this.binPath, name + exeExtension);
       try {
-        const dirPath = path.join(this.binPath, entry.dir);
-        await Deno.remove(dirPath, { recursive: true });
+        await Deno.remove(binaryPath);
       } catch {
         // Ignore
+      }
+
+      // Remove directory if it was a directory install
+      if (entry.dir) {
+        try {
+          const dirPath = path.join(this.binPath, entry.dir);
+          await Deno.remove(dirPath, { recursive: true });
+        } catch {
+          // Ignore
+        }
       }
     }
 

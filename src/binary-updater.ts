@@ -251,7 +251,7 @@ export class BinaryUpdater {
           options.signal,
         );
 
-        if (recipe.postInstall) {
+        if (recipe.postInstall && !installInfo.extern) {
           console.log(
             `%c  ${Symbols.run} Running post-install...`,
             `color: ${UIColors.muted}`,
@@ -260,7 +260,7 @@ export class BinaryUpdater {
         }
 
         // Automatically create desktop file if specified in recipe
-        if (recipe.desktopFile && this.desktopManager) {
+        if (recipe.desktopFile && this.desktopManager && !installInfo.extern) {
           try {
             console.log(
               `%c  ${Symbols.desktop} Creating desktop entry...`,
@@ -280,6 +280,7 @@ export class BinaryUpdater {
         this.database.setEntry(info.name, {
           version: latestVersion,
           dir: installInfo.destDir,
+          extern: installInfo.extern,
         });
         statusMessage(
           "success",
@@ -345,7 +346,7 @@ export class BinaryUpdater {
     recipe: Recipe,
     latestVersion: string,
     signal?: AbortSignal,
-  ): Promise<{ binaryPath: string; destDir?: string }> {
+  ): Promise<{ binaryPath: string; destDir?: string; extern?: string }> {
     return await runInTempDir(async () => {
       setSignal(signal);
       const tempBin = await recipe.download({ latestVersion, signal }).finally(
@@ -365,7 +366,9 @@ export class BinaryUpdater {
         }
       }
 
-      if ("dir" in tempBin) {
+      if ("extern" in tempBin) {
+        return { binaryPath: "", extern: tempBin.extern };
+      } else if ("dir" in tempBin) {
         const destDirName = tempBin.dir.path === "."
           ? `${recipe.name}-dir`
           : tempBin.dir.path;

@@ -4,6 +4,7 @@ import type { Recipe } from "../mod.ts";
 export interface DbEntry {
   version: string;
   dir?: string;
+  extern?: string;
 }
 
 export interface ProviderEntry {
@@ -56,7 +57,7 @@ export class ChefDatabase {
       if (this.recipes.find((r) => r.name === name)) {
         if (typeof value === "string") {
           normalized[name] = { version: value };
-        } else {
+        } else if (typeof value === "object" && value !== null) {
           normalized[name] = value as DbEntry;
         }
       }

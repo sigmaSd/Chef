@@ -60,12 +60,17 @@ export class BinaryRunner {
       binPath = name;
     } else {
       const db = this.database.read().expect("failed to read database");
-      if (!db[name]) {
+      const entry = db[name];
+      if (!entry) {
         statusMessage("error", `Binary "${name}" is not installed.`);
         return;
       }
-      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-      binPath = path.join(this.binPath, name + exeExtension);
+      if (entry.extern) {
+        binPath = entry.extern;
+      } else {
+        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+        binPath = path.join(this.binPath, name + exeExtension);
+      }
     }
 
     assert(recipe, "Recipe for this binary doesn't exist");
@@ -192,8 +197,13 @@ export class BinaryRunner {
       return await commandExists(name);
     }
 
-    if (!this.database.isInstalled(name)) {
+    const entry = this.database.getEntry(name);
+    if (!entry) {
       return false;
+    }
+
+    if (entry.extern) {
+      return await commandExists(entry.extern);
     }
 
     try {
@@ -217,6 +227,11 @@ export class BinaryRunner {
     const recipe = this.recipes.find((r) => r.name === name);
     if (recipe?.provider) {
       return name;
+    }
+
+    const entry = this.database.getEntry(name);
+    if (entry?.extern) {
+      return entry.extern;
     }
 
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
