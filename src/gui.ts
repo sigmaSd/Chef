@@ -17,6 +17,7 @@ import {
   SearchBar,
   SearchEntry,
   SizeGroup,
+  TextView,
   ToggleButton,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
@@ -24,6 +25,7 @@ import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
 import { decodeBase64 } from "@std/encoding/base64";
+import { logger } from "./logger.ts";
 import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
 import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
@@ -54,6 +56,16 @@ export async function startGui(chef: ChefInternal) {
     const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton)!;
     const searchBar = builder.get("search_bar", SearchBar)!;
     const searchEntry = builder.get("search_entry", SearchEntry)!;
+    const logView = builder.get("log_view", TextView)!;
+
+    const logBuffer = logView.getBuffer();
+    logger.addListener((msg) => {
+      const endIter = logBuffer.getEndIter();
+      logBuffer.insert(endIter, msg);
+      // Scroll to end
+      const mark = logBuffer.createMark(null, logBuffer.getEndIter(), false);
+      logView.scrollToMark(mark, 0.0, true, 0.0, 1.0);
+    });
 
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);
@@ -73,7 +85,12 @@ export async function startGui(chef: ChefInternal) {
       // Track which expanders should be visible
       const expanderVisibility = new Map<ExpanderRow, boolean>();
 
+      let anyUpdate = false;
       for (const r of recipeRows) {
+        if (r.isInstalled && r.hasUpdate) {
+          anyUpdate = true;
+        }
+
         const matchesSearch = !filterText ||
           r.name.toLowerCase().includes(filterText);
         const matchesUpdate = !updatesOnly || (r.isInstalled && r.hasUpdate);
@@ -91,6 +108,15 @@ export async function startGui(chef: ChefInternal) {
       }
 
       updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
+
+      if (anyUpdate) {
+        updatesOnlyBtn.setVisible(true);
+        updatesOnlyBtn.addCssClass("warning");
+        updatesOnlyBtn.setLabel("🔄");
+      } else {
+        updatesOnlyBtn.setVisible(false);
+        updatesOnlyBtn.setActive(false);
+      }
     };
 
     updatesOnlyBtn.onToggled(applyFilters);
@@ -169,22 +195,25 @@ export async function startGui(chef: ChefInternal) {
 
       const recipesByProvider: Record<string, Recipe[]> = {};
       for (const recipe of allRecipes) {
-        const provider = recipe.provider || "Native chef apps";
+        const provider = recipe.provider || "Chef apps";
         if (!recipesByProvider[provider]) recipesByProvider[provider] = [];
         recipesByProvider[provider].push(recipe);
       }
 
-      // Sort providers: "Native chef apps" first, then others alphabetically
+      // Sort providers: "Chef apps" first, then others alphabetically
       const sortedProviders = Object.keys(recipesByProvider).sort((a, b) => {
-        if (a === "Native chef apps") return -1;
-        if (b === "Native chef apps") return 1;
+        if (a === "Chef apps") return -1;
+        if (b === "Chef apps") return 1;
         return a.localeCompare(b);
       });
 
       for (const provider of sortedProviders) {
         const expander = new ExpanderRow();
+        const titleCaseProvider = provider.split(" ").map((word) =>
+          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        ).join(" ");
         expander.setTitle(
-          `${provider} (${recipesByProvider[provider].length})`,
+          `${titleCaseProvider} (${recipesByProvider[provider].length})`,
         );
         expander.setExpanded(true);
         listBox.append(expander);

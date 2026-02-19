@@ -8,7 +8,7 @@
     "jsr:@sigma/deno-compat@0.21.0": "0.21.0",
     "jsr:@sigma/parse@0.46": "0.46.0",
     "jsr:@sigma/parse@0.53": "0.53.0",
-    "jsr:@sigmasd/gtk@0.41": "0.41.0",
+    "jsr:@sigmasd/gtk@0.42": "0.42.0",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@sigmasd/rust-types@~0.6.1": "0.6.1",
     "jsr:@std/assert@^1.0.18": "1.0.18",
@@ -64,8 +64,8 @@
     "@sigma/parse@0.53.0": {
       "integrity": "40a409349a448f591d2f8a7df704d15c83155d343403e322c55f562b5bae95ff"
     },
-    "@sigmasd/gtk@0.41.0": {
-      "integrity": "8550a2eb96f661c17c310de491b93ac6d91507aa1274b1ae9652f9685dfad775",
+    "@sigmasd/gtk@0.42.0": {
+      "integrity": "196b92c5c878b50f69bc8575ce734bf5a7ae0af8837b5367ff7cad1c9dfec325",
       "dependencies": [
         "jsr:@sigma/deno-compat"
       ]
@@ -148,7 +148,7 @@
     "dependencies": [
       "jsr:@david/dax@0.45",
       "jsr:@sigma/parse@0.53",
-      "jsr:@sigmasd/gtk@0.41",
+      "jsr:@sigmasd/gtk@0.42",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@sigmasd/rust-types@~0.6.1",
       "jsr:@std/assert@^1.0.18",

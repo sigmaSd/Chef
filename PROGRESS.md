@@ -14,3 +14,10 @@
       left
 
 - [x] Use gtk blueprint to reduce this too much imperative code
+
+- [x] Rename Chef native apps to Chef apps, uppercase and bold provider titles
+
+- [x] Show "Update Available" button only if there are updates, with yellow
+      styling and 🔄 icon
+
+- [x] Add live logs view in the GUI

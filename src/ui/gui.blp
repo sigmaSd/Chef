@@ -10,10 +10,15 @@ Adw.ApplicationWindow window {
         orientation: vertical;
 
         Adw.HeaderBar {
+            title-widget: Adw.ViewSwitcher {
+                stack: stack;
+            };
+
             [end]
             ToggleButton updates_only_btn {
                 icon-name: "software-update-available-symbolic";
                 tooltip-text: "Show updates only";
+                visible: false;
             }
 
             [end]
@@ -23,244 +28,282 @@ Adw.ApplicationWindow window {
             }
         }
 
-        SearchBar search_bar {
-            child: SearchEntry search_entry {
-                placeholder-text: "Search recipes...";
-                hexpand: true;
-            };
-        }
+        Adw.ViewStack stack {
+            Adw.ViewStackPage {
+                name: "recipes";
+                title: "Recipes";
+                icon-name: "view-list-bullet-symbolic";
+                child: Box {
+                    orientation: vertical;
 
-        Box {
-            orientation: vertical;
-            spacing: 10;
-            margin-top: 8;
-            margin-bottom: 8;
-            margin-start: 8;
-            margin-end: 8;
-            vexpand: true;
-
-            Box header_box {
-                orientation: horizontal;
-                spacing: 10;
-
-                Box {
-                    orientation: horizontal;
-                    spacing: 6;
-                    hexpand: true;
-                    halign: start;
-                    valign: baseline;
-
-                    Label {
-                        label: "Chef - Personal Package Manager";
-
-                        styles [
-                            "title-1",
-                        ]
-
-                        valign: baseline;
+                    SearchBar search_bar {
+                        child: SearchEntry search_entry {
+                            placeholder-text: "Search recipes...";
+                            hexpand: true;
+                        };
                     }
 
-                    Label version_label {
-                        styles [
-                            "dim-label",
-                        ]
+                    Box {
+                        orientation: vertical;
+                        spacing: 10;
+                        margin-top: 8;
+                        margin-bottom: 8;
+                        margin-start: 8;
+                        margin-end: 8;
+                        vexpand: true;
 
-                        valign: baseline;
-                    }
-                }
-
-                Button update_all_btn {
-                    label: "Update All";
-
-                    styles [
-                        "suggested-action",
-                    ]
-                }
-
-                Button cancel_btn {
-                    icon-name: "process-stop-symbolic";
-                    tooltip-text: "Cancel";
-                    visible: false;
-                }
-
-                Button edit_recipes_btn {
-                    label: "Edit Recipes";
-                }
-
-                MenuButton settings_btn {
-                    icon-name: "emblem-system-symbolic";
-                    tooltip-text: "Settings";
-
-                    popover: Popover {
-                        Box {
-                            orientation: vertical;
+                        Box header_box {
+                            orientation: horizontal;
                             spacing: 10;
-                            margin-top: 10;
-                            margin-bottom: 10;
-                            margin-start: 10;
-                            margin-end: 10;
 
-                            Label {
-                                label: "Editor Command:";
+                            Box {
+                                orientation: horizontal;
+                                spacing: 6;
+                                hexpand: true;
                                 halign: start;
+                                valign: baseline;
+
+                                Label {
+                                    label: "Chef - Personal Package Manager";
+
+                                    styles [
+                                        "title-1",
+                                    ]
+
+                                    valign: baseline;
+                                }
+
+                                Label version_label {
+                                    styles [
+                                        "dim-label",
+                                    ]
+
+                                    valign: baseline;
+                                }
                             }
 
-                            Entry editor_entry {
-                                placeholder-text: "e.g. kgx -e hx";
-                            }
-
-                            Label {
-                                label: "Terminal Command:";
-                                halign: start;
-                                margin-top: 10;
-                            }
-
-                            Entry terminal_entry {
-                                placeholder-text: "e.g. kgx -e";
-                            }
-
-                            Button save_settings_btn {
-                                label: "Save";
+                            Button update_all_btn {
+                                label: "Update All";
 
                                 styles [
                                     "suggested-action",
                                 ]
+                            }
 
-                                margin-top: 10;
+                            Button cancel_btn {
+                                icon-name: "process-stop-symbolic";
+                                tooltip-text: "Cancel";
+                                visible: false;
+                            }
+
+                            Button edit_recipes_btn {
+                                label: "Edit Recipes";
+                            }
+
+                            MenuButton settings_btn {
+                                icon-name: "emblem-system-symbolic";
+                                tooltip-text: "Settings";
+
+                                popover: Popover {
+                                    Box {
+                                        orientation: vertical;
+                                        spacing: 10;
+                                        margin-top: 10;
+                                        margin-bottom: 10;
+                                        margin-start: 10;
+                                        margin-end: 10;
+
+                                        Label {
+                                            label: "Editor Command:";
+                                            halign: start;
+                                        }
+
+                                        Entry editor_entry {
+                                            placeholder-text: "e.g. kgx -e hx";
+                                        }
+
+                                        Label {
+                                            label: "Terminal Command:";
+                                            halign: start;
+                                            margin-top: 10;
+                                        }
+
+                                        Entry terminal_entry {
+                                            placeholder-text: "e.g. kgx -e";
+                                        }
+
+                                        Button save_settings_btn {
+                                            label: "Save";
+
+                                            styles [
+                                                "suggested-action",
+                                            ]
+
+                                            margin-top: 10;
+                                        }
+                                    }
+                                };
                             }
                         }
-                    };
-                }
-            }
 
-            ScrolledWindow {
-                vexpand: true;
-                hexpand: true;
+                        ScrolledWindow {
+                            vexpand: true;
+                            hexpand: true;
 
-                styles [
-                    "frame",
-                ]
+                            styles [
+                                "frame",
+                            ]
 
-                ListBox list_box {
-                    selection-mode: none;
-                    show-separators: true;
+                            ListBox list_box {
+                                selection-mode: none;
+                                show-separators: true;
 
-                    ListBoxRow header_row {
-                        activatable: false;
-                        selectable: false;
+                                ListBoxRow header_row {
+                                    activatable: false;
+                                    selectable: false;
 
-                        styles [
-                            "header",
-                        ]
+                                    styles [
+                                        "header",
+                                    ]
 
-                        Grid {
-                            column-spacing: 20;
-                            margin-top: 10;
-                            margin-bottom: 10;
-                            margin-start: 10;
-                            margin-end: 10;
+                                    Grid {
+                                        column-spacing: 20;
+                                        margin-top: 10;
+                                        margin-bottom: 10;
+                                        margin-start: 10;
+                                        margin-end: 10;
 
-                            Label header_name {
-                                label: "Name";
-                                halign: start;
+                                        Label header_name {
+                                            label: "Name";
+                                            halign: start;
 
-                                styles [
-                                    "bold",
-                                ]
+                                            styles [
+                                                "bold",
+                                            ]
 
-                                layout {
-                                    column: 0;
-                                    row: 0;
+                                            layout {
+                                                column: 0;
+                                                row: 0;
+                                            }
+                                        }
+
+                                        Label header_installed {
+                                            label: "Installed";
+                                            halign: start;
+
+                                            styles [
+                                                "bold",
+                                            ]
+
+                                            width-chars: 12;
+
+                                            layout {
+                                                column: 1;
+                                                row: 0;
+                                            }
+                                        }
+
+                                        Label header_latest {
+                                            label: "Latest";
+                                            halign: start;
+
+                                            styles [
+                                                "bold",
+                                            ]
+
+                                            width-chars: 12;
+
+                                            layout {
+                                                column: 2;
+                                                row: 0;
+                                            }
+                                        }
+
+                                        Label header_status {
+                                            label: "Status";
+                                            halign: start;
+
+                                            styles [
+                                                "bold",
+                                            ]
+
+                                            layout {
+                                                column: 3;
+                                                row: 0;
+                                            }
+                                        }
+
+                                        Label header_actions {
+                                            label: "Actions";
+                                            halign: start;
+
+                                            styles [
+                                                "bold",
+                                            ]
+
+                                            layout {
+                                                column: 4;
+                                                row: 0;
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                        }
 
-                            Label header_installed {
-                                label: "Installed";
-                                halign: start;
+                        Box {
+                            orientation: horizontal;
+                            spacing: 10;
+                            margin-top: 5;
+
+                            Label {
+                                label: "Status:";
 
                                 styles [
-                                    "bold",
+                                    "dim-label",
                                 ]
-
-                                width-chars: 12;
-
-                                layout {
-                                    column: 1;
-                                    row: 0;
-                                }
                             }
 
-                            Label header_latest {
-                                label: "Latest";
+                            Label status_label {
+                                label: "Idle";
                                 halign: start;
-
-                                styles [
-                                    "bold",
-                                ]
-
-                                width-chars: 12;
-
-                                layout {
-                                    column: 2;
-                                    row: 0;
-                                }
+                                ellipsize: end;
                             }
 
-                            Label header_status {
-                                label: "Status";
-                                halign: start;
-
-                                styles [
-                                    "bold",
-                                ]
-
-                                layout {
-                                    column: 3;
-                                    row: 0;
-                                }
-                            }
-
-                            Label header_actions {
-                                label: "Actions";
-                                halign: start;
-
-                                styles [
-                                    "bold",
-                                ]
-
-                                layout {
-                                    column: 4;
-                                    row: 0;
-                                }
+                            ProgressBar progress_bar {
+                                hexpand: true;
+                                visible: false;
                             }
                         }
                     }
-                }
+                };
             }
 
-            Box {
-                orientation: horizontal;
-                spacing: 10;
-                margin-top: 5;
-
-                Label {
-                    label: "Status:";
+            Adw.ViewStackPage {
+                name: "logs";
+                title: "Logs";
+                icon-name: "utilities-terminal-symbolic";
+                child: ScrolledWindow {
+                    vexpand: true;
+                    hexpand: true;
 
                     styles [
-                        "dim-label",
+                        "frame",
                     ]
-                }
 
-                Label status_label {
-                    label: "Idle";
-                    halign: start;
-                    ellipsize: end;
-                }
+                    TextView log_view {
+                        editable: false;
+                        cursor-visible: false;
+                        left-margin: 10;
+                        right-margin: 10;
+                        top-margin: 10;
+                        bottom-margin: 10;
 
-                ProgressBar progress_bar {
-                    hexpand: true;
-                    visible: false;
-                }
+                        styles [
+                            "monospace",
+                        ]
+                    }
+                };
             }
         }
     }

@@ -1,3 +1,4 @@
+#!/usr/bin/env -S deno -A
 const remove = Deno.args.includes("--remove");
 
 const denoJson = JSON.parse(Deno.readTextFileSync("deno.json"));
