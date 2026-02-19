@@ -16,8 +16,11 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="AdwHeaderBar">
             <property name="title-widget">
-              <object class="AdwViewSwitcher">
-                <property name="stack">stack</property>
+              <object class="GtkLabel">
+                <property name="label">Chef</property>
+                <style>
+                  <class name="title-1"/>
+                </style>
               </object>
             </property>
             <child type="end">
@@ -296,35 +299,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                             </child>
                           </object>
                         </child>
-                      </object>
-                    </child>
-                  </object>
-                </property>
-              </object>
-            </child>
-            <child>
-              <object class="AdwViewStackPage">
-                <property name="name">logs</property>
-                <property name="title">Logs</property>
-                <property name="icon-name">utilities-terminal-symbolic</property>
-                <property name="child">
-                  <object class="GtkScrolledWindow">
-                    <property name="vexpand">true</property>
-                    <property name="hexpand">true</property>
-                    <style>
-                      <class name="frame"/>
-                    </style>
-                    <child>
-                      <object class="GtkTextView" id="log_view">
-                        <property name="editable">false</property>
-                        <property name="cursor-visible">false</property>
-                        <property name="left-margin">10</property>
-                        <property name="right-margin">10</property>
-                        <property name="top-margin">10</property>
-                        <property name="bottom-margin">10</property>
-                        <style>
-                          <class name="monospace"/>
-                        </style>
                       </object>
                     </child>
                   </object>

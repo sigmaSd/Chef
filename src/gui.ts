@@ -17,7 +17,6 @@ import {
   SearchBar,
   SearchEntry,
   SizeGroup,
-  TextView,
   ToggleButton,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
@@ -25,7 +24,6 @@ import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
 import { decodeBase64 } from "@std/encoding/base64";
-import { logger } from "./logger.ts";
 import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
 import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
@@ -56,16 +54,6 @@ export async function startGui(chef: ChefInternal) {
     const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton)!;
     const searchBar = builder.get("search_bar", SearchBar)!;
     const searchEntry = builder.get("search_entry", SearchEntry)!;
-    const logView = builder.get("log_view", TextView)!;
-
-    const logBuffer = logView.getBuffer();
-    logger.addListener((msg) => {
-      const endIter = logBuffer.getEndIter();
-      logBuffer.insert(endIter, msg);
-      // Scroll to end
-      const mark = logBuffer.createMark(null, logBuffer.getEndIter(), false);
-      logView.scrollToMark(mark, 0.0, true, 0.0, 1.0);
-    });
 
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);

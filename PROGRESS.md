@@ -20,4 +20,4 @@
 - [x] Show "Update Available" button only if there are updates, with yellow
       styling and 🔄 icon
 
-- [x] Add live logs view in the GUI
+- [ ] Add live logs view in the GUI (Removed)

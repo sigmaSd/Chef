@@ -10,8 +10,11 @@ Adw.ApplicationWindow window {
         orientation: vertical;
 
         Adw.HeaderBar {
-            title-widget: Adw.ViewSwitcher {
-                stack: stack;
+            title-widget: Label {
+                label: "Chef";
+                styles [
+                    "title-1",
+                ]
             };
 
             [end]
@@ -275,33 +278,6 @@ Adw.ApplicationWindow window {
                                 visible: false;
                             }
                         }
-                    }
-                };
-            }
-
-            Adw.ViewStackPage {
-                name: "logs";
-                title: "Logs";
-                icon-name: "utilities-terminal-symbolic";
-                child: ScrolledWindow {
-                    vexpand: true;
-                    hexpand: true;
-
-                    styles [
-                        "frame",
-                    ]
-
-                    TextView log_view {
-                        editable: false;
-                        cursor-visible: false;
-                        left-margin: 10;
-                        right-margin: 10;
-                        top-margin: 10;
-                        bottom-margin: 10;
-
-                        styles [
-                            "monospace",
-                        ]
                     }
                 };
             }
