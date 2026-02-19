@@ -144,10 +144,16 @@ export interface Recipe {
     /** Terminal field in the desktop entry */
     terminal?: boolean;
   };
+  /** Description of the binary */
+  description?: string;
   /** @internal */
   _dynamic?: boolean;
   /** @internal */
   _group?: string;
+  /** @internal */
+  _currentVersion?: string;
+  /** @internal */
+  _latestVersion?: string;
 }
 
 /**

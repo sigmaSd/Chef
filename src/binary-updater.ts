@@ -5,7 +5,6 @@ import type { Recipe } from "../mod.ts";
 import { copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import { setSignal } from "./dax_wrapper.ts";
 import type { ChefDatabase } from "./database.ts";
-import { BinaryRunner } from "./binary-runner.ts";
 import type { DesktopFileManager } from "./desktop.ts";
 import {
   boxText,
@@ -64,16 +63,12 @@ export class BinaryUpdater {
     // Show header and current status
     sectionHeader("Checking for Updates");
 
-    const runner = new BinaryRunner(this.binPath, this.database, this.recipes);
-    await runner.list();
-
     ensureDirSync(this.binPath);
     const currentDb = this.database.read().expect("failed to read database");
 
     // Collect update information with parallel processing
     const recipesToCheck = this.recipes.filter((recipe) =>
-      !recipe.provider &&
-      (targetBinaries.size === 0 || targetBinaries.has(recipe.name))
+      targetBinaries.size === 0 || targetBinaries.has(recipe.name)
     );
 
     console.log(
@@ -107,10 +102,22 @@ export class BinaryUpdater {
         }
 
         try {
-          const latestVersion = await version();
-          const currentVersion = currentDb[name]?.version;
+          // Optimization: Use cached versions from refreshRecipes if available
+          let latestVersion = recipe._latestVersion || await version();
+          const currentVersion = recipe._currentVersion ||
+            currentDb[name]?.version;
 
-          if (!latestVersion) {
+          // If latest is missing but we have a current version, it's not an error
+          if (!latestVersion || latestVersion === "-") {
+            if (currentVersion && currentVersion !== "-") {
+              latestVersion = currentVersion;
+              return {
+                name,
+                currentVersion,
+                latestVersion,
+                status: "up-to-date",
+              };
+            }
             return {
               name,
               status: "error",

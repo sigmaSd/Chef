@@ -36,9 +36,9 @@ export class BinaryRunner {
   /**
    * Run a binary with the provided arguments
    */
-  async run(name: string, binArgs: string[]) {
+  run(name: string, binArgs: string[]) {
     if (!name) {
-      await this.list();
+      this.list();
       return;
     }
 
@@ -50,7 +50,7 @@ export class BinaryRunner {
         `%c${Symbols.info} Available binaries:`,
         `color: ${UIColors.info}; font-weight: bold`,
       );
-      await this.list();
+      this.list();
       return;
     }
 
@@ -128,64 +128,88 @@ export class BinaryRunner {
   /**
    * List all installed and available binaries with improved formatting
    */
-  async list() {
-    const dbData = this.database.getInstalledBinaries();
-
-    const installedBinaries = Object.entries(dbData);
-    const availableToInstall = this.recipes.filter((recipe) =>
-      !this.database.isInstalled(recipe.name)
-    );
-
-    if (installedBinaries.length === 0 && availableToInstall.length === 0) {
+  list() {
+    const allRecipes = this.recipes;
+    if (allRecipes.length === 0) {
       statusMessage("info", "No binaries installed or available");
       return;
     }
 
-    // Show installed binaries in a table
-    if (installedBinaries.length > 0) {
-      sectionHeader("Installed Binaries");
+    const recipesByProvider: Record<string, Recipe[]> = {};
+    for (const recipe of allRecipes) {
+      const provider = recipe.provider || "Chef";
+      if (!recipesByProvider[provider]) recipesByProvider[provider] = [];
+      recipesByProvider[provider].push(recipe);
+    }
 
-      const headers = ["Binary", "Version", "Status"];
-      const rows = await Promise.all(
-        installedBinaries.map(async ([name, entry]) => {
-          const isExecutable = await this.isInstalled(name);
-          return [
-            name,
-            entry.version,
-            isExecutable ? "Ready" : "Not Found",
-          ];
-        }),
+    const sortedProviders = Object.keys(recipesByProvider).sort((a, b) => {
+      if (a === "Chef") return -1;
+      if (b === "Chef") return 1;
+      return a.localeCompare(b);
+    });
+
+    for (const provider of sortedProviders) {
+      const recipes = recipesByProvider[provider].sort((a, b) =>
+        a.name.localeCompare(b.name)
       );
+      sectionHeader(`${provider} (${recipes.length})`);
 
-      const colors = rows.map((row) =>
-        row[2] === "Ready" ? UIColors.success : UIColors.warning
-      );
+      const headers = ["Binary", "Installed", "Latest", "Status"];
+      const rows: string[][] = [];
+      const rowColors: string[] = [];
 
-      printTable(headers, rows, colors);
+      for (const recipe of recipes) {
+        let installedVersion = "-";
+        let latestVersion = "-";
+        let status = "Available";
+        let color: string = UIColors.muted;
+
+        if (recipe.provider) {
+          // Provider recipe
+          installedVersion = recipe._currentVersion &&
+              recipe._currentVersion !== "-"
+            ? recipe._currentVersion
+            : "-";
+          latestVersion = recipe._latestVersion || "-";
+        } else {
+          // Native recipe
+          installedVersion = this.database.getVersion(recipe.name) || "-";
+          // We don't fetch latest version here to keep it fast
+        }
+
+        const isInstalled = installedVersion !== "-";
+        if (isInstalled) {
+          status = "Ready";
+          color = UIColors.success;
+
+          // Check for update if we have both versions
+          if (
+            latestVersion !== "-" && latestVersion !== "" &&
+            installedVersion !== latestVersion
+          ) {
+            status = `Update Available ${Symbols.update}`;
+            color = UIColors.warning;
+          }
+        }
+
+        rows.push([
+          recipe.name,
+          installedVersion,
+          latestVersion,
+          status,
+        ]);
+        rowColors.push(color);
+      }
+
+      printTable(headers, rows, rowColors);
       spacer();
     }
 
-    // Show available to install
-    if (availableToInstall.length > 0) {
-      sectionHeader("Available to Install");
-
-      const headers = ["Name", "Description"];
-      const rows = availableToInstall.map((recipe) => [
-        recipe.name,
-        recipe.provider
-          ? `(via ${recipe.provider})`
-          : "Available for installation",
-      ]);
-
-      printTable(headers, rows);
-      spacer();
-
-      console.log(
-        `%c${Symbols.info} Run 'chef update' to install available binaries`,
-        `color: ${UIColors.info}`,
-      );
-      spacer();
-    }
+    console.log(
+      `%c${Symbols.info} Run 'chef update' to install available binaries`,
+      `color: ${UIColors.info}`,
+    );
+    spacer();
   }
 
   /**

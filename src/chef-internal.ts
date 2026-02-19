@@ -6,7 +6,6 @@ import { DesktopFileManager } from "./desktop.ts";
 import { BinaryRunner } from "./binary-runner.ts";
 import { BinaryUpdater } from "./binary-updater.ts";
 import { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
-import { UIColors } from "./ui.ts";
 import denoJson from "../deno.json" with { type: "json" };
 import { TextLineStream } from "@std/streams/text-line-stream";
 
@@ -338,6 +337,7 @@ export class ChefInternal {
             {
               name: app.name,
               provider: provider.name,
+              description: app.description,
               _dynamic: true,
               _group: app.group,
               version: () => Promise.resolve(app.latestVersion),
@@ -349,11 +349,11 @@ export class ChefInternal {
                 if (!msg.success) {
                   throw new Error(`Update failed for ${app.name}`);
                 }
-                return { exe: "" };
+                return { extern: app.name };
               },
               _currentVersion: app.version,
               _latestVersion: app.latestVersion,
-            } as Recipe & { _currentVersion?: string; _latestVersion?: string },
+            } as Recipe,
           );
         }
       } catch (error) {
@@ -372,75 +372,28 @@ export class ChefInternal {
    */
   installOrUpdate = async (
     name: string,
-    options: { force?: boolean; signal?: AbortSignal } = {},
+    options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
   ) => {
-    const recipe = this.recipes.find((r) => r.name === name);
-    if (!recipe) {
-      console.error(`❌ Recipe "${name}" not found`);
-      return;
-    }
-
-    if (recipe.provider) {
-      console.log(
-        `📦 ${
-          options.force ? "Reinstalling" : "Updating"
-        } "${name}" via provider "${recipe.provider}"...`,
-      );
-      const msg = await this.callProvider(
-        recipe.provider,
-        "update",
-        {
-          name: recipe.name,
-          force: !!options.force,
-        },
-        options.signal,
-      ) as ProviderResponse;
-
-      if (!msg.success) {
-        throw new Error(
-          `${options.force ? "Reinstall" : "Update"} failed for ${recipe.name}`,
-        );
-      }
-
-      await this.refreshRecipes();
-
-      // Use console.error for provider success messages so they are interleaved correctly with provider's stderr
-      console.error(
-        `%c✅ ${options.force ? "Reinstall" : "Update"} of "${name}" finished`,
-        `color: ${UIColors.success}`,
-      );
-      return;
-    }
-
     await this.binaryUpdater.update({
       force: options.force,
       binary: [name],
       signal: options.signal,
+      dryRun: options.dryRun,
     });
+    if (!options.dryRun) {
+      await this.refreshRecipes();
+    }
   };
 
   /**
    * Update all binaries
    */
   updateAll = async (
-    options: { force?: boolean; signal?: AbortSignal } = {},
+    options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
   ) => {
-    // Update native recipes
     await this.binaryUpdater.update(options);
-
-    // Update provider recipes
-    const providerRecipes = this.recipes.filter((r) => r.provider);
-    const updatedGroups = new Set<string>();
-    for (const recipe of providerRecipes) {
-      if (options.signal?.aborted) break;
-      const group = recipe._group || recipe.name;
-      if (updatedGroups.has(group)) continue;
-
-      const info = await this.checkUpdate(recipe.name);
-      if (options.force || info.needsUpdate) {
-        await this.installOrUpdate(recipe.name, options);
-        updatedGroups.add(group);
-      }
+    if (!options.dryRun) {
+      await this.refreshRecipes();
     }
   };
 
@@ -588,7 +541,7 @@ export class ChefInternal {
       },
       list: async () => {
         await this.refreshRecipes();
-        await this.binaryRunner.list();
+        this.binaryRunner.list();
       },
       update: async (options) => {
         await this.refreshRecipes();
@@ -597,11 +550,13 @@ export class ChefInternal {
           for (const name of binaries) {
             await this.installOrUpdate(name, {
               force: options.force,
+              dryRun: options.dryRun,
             });
           }
         } else {
           await this.updateAll({
             force: options.force,
+            dryRun: options.dryRun,
           });
         }
       },
