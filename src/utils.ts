@@ -49,3 +49,14 @@ export function isUrl(str: string): boolean {
     return false;
   }
 }
+
+/**
+ * Throws an error with the given message.
+ * Useful with the nullish coalescing operator: `val ?? expect("msg")`.
+ *
+ * @param {string} msg - The error message.
+ * @returns {never}
+ */
+export function expect(msg: string): never {
+  throw new Error(msg);
+}

@@ -30,6 +30,7 @@ import { TextLineStream } from "@std/streams/text-line-stream";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
+import { expect } from "./utils.ts";
 import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
 import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
@@ -45,30 +46,72 @@ export async function startGui(chef: ChefInternal) {
     const uiData = new TextDecoder().decode(decodeBase64(guiUiJson.value));
     builder.addFromString(uiData);
 
-    const window = builder.get("window", ApplicationWindow)!;
-    const versionLabel = builder.get("version_label", Label)!;
-    const updateAllBtn = builder.get("update_all_btn", Button)!;
-    const editRecipesBtn = builder.get("edit_recipes_btn", Button)!;
-    const cancelBtn = builder.get("cancel_btn", Button)!;
-    const listBox = builder.get("list_box", ListBox)!;
-    const headerRow = builder.get("header_row", ListBoxRow)!;
-    const editorEntry = builder.get("editor_entry", Entry)!;
-    const terminalEntry = builder.get("terminal_entry", Entry)!;
-    const saveSettingsBtn = builder.get("save_settings_btn", Button)!;
-    const statusLabel = builder.get("status_label", Label)!;
-    const progressBar = builder.get("progress_bar", ProgressBar)!;
+    const window = builder.get("window", ApplicationWindow) ?? expect(
+      "missing window",
+    );
+    const versionLabel = builder.get("version_label", Label) ?? expect(
+      "missing version_label",
+    );
+    const updateAllBtn = builder.get("update_all_btn", Button) ?? expect(
+      "missing update_all_btn",
+    );
+    const editRecipesBtn = builder.get("edit_recipes_btn", Button) ?? expect(
+      "missing edit_recipes_btn",
+    );
+    const cancelBtn = builder.get("cancel_btn", Button) ?? expect(
+      "missing cancel_btn",
+    );
+    const listBox = builder.get("list_box", ListBox) ??
+      expect("missing list_box");
+    const headerRow = builder.get("header_row", ListBoxRow) ?? expect(
+      "missing header_row",
+    );
+    const editorEntry = builder.get("editor_entry", Entry) ?? expect(
+      "missing editor_entry",
+    );
+    const terminalEntry = builder.get("terminal_entry", Entry) ?? expect(
+      "missing terminal_entry",
+    );
+    const saveSettingsBtn = builder.get("save_settings_btn", Button) ?? expect(
+      "missing save_settings_btn",
+    );
+    const statusLabel = builder.get("status_label", Label) ?? expect(
+      "missing status_label",
+    );
+    const progressBar = builder.get("progress_bar", ProgressBar) ?? expect(
+      "missing progress_bar",
+    );
 
-    const searchBtn = builder.get("search_btn", ToggleButton)!;
-    const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton)!;
-    const searchBar = builder.get("search_bar", SearchBar)!;
-    const searchEntry = builder.get("search_entry", SearchEntry)!;
+    const searchBtn = builder.get("search_btn", ToggleButton) ?? expect(
+      "missing search_btn",
+    );
+    const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton) ??
+      expect(
+        "missing updates_only_btn",
+      );
+    const searchBar = builder.get("search_bar", SearchBar) ?? expect(
+      "missing search_bar",
+    );
+    const searchEntry = builder.get("search_entry", SearchEntry) ?? expect(
+      "missing search_entry",
+    );
 
-    const stack = builder.get("stack", ViewStack)!;
-    const backBtn = builder.get("back_btn", Button)!;
-    const hamburgerMenuModel = builder.get("hamburger_menu_model", Menu)!;
-    const scrollBottomBtn = builder.get("scroll_bottom_btn", Button)!;
-    const logScrolled = builder.get("log_scrolled", ScrolledWindow)!;
-    const logView = builder.get("log_view", TextView)!;
+    const stack = builder.get("stack", ViewStack) ?? expect("missing stack");
+    const backBtn = builder.get("back_btn", Button) ??
+      expect("missing back_btn");
+    const hamburgerMenuModel = builder.get("hamburger_menu_model", Menu) ??
+      expect(
+        "missing hamburger_menu_model",
+      );
+    const scrollBottomBtn = builder.get("scroll_bottom_btn", Button) ?? expect(
+      "missing scroll_bottom_btn",
+    );
+    const logScrolled = builder.get("log_scrolled", ScrolledWindow) ?? expect(
+      "missing log_scrolled",
+    );
+    const logView = builder.get("log_view", TextView) ?? expect(
+      "missing log_view",
+    );
 
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);
@@ -232,11 +275,20 @@ export async function startGui(chef: ChefInternal) {
 
     updatesOnlyBtn.onToggled(applyFilters);
 
-    const nameGroup = builder.get("name_group", SizeGroup)!;
-    const versionGroup = builder.get("version_group", SizeGroup)!;
-    const latestVersionGroup = builder.get("latest_version_group", SizeGroup)!;
-    const statusGroup = builder.get("status_group", SizeGroup)!;
-    const actionsGroup = builder.get("actions_group", SizeGroup)!;
+    const nameGroup = builder.get("name_group", SizeGroup) ?? expect(
+      "missing name_group",
+    );
+    const versionGroup = builder.get("version_group", SizeGroup) ?? expect(
+      "missing version_group",
+    );
+    const latestVersionGroup = builder.get("latest_version_group", SizeGroup) ??
+      expect("missing latest_version_group");
+    const statusGroup = builder.get("status_group", SizeGroup) ?? expect(
+      "missing status_group",
+    );
+    const actionsGroup = builder.get("actions_group", SizeGroup) ?? expect(
+      "missing actions_group",
+    );
 
     let abortController: AbortController | null = null;
     const recipeRows: {
@@ -530,27 +582,60 @@ function createRecipeRow(
   const uiData = new TextDecoder().decode(decodeBase64(recipeRowUiJson.value));
   builder.addFromString(uiData);
 
-  const row = builder.get("recipe_row", ListBoxRow)!;
-  const nameLabel = builder.get("name_label", Label)!;
-  const versionLabel = builder.get("version_label", Label)!;
-  const latestVersionLabel = builder.get("latest_version_label", Label)!;
-  const statusLabel = builder.get("status_label", Label)!;
-  const runningCounterLabel = builder.get("running_counter_label", Label)!;
-  const updateAvailableLabel = builder.get("update_available_label", Label)!;
-  const statusBox = builder.get("status_box", Box)!;
-  const actionBox = builder.get("action_box", Box)!;
+  const row = builder.get("recipe_row", ListBoxRow) ?? expect(
+    "missing recipe_row",
+  );
+  const nameLabel = builder.get("name_label", Label) ?? expect(
+    "missing name_label",
+  );
+  const versionLabel = builder.get("version_label", Label) ?? expect(
+    "missing version_label",
+  );
+  const latestVersionLabel = builder.get("latest_version_label", Label) ??
+    expect(
+      "missing latest_version_label",
+    );
+  const statusLabel = builder.get("status_label", Label) ?? expect(
+    "missing status_label",
+  );
+  const runningCounterLabel = builder.get("running_counter_label", Label) ??
+    expect("missing running_counter_label");
+  const updateAvailableLabel = builder.get("update_available_label", Label) ??
+    expect("missing update_available_label");
+  const statusBox = builder.get("status_box", Box) ??
+    expect("missing status_box");
+  const actionBox = builder.get("action_box", Box) ??
+    expect("missing action_box");
 
-  const installBtn = builder.get("install_btn", Button)!;
-  const runBtn = builder.get("run_btn", Button)!;
-  const runInTerminalBtn = builder.get("run_in_terminal_btn", Button)!;
-  const killBtn = builder.get("kill_btn", Button)!;
-  const cancelBtn = builder.get("cancel_btn", Button)!;
-  const moreBtn = builder.get("more_btn", MenuButton)!;
-  const morePopover = builder.get("more_popover", Popover)!;
-  const updateBtn = builder.get("update_btn", Button)!;
-  const reinstallBtn = builder.get("reinstall_btn", Button)!;
-  const changelogBtn = builder.get("changelog_btn", Button)!;
-  const removeBtn = builder.get("remove_btn", Button)!;
+  const installBtn = builder.get("install_btn", Button) ?? expect(
+    "missing install_btn",
+  );
+  const runBtn = builder.get("run_btn", Button) ?? expect("missing run_btn");
+  const runInTerminalBtn = builder.get("run_in_terminal_btn", Button) ?? expect(
+    "missing run_in_terminal_btn",
+  );
+  const killBtn = builder.get("kill_btn", Button) ?? expect("missing kill_btn");
+  const cancelBtn = builder.get("cancel_btn", Button) ?? expect(
+    "missing cancel_btn",
+  );
+  const moreBtn = builder.get("more_btn", MenuButton) ?? expect(
+    "missing more_btn",
+  );
+  const morePopover = builder.get("more_popover", Popover) ?? expect(
+    "missing more_popover",
+  );
+  const updateBtn = builder.get("update_btn", Button) ?? expect(
+    "missing update_btn",
+  );
+  const reinstallBtn = builder.get("reinstall_btn", Button) ?? expect(
+    "missing reinstall_btn",
+  );
+  const changelogBtn = builder.get("changelog_btn", Button) ?? expect(
+    "missing changelog_btn",
+  );
+  const removeBtn = builder.get("remove_btn", Button) ?? expect(
+    "missing remove_btn",
+  );
 
   const setSensitive = (sensitive: boolean) => {
     installBtn.setSensitive(sensitive);
@@ -721,7 +806,7 @@ function createRecipeRow(
       });
       await refreshList(true);
     } catch (e) {
-      if ((e as Error).name === "AbortError") {
+      if (e instanceof Error && e.name === "AbortError") {
         console.log(`Installation of ${recipe.name} cancelled`);
       } else {
         console.error(e);
@@ -748,7 +833,7 @@ function createRecipeRow(
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
       await refreshList(true);
     } catch (e) {
-      if ((e as Error).name === "AbortError") {
+      if (e instanceof Error && e.name === "AbortError") {
         console.log(`Removal of ${recipe.name} cancelled`);
       } else {
         console.error(e);
@@ -782,7 +867,7 @@ function createRecipeRow(
       });
       await refreshList(true);
     } catch (e) {
-      if ((e as Error).name === "AbortError") {
+      if (e instanceof Error && e.name === "AbortError") {
         console.log(
           `${isReinstall ? "Reinstall" : "Update"} of ${recipe.name} cancelled`,
         );

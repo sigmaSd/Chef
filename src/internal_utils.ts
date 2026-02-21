@@ -1,10 +1,10 @@
 import * as infer from "@sigmasd/infer";
 import * as path from "@std/path";
-import { Option } from "@sigmasd/rust-types/option";
+import { expect } from "./utils.ts";
 
 export function getChefBasePath() {
   return path.join(
-    Option.wrap(cacheDir()).expect("cache dir not found"),
+    cacheDir() ?? expect("cache dir not found"),
     "chef",
   );
 }

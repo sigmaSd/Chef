@@ -1,5 +1,6 @@
 import * as path from "@std/path";
 import { assertEquals } from "@std/assert";
+import { expect } from "../src/utils.ts";
 import { ChefInternal } from "../src/lib.ts";
 
 class TestChef extends ChefInternal {
@@ -172,6 +173,6 @@ Deno.test("test chef extern", async () =>
         JSON.stringify({}),
       );
     } finally {
-      Deno.env.set("PATH", originalPath!);
+      Deno.env.set("PATH", originalPath ?? expect("PATH env var not set"));
     }
   }));

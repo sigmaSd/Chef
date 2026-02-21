@@ -4,6 +4,7 @@ import { pooledMap } from "@std/async/pool";
 import type { Recipe } from "../mod.ts";
 import { copyDirRecursively, runInTempDir } from "./internal_utils.ts";
 import { setSignal } from "./dax_wrapper.ts";
+import { expect } from "./utils.ts";
 import type { ChefDatabase } from "./database.ts";
 import type { DesktopFileManager } from "./desktop.ts";
 import {
@@ -64,7 +65,7 @@ export class BinaryUpdater {
     sectionHeader("Checking for Updates");
 
     ensureDirSync(this.binPath);
-    const currentDb = this.database.read().expect("failed to read database");
+    const currentDb = this.database.read() ?? expect("failed to read database");
 
     // Collect update information with parallel processing
     const recipesToCheck = this.recipes.filter((recipe) =>
@@ -219,7 +220,7 @@ export class BinaryUpdater {
         statusMessage("info", "Update process cancelled");
         break;
       }
-      const recipe = info.recipe as Recipe;
+      const recipe = info.recipe ?? expect("recipe missing in update info");
       const latestVersion = info.latestVersion;
 
       // Skip if no latest version (shouldn't happen for needs-update status)

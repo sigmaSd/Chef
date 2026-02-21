@@ -1,5 +1,6 @@
 import * as path from "@std/path";
 import { commandExists, getChefBasePath } from "./internal_utils.ts";
+import { expect } from "./utils.ts";
 import type { Recipe } from "../mod.ts";
 import { ChefDatabase } from "./database.ts";
 import { DesktopFileManager } from "./desktop.ts";
@@ -140,7 +141,7 @@ export class ChefInternal {
     commandStr: string,
   ): ProviderSession | null {
     if (this.providerSessions.has(name)) {
-      return this.providerSessions.get(name)!;
+      return this.providerSessions.get(name) ?? expect("session not found");
     }
 
     try {
@@ -215,10 +216,12 @@ export class ChefInternal {
               const msg = JSON.parse(line);
               if (
                 typeof msg === "object" && msg !== null && "id" in msg &&
-                pendingRequests.has(msg.id as string)
+                pendingRequests.has(msg.id as unknown as string)
               ) {
-                const resolve = pendingRequests.get(msg.id as string)!;
-                pendingRequests.delete(msg.id as string);
+                const resolve =
+                  pendingRequests.get(msg.id as unknown as string) ??
+                    expect("request not found");
+                pendingRequests.delete(msg.id as unknown as string);
                 resolve(msg);
               }
             } catch {
@@ -484,8 +487,7 @@ export class ChefInternal {
   isInstalled = (name: string) => {
     const recipe = this.recipes.find((r) => r.name === name);
     if (recipe?.provider) {
-      const r = recipe as Recipe & { _currentVersion?: string };
-      return !!r._currentVersion && r._currentVersion !== "-";
+      return !!recipe._currentVersion && recipe._currentVersion !== "-";
     }
     return this.database.isInstalled(name);
   };
@@ -496,8 +498,7 @@ export class ChefInternal {
   getVersion = (name: string) => {
     const recipe = this.recipes.find((r) => r.name === name);
     if (recipe?.provider) {
-      const r = recipe as Recipe & { _currentVersion?: string };
-      return r._currentVersion;
+      return recipe._currentVersion;
     }
     return this.database.getVersion(name);
   };
@@ -511,15 +512,12 @@ export class ChefInternal {
 
     if (recipe.provider) {
       // Provider recipes are special
-      const r = recipe as Recipe & {
-        _currentVersion?: string;
-        _latestVersion?: string;
-      };
-      const hasLatest = r._latestVersion && r._latestVersion !== "-";
+      const hasLatest = recipe._latestVersion && recipe._latestVersion !== "-";
       return {
-        needsUpdate: !!(hasLatest && r._currentVersion !== r._latestVersion),
-        currentVersion: r._currentVersion,
-        latestVersion: r._latestVersion,
+        needsUpdate:
+          !!(hasLatest && recipe._currentVersion !== recipe._latestVersion),
+        currentVersion: recipe._currentVersion,
+        latestVersion: recipe._latestVersion,
       };
     }
 
@@ -546,7 +544,9 @@ export class ChefInternal {
       update: async (options) => {
         await this.refreshRecipes();
         if (options.only || (options.binary && options.binary.length > 0)) {
-          const binaries = options.only ? [options.only] : options.binary!;
+          const binaries = options.only
+            ? [options.only]
+            : options.binary ?? expect("binary list missing");
           for (const name of binaries) {
             await this.installOrUpdate(name, {
               force: options.force,

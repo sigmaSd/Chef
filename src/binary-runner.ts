@@ -3,6 +3,7 @@ import { assert } from "@std/assert";
 import type { Recipe } from "../mod.ts";
 import type { ChefDatabase } from "./database.ts";
 import { commandExists } from "./internal_utils.ts";
+import { expect } from "./utils.ts";
 import {
   printTable,
   sectionHeader,
@@ -59,7 +60,7 @@ export class BinaryRunner {
       // For provider binaries, assume they are in PATH
       binPath = name;
     } else {
-      const db = this.database.read().expect("failed to read database");
+      const db = this.database.read() ?? expect("failed to read database");
       const entry = db[name];
       if (!entry) {
         statusMessage("error", `Binary "${name}" is not installed.`);
@@ -101,7 +102,9 @@ export class BinaryRunner {
     if (!this.activeProcesses.has(name)) {
       this.activeProcesses.set(name, new Set());
     }
-    const processes = this.activeProcesses.get(name)!;
+    const processes = this.activeProcesses.get(name) ?? expect(
+      "processes set not found",
+    );
     processes.add(process);
 
     this.statusListener?.(name, true);
@@ -270,7 +273,7 @@ export class BinaryRunner {
       { name: string; path: string; version: string }
     >
   > {
-    const dbData = this.database.read().expect("failed to read database");
+    const dbData = this.database.read() ?? expect("failed to read database");
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
     const result = [];
     for (const [name, entry] of Object.entries(dbData)) {

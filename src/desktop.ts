@@ -2,7 +2,7 @@ import * as path from "@std/path";
 import { ensureDirSync } from "@std/fs";
 import type { Recipe } from "../mod.ts";
 import { Colors, getExt } from "./internal_utils.ts";
-import { isUrl } from "./utils.ts";
+import { expect, isUrl } from "./utils.ts";
 
 /**
  * Manages desktop file creation and removal for installed binaries
@@ -34,7 +34,7 @@ export class DesktopFileManager {
     }
 
     const desktopDir = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
     );
     ensureDirSync(desktopDir);
@@ -46,7 +46,7 @@ export class DesktopFileManager {
       options.icon || recipe.desktopFile?.icon || recipe.desktopFile?.iconPath
     ) {
       const iconProvidedPath = options.icon ?? recipe.desktopFile?.icon ??
-        recipe.desktopFile?.iconPath!;
+        recipe.desktopFile?.iconPath ?? expect("icon path missing");
       const iconExt = await getExt(iconProvidedPath);
       const iconFileName = `${name}-icon${iconExt}`;
       const iconPath = path.join(this.iconsPath, iconFileName);
@@ -91,11 +91,11 @@ export class DesktopFileManager {
   async installGui() {
     const appId = "io.github.sigmasd.chef";
     const desktopDir = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
     );
     const iconDir = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/icons/hicolor/scalable/apps",
     );
     ensureDirSync(desktopDir);
@@ -161,7 +161,7 @@ Icon=${iconValue}`;
   uninstallGui() {
     const appId = "io.github.sigmasd.chef";
     const desktopPath = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
       `${appId}.desktop`,
     );
@@ -169,7 +169,7 @@ Icon=${iconValue}`;
     // Remove icon if it exists
     try {
       const iconPath = path.join(
-        Deno.env.get("HOME")!,
+        Deno.env.get("HOME") ?? expect("HOME env var not set"),
         ".local/share/icons/hicolor/scalable/apps",
         `${appId}.svg`,
       );
@@ -197,7 +197,7 @@ Icon=${iconValue}`;
    */
   remove(name: string, options: { silent?: boolean } = {}) {
     const desktopPath = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
       `${name}.desktop`,
     );
@@ -269,7 +269,7 @@ ${icon ? `Icon=${icon}` : ""}`;
    */
   exists(name: string): boolean {
     const desktopPath = path.join(
-      Deno.env.get("HOME")!,
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
       `${name}.desktop`,
     );
