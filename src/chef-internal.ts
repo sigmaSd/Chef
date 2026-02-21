@@ -312,6 +312,7 @@ export class ChefInternal {
           version: string;
           latestVersion: string;
           description?: string;
+          hasVersions?: boolean;
         }
 
         const msg = await this.callProvider(
@@ -336,28 +337,40 @@ export class ChefInternal {
         const apps: ProviderApp[] = msg.data as ProviderApp[];
 
         for (const app of apps) {
-          providerRecipes.push(
-            {
-              name: app.name,
-              provider: provider.name,
-              description: app.description,
-              _dynamic: true,
-              _group: app.group,
-              version: () => Promise.resolve(app.latestVersion),
-              download: async ({ signal: _signal }) => {
-                const msg = await this.callProvider(provider.name, "update", {
-                  name: app.name,
-                }) as ProviderResponse;
+          const recipe: Recipe = {
+            name: app.name,
+            provider: provider.name,
+            description: app.description,
+            _dynamic: true,
+            _group: app.group,
+            version: () => Promise.resolve(app.latestVersion),
+            download: async ({ latestVersion }) => {
+              const msg = await this.callProvider(provider.name, "update", {
+                name: app.name,
+                version: latestVersion,
+              }) as ProviderResponse;
 
-                if (!msg.success) {
-                  throw new Error(`Update failed for ${app.name}`);
-                }
-                return { extern: app.name };
-              },
-              _currentVersion: app.version,
-              _latestVersion: app.latestVersion,
-            } as Recipe,
-          );
+              if (!msg.success) {
+                throw new Error(
+                  `Update failed for ${app.name}: ${
+                    msg.error || "Unknown error"
+                  }`,
+                );
+              }
+              return { extern: app.name };
+            },
+            _currentVersion: app.version,
+            _latestVersion: app.latestVersion,
+          };
+
+          if (app.hasVersions) {
+            recipe.versions = (options) =>
+              this.getVersions(app.name, {
+                page: options?.page,
+              });
+          }
+
+          providerRecipes.push(recipe);
         }
       } catch (error) {
         console.error(
@@ -375,17 +388,67 @@ export class ChefInternal {
    */
   installOrUpdate = async (
     name: string,
-    options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
+    options: {
+      force?: boolean;
+      signal?: AbortSignal;
+      dryRun?: boolean;
+      version?: string;
+    } = {},
   ) => {
     await this.binaryUpdater.update({
       force: options.force,
       binary: [name],
       signal: options.signal,
       dryRun: options.dryRun,
+      only: name,
+      version: options.version,
     });
     if (!options.dryRun) {
       await this.refreshRecipes();
     }
+  };
+
+  /**
+   * Get all available versions of a binary
+   */
+  getVersions = async (
+    name: string,
+    options: { page?: number; signal?: AbortSignal } = {},
+  ): Promise<string[]> => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) return [];
+
+    if (recipe.provider) {
+      try {
+        const msg = await this.callProvider(
+          recipe.provider,
+          "versions",
+          {
+            name: name,
+            page: options.page,
+          },
+          options.signal,
+        ) as ProviderResponse;
+
+        if (msg.success && Array.isArray(msg.data)) {
+          return msg.data as string[];
+        }
+      } catch (error) {
+        console.error(
+          `Failed to fetch versions from provider "${recipe.provider}":`,
+          error,
+        );
+      }
+      return [];
+    }
+
+    if (recipe.versions) {
+      return await recipe.versions(options);
+    }
+
+    // Default to just the latest version if no versions method provided
+    const latest = await recipe.version?.();
+    return latest ? [latest] : [];
   };
 
   /**
@@ -521,7 +584,29 @@ export class ChefInternal {
       };
     }
 
-    return await this.binaryUpdater.needsUpdate(recipe);
+    const currentVersion = this.database.getVersion(recipe.name);
+    try {
+      let latestVersion = await recipe.version?.();
+
+      // If version() is missing but versions() is present, use the first one
+      if (!latestVersion && recipe.versions) {
+        const all = await recipe.versions({ page: 1 });
+        latestVersion = all[0];
+      }
+
+      if (!latestVersion) {
+        return { needsUpdate: false };
+      }
+
+      return {
+        needsUpdate: currentVersion !== latestVersion,
+        currentVersion,
+        latestVersion,
+      };
+    } catch (e) {
+      console.warn(`Failed to check version for ${recipe.name}:`, e);
+      return { needsUpdate: false };
+    }
   };
 
   /**

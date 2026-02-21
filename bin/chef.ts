@@ -16,6 +16,7 @@ chef.addMany(
         return { exe: `rr-${latestVersion}-Linux-x86_64/bin/rr` };
       },
       version: () => utils.getLatestGithubRelease("rr-debugger/rr"),
+      versions: (options) => utils.getGithubReleases("rr-debugger/rr", options),
     },
     {
       name: "gleam",
@@ -27,6 +28,8 @@ chef.addMany(
         return { exe: "gleam" };
       },
       version: () => utils.getLatestGithubRelease("gleam-lang/gleam"),
+      versions: (options) =>
+        utils.getGithubReleases("gleam-lang/gleam", options),
     },
     {
       name: "imhex",
@@ -103,7 +106,7 @@ chef.addMany(
           exe: "./irust-x86_64-unknown-linux-gnu",
         };
       },
-      version: () => utils.getLatestGithubRelease("sigmaSd/IRust"),
+      versions: (options) => utils.getGithubReleases("sigmaSd/IRust", options),
       desktopFile: {
         name: "IRust",
         comment: "Rust REPL",
@@ -276,6 +279,8 @@ chef.addMany(
         return { exe: "zellij" };
       },
       version: () => utils.getLatestGithubRelease("zellij-org/zellij"),
+      versions: (options) =>
+        utils.getGithubReleases("zellij-org/zellij", options),
       desktopFile: {
         name: "Zellij",
         comment: "A terminal workspace with batteries included",

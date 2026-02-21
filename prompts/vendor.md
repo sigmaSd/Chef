@@ -12,3 +12,6 @@ vendor/jsr.io/@sigmasd/gtk/
         ├── low/           # Raw FFI definitions (gtk4.ts, adw.ts, etc.)
         └── high/          # Ergomatic TS Classes (Widget, Window, etc.)
 ```
+
+Don't edit deno.json ! the script will automaticly set vendor: true, which will
+make deno aware of vendor path

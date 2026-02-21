@@ -10,6 +10,7 @@ ListBoxRow recipe_row {
 
         Label name_label {
             halign: start;
+            valign: center;
             use-markup: true;
 
             layout {
@@ -20,6 +21,7 @@ ListBoxRow recipe_row {
 
         Label version_label {
             halign: start;
+            valign: center;
             width-chars: 12;
             ellipsize: end;
 
@@ -29,19 +31,67 @@ ListBoxRow recipe_row {
             }
         }
 
-        Label latest_version_label {
-            label: "Checking...";
+        Box latest_version_box {
             halign: start;
-            width-chars: 12;
-            ellipsize: end;
-
-            styles [
-                "dim-label",
-            ]
+            valign: center;
 
             layout {
                 column: 2;
                 row: 0;
+            }
+
+            Label latest_version_label {
+                label: "Checking...";
+                halign: start;
+                valign: center;
+                visible: true;
+
+                styles [
+                    "dim-label",
+                ]
+            }
+
+            MenuButton latest_version_btn {
+                label: "Checking...";
+                halign: start;
+                valign: center;
+                visible: false;
+
+                styles [
+                    "flat",
+                    "dim-label",
+                ]
+
+                popover: Popover versions_popover {
+                    Box {
+                        orientation: vertical;
+                        spacing: 5;
+                        margin-top: 8;
+                        margin-bottom: 8;
+                        margin-start: 8;
+                        margin-end: 8;
+
+                        SearchEntry versions_search {
+                            placeholder-text: "Search version...";
+                        }
+
+                        ScrolledWindow {
+                            hscrollbar-policy: never;
+                            min-content-height: 200;
+                            max-content-height: 400;
+
+                                                                            ListBox versions_list {
+                                                                                selection-mode: single;
+                                                                                activate-on-single-click: true;
+                                                                            }
+                                                                            }
+
+                        Button load_more_btn {
+                            label: "Load More";
+                            visible: false;
+                        }
+                    }
+                };
             }
         }
 
@@ -49,6 +99,7 @@ ListBoxRow recipe_row {
             orientation: horizontal;
             spacing: 5;
             halign: start;
+            valign: center;
 
             layout {
                 column: 3;
@@ -78,6 +129,7 @@ ListBoxRow recipe_row {
             orientation: horizontal;
             spacing: 5;
             halign: end;
+            valign: center;
 
             layout {
                 column: 4;

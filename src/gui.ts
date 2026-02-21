@@ -397,6 +397,7 @@ export async function startGui(chef: ChefInternal) {
                 applyFilters();
               }
             },
+            statusLabel,
           );
           recipeRows.push({
             row,
@@ -495,6 +496,7 @@ export async function startGui(chef: ChefInternal) {
       updateAllBtn.setLabel(
         updatesOnly ? "Updating Available..." : "Updating All...",
       );
+      statusLabel.removeCssClass("error");
       cancelBtn.setVisible(true);
       recipeRows.forEach((r) => r.setSensitive(false));
 
@@ -548,6 +550,7 @@ export async function startGui(chef: ChefInternal) {
     setStatusListener((status) => {
       if (status.status === "running") {
         let text = status.command || "Running...";
+        statusLabel.removeCssClass("error");
         if (
           status.progress !== undefined && status.loaded !== undefined &&
           status.total !== undefined
@@ -563,6 +566,7 @@ export async function startGui(chef: ChefInternal) {
         statusLabel.setText(text);
       } else {
         statusLabel.setText("Idle");
+        statusLabel.removeCssClass("error");
         progressBar.setVisible(false);
       }
     });
@@ -618,6 +622,7 @@ function createRecipeRow(
     expanderRow: ExpanderRow;
   }[],
   onStatusChanged: (isInstalled: boolean, hasUpdate: boolean) => void,
+  globalStatusLabel: Label,
 ): {
   row: ListBoxRow;
   setSensitive: (sensitive: boolean) => void;
@@ -637,10 +642,29 @@ function createRecipeRow(
   const versionLabel = builder.get("version_label", Label) ?? expect(
     "missing version_label",
   );
+  const latestVersionBox = builder.get("latest_version_box", Box) ?? expect(
+    "missing latest_version_box",
+  );
   const latestVersionLabel = builder.get("latest_version_label", Label) ??
     expect(
       "missing latest_version_label",
     );
+  const latestVersionBtn = builder.get("latest_version_btn", MenuButton) ??
+    expect(
+      "missing latest_version_btn",
+    );
+  const versionsPopover = builder.get("versions_popover", Popover) ?? expect(
+    "missing versions_popover",
+  );
+  const versionsSearch = builder.get("versions_search", SearchEntry) ?? expect(
+    "missing versions_search",
+  );
+  const versionsList = builder.get("versions_list", ListBox) ?? expect(
+    "missing versions_list",
+  );
+  const loadMoreBtn = builder.get("load_more_btn", Button) ?? expect(
+    "missing load_more_btn",
+  );
   const statusLabel = builder.get("status_label", Label) ?? expect(
     "missing status_label",
   );
@@ -715,20 +739,36 @@ function createRecipeRow(
   nameLabel.setMarkup(recipe.name);
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
-  groups.latestVersionGroup.addWidget(latestVersionLabel);
+  groups.latestVersionGroup.addWidget(latestVersionBox);
   groups.statusGroup.addWidget(statusBox);
   groups.actionsGroup.addWidget(actionBox);
 
   let rowAbortController: AbortController | null = null;
+  let fetchedVersions: string[] = [];
+  let currentPage = 1;
+  let isFetching = false;
 
   const checkUpdate = async () => {
     try {
       const info = await chef.checkUpdate(recipe.name);
+      const hasVersions = !!recipe.versions;
+
       if (info.latestVersion) {
-        latestVersionLabel.setText(info.latestVersion);
-        latestVersionLabel.removeCssClass("dim-label");
+        if (hasVersions) {
+          latestVersionBtn.setLabel(info.latestVersion);
+          latestVersionBtn.removeCssClass("dim-label");
+          latestVersionBtn.setVisible(true);
+          latestVersionLabel.setVisible(false);
+        } else {
+          latestVersionLabel.setText(info.latestVersion);
+          latestVersionLabel.removeCssClass("dim-label");
+          latestVersionLabel.setVisible(true);
+          latestVersionBtn.setVisible(false);
+        }
       } else {
         latestVersionLabel.setText("-");
+        latestVersionLabel.setVisible(true);
+        latestVersionBtn.setVisible(false);
       }
 
       const installed = chef.isInstalled(recipe.name);
@@ -765,7 +805,7 @@ function createRecipeRow(
       }
     } catch (e) {
       console.error(`Failed to check update for ${recipe.name}:`, e);
-      latestVersionLabel.setText("Error");
+      latestVersionBtn.setLabel("Error");
     }
   };
 
@@ -797,6 +837,7 @@ function createRecipeRow(
 
     onStatusChanged(installed, false);
 
+    statusLabel.removeCssClass("error");
     if (installed) {
       statusLabel.addCssClass("success");
       statusLabel.removeCssClass("dim-label");
@@ -812,6 +853,106 @@ function createRecipeRow(
     await checkUpdate();
   };
   updateStatus();
+
+  const fetchVersions = async (page: number) => {
+    if (isFetching) return;
+    isFetching = true;
+    try {
+      const versions = await chef.getVersions(recipe.name, { page });
+      if (page === 1) {
+        fetchedVersions = versions;
+      } else {
+        fetchedVersions = [...fetchedVersions, ...versions];
+      }
+      loadMoreBtn.setVisible(versions.length === 30);
+      updateVersionsList();
+    } catch (e) {
+      console.error(`Failed to fetch versions for ${recipe.name}:`, e);
+    } finally {
+      isFetching = false;
+    }
+  };
+
+  const updateVersionsList = () => {
+    versionsList.removeAll();
+    const filter = versionsSearch.getText().toLowerCase();
+    const filtered = fetchedVersions.filter((v) =>
+      v.toLowerCase().includes(filter)
+    );
+
+    for (const v of filtered) {
+      const row = new ListBoxRow();
+      row.setData("version", v);
+      const label = new Label(v);
+      label.setMarginTop(5);
+      label.setMarginBottom(5);
+      row.setChild(label);
+      versionsList.append(row);
+    }
+
+    if (filter && !filtered.some((v) => v.toLowerCase() === filter)) {
+      const row = new ListBoxRow();
+      row.setData("version", filter);
+      const label = new Label();
+      label.setMarkup(`Install custom version: <b>${filter}</b>`);
+      label.setMarginTop(5);
+      label.setMarginBottom(5);
+      row.setChild(label);
+      versionsList.append(row);
+    }
+  };
+
+  versionsPopover.onNotify("visible", () => {
+    if (versionsPopover.getVisible() && fetchedVersions.length === 0) {
+      currentPage = 1;
+      fetchVersions(currentPage);
+    }
+  });
+
+  versionsSearch.onChanged(() => {
+    updateVersionsList();
+  });
+
+  loadMoreBtn.onClick(() => {
+    currentPage++;
+    fetchVersions(currentPage);
+  });
+
+  versionsList.onRowActivated(async (row) => {
+    const version = row.getData("version");
+    if (!version) return;
+
+    versionsPopover.popdown();
+    setGroupState(false, `Installing ${version}...`);
+    statusLabel.removeCssClass("success");
+    cancelBtn.setVisible(true);
+    rowAbortController = new AbortController();
+    try {
+      await chef.installOrUpdate(recipe.name, {
+        version,
+        force: true,
+        signal: rowAbortController.signal,
+      });
+      globalStatusLabel.removeCssClass("error");
+      await refreshList(true);
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        console.log(`Installation of ${recipe.name} ${version} cancelled`);
+      } else {
+        console.error(e);
+        globalStatusLabel.setText(
+          `Error: ${e instanceof Error ? e.message : e}`,
+        );
+        globalStatusLabel.addCssClass("error");
+      }
+      await updateStatus();
+      await updateButtons();
+    } finally {
+      setGroupState(true);
+      cancelBtn.setVisible(false);
+      rowAbortController = null;
+    }
+  });
 
   const updateButtons = async () => {
     const installed = await chef.isInstalled(recipe.name);
@@ -850,6 +991,7 @@ function createRecipeRow(
       await chef.installOrUpdate(recipe.name, {
         signal: rowAbortController.signal,
       });
+      globalStatusLabel.removeCssClass("error");
       await refreshList(true);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -857,10 +999,14 @@ function createRecipeRow(
       } else {
         console.error(e);
         installBtn.setLabel("Failed");
+        globalStatusLabel.setText(
+          `Error: ${e instanceof Error ? e.message : e}`,
+        );
+        globalStatusLabel.addCssClass("error");
       }
-      // Reset status on error or cancel
-      await updateStatus();
+      // Reset buttons on error or cancel
       await updateButtons();
+      await updateStatus();
     } finally {
       installBtn.setLabel("Install");
       setGroupState(true);
@@ -877,12 +1023,17 @@ function createRecipeRow(
     rowAbortController = new AbortController();
     try {
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
+      globalStatusLabel.removeCssClass("error");
       await refreshList(true);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(`Removal of ${recipe.name} cancelled`);
       } else {
         console.error(e);
+        globalStatusLabel.setText(
+          `Error: ${e instanceof Error ? e.message : e}`,
+        );
+        globalStatusLabel.addCssClass("error");
       }
       await updateStatus();
       await updateButtons();
@@ -911,6 +1062,7 @@ function createRecipeRow(
         force,
         signal: rowAbortController.signal,
       });
+      globalStatusLabel.removeCssClass("error");
       await refreshList(true);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -919,10 +1071,14 @@ function createRecipeRow(
         );
       } else {
         console.error(e);
+        globalStatusLabel.setText(
+          `Error: ${e instanceof Error ? e.message : e}`,
+        );
+        globalStatusLabel.addCssClass("error");
       }
-      // Reset status on error or cancel
-      await updateStatus();
+      // Reset buttons on error or cancel
       await updateButtons();
+      await updateStatus();
     } finally {
       btn.setLabel(oldLabel);
       setGroupState(true);

@@ -34,5 +34,11 @@ and proceeding. Update task descriptions as implementation details evolve.
   - Added "Refresh Recipes (Ctrl+R)" to the hamburger menu.
   - Refresh logic re-triggers provider discovery and update checks for all
     recipes.
-- [ ] Epic: Add a way to see older version of an app and offer to install them,
-  thisrequrie planning
+- [x] Epic: Add a way to see older version of an app and offer to install them
+  - Added `versions` method to `Recipe` interface with pagination support.
+  - Implemented `getGithubReleases` and `getNpmVersions` utilities.
+  - Updated `BinaryUpdater` and `ChefInternal` to support installing specific
+    versions.
+  - Replaced latest version label in GUI with a `MenuButton` and `Popover`.
+  - Added search and pagination ("Load More") for versions in the GUI.
+  - Added "Install custom version" option when searching for unlisted versions.

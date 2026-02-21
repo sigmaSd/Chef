@@ -37,6 +37,7 @@ export class BinaryUpdater {
       force?: boolean;
       skip?: string;
       only?: string;
+      version?: string;
       dryRun?: boolean;
       binary?: string[];
       signal?: AbortSignal;
@@ -92,7 +93,7 @@ export class BinaryUpdater {
             reason: "cancelled",
           };
         }
-        const { name, version } = recipe;
+        const { name } = recipe;
 
         if (options.skip && options.skip === name) {
           return {
@@ -104,18 +105,29 @@ export class BinaryUpdater {
 
         try {
           // Optimization: Use cached versions from refreshRecipes if available
-          let latestVersion = recipe._latestVersion || await version();
+          let realLatestVersion = recipe._latestVersion ||
+            await recipe.version?.();
+
+          // Fallback to versions() if version() is missing or failed
+          if (!realLatestVersion && recipe.versions) {
+            const all = await recipe.versions({ page: 1 });
+            realLatestVersion = all[0];
+          }
+
+          const targetVersion = options.only === name && options.version
+            ? options.version
+            : realLatestVersion;
+
           const currentVersion = recipe._currentVersion ||
             currentDb[name]?.version;
 
-          // If latest is missing but we have a current version, it's not an error
-          if (!latestVersion || latestVersion === "-") {
+          // If target is missing but we have a current version, it's not an error
+          if (!targetVersion || targetVersion === "-") {
             if (currentVersion && currentVersion !== "-") {
-              latestVersion = currentVersion;
               return {
                 name,
                 currentVersion,
-                latestVersion,
+                latestVersion: currentVersion,
                 status: "up-to-date",
               };
             }
@@ -126,11 +138,14 @@ export class BinaryUpdater {
             };
           }
 
-          if (!options.force && currentVersion === latestVersion) {
+          if (
+            !options.force && currentVersion === targetVersion &&
+            !(options.only === name && options.version)
+          ) {
             return {
               name,
               currentVersion,
-              latestVersion,
+              latestVersion: realLatestVersion,
               status: "up-to-date",
             };
           }
@@ -138,7 +153,7 @@ export class BinaryUpdater {
           return {
             name,
             currentVersion,
-            latestVersion,
+            latestVersion: targetVersion,
             status: "needs-update",
             recipe,
           };
@@ -303,6 +318,9 @@ export class BinaryUpdater {
           }`,
         );
         failed++;
+        if (options.only || (options.binary && options.binary.length > 0)) {
+          throw e;
+        }
       }
       spacer();
     }
@@ -427,7 +445,13 @@ export class BinaryUpdater {
     const currentVersion = this.database.getVersion(recipe.name);
 
     try {
-      const latestVersion = await recipe.version();
+      let latestVersion = await recipe.version?.();
+
+      if (!latestVersion && recipe.versions) {
+        const all = await recipe.versions({ page: 1 });
+        latestVersion = all[0];
+      }
+
       if (!latestVersion) {
         return { needsUpdate: false };
       }

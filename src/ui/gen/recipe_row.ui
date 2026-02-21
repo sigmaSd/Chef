@@ -17,6 +17,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="GtkLabel" id="name_label">
             <property name="halign">1</property>
+            <property name="valign">3</property>
             <property name="use-markup">true</property>
             <layout>
               <property name="column">0</property>
@@ -27,6 +28,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="GtkLabel" id="version_label">
             <property name="halign">1</property>
+            <property name="valign">3</property>
             <property name="width-chars">12</property>
             <property name="ellipsize">3</property>
             <layout>
@@ -36,18 +38,74 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
           </object>
         </child>
         <child>
-          <object class="GtkLabel" id="latest_version_label">
-            <property name="label">Checking...</property>
+          <object class="GtkBox" id="latest_version_box">
             <property name="halign">1</property>
-            <property name="width-chars">12</property>
-            <property name="ellipsize">3</property>
-            <style>
-              <class name="dim-label"/>
-            </style>
+            <property name="valign">3</property>
             <layout>
               <property name="column">2</property>
               <property name="row">0</property>
             </layout>
+            <child>
+              <object class="GtkLabel" id="latest_version_label">
+                <property name="label">Checking...</property>
+                <property name="halign">1</property>
+                <property name="valign">3</property>
+                <property name="visible">true</property>
+                <style>
+                  <class name="dim-label"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuButton" id="latest_version_btn">
+                <property name="label">Checking...</property>
+                <property name="halign">1</property>
+                <property name="valign">3</property>
+                <property name="visible">false</property>
+                <style>
+                  <class name="flat"/>
+                  <class name="dim-label"/>
+                </style>
+                <property name="popover">
+                  <object class="GtkPopover" id="versions_popover">
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">1</property>
+                        <property name="spacing">5</property>
+                        <property name="margin-top">8</property>
+                        <property name="margin-bottom">8</property>
+                        <property name="margin-start">8</property>
+                        <property name="margin-end">8</property>
+                        <child>
+                          <object class="GtkSearchEntry" id="versions_search">
+                            <property name="placeholder-text">Search version...</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow">
+                            <property name="hscrollbar-policy">2</property>
+                            <property name="min-content-height">200</property>
+                            <property name="max-content-height">400</property>
+                            <child>
+                              <object class="GtkListBox" id="versions_list">
+                                <property name="selection-mode">1</property>
+                                <property name="activate-on-single-click">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="load_more_btn">
+                            <property name="label">Load More</property>
+                            <property name="visible">false</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
           </object>
         </child>
         <child>
@@ -55,6 +113,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
             <property name="orientation">0</property>
             <property name="spacing">5</property>
             <property name="halign">1</property>
+            <property name="valign">3</property>
             <layout>
               <property name="column">3</property>
               <property name="row">0</property>
@@ -86,6 +145,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
             <property name="orientation">0</property>
             <property name="spacing">5</property>
             <property name="halign">2</property>
+            <property name="valign">3</property>
             <layout>
               <property name="column">4</property>
               <property name="row">0</property>

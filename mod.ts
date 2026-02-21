@@ -107,7 +107,13 @@ export interface Recipe {
    * Retrieves the version of the binary.
    * @returns A promise that resolves to the version of the binary, if available.
    */
-  version: () => Promise<string | undefined>;
+  version?: () => Promise<string | undefined>;
+  /**
+   * Retrieves all available versions of the binary.
+   * @param options - Options for version retrieval (e.g. pagination).
+   * @returns A promise that resolves to an array of available versions.
+   */
+  versions?: (options?: { page?: number }) => Promise<string[]>;
   /**
    * Performs actions after installing the binary.
    * @param binPath - The path to the installed binary.
