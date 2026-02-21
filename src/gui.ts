@@ -1,4 +1,5 @@
 import {
+  AboutWindow,
   Application,
   ApplicationWindow,
   Box,
@@ -14,22 +15,29 @@ import {
   ModifierType,
   Popover,
   ProgressBar,
+  ScrolledWindow,
   SearchBar,
   SearchEntry,
   SizeGroup,
+  TextView,
   ToggleButton,
+  ViewStack,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
+import { Menu, SimpleAction } from "@sigmasd/gtk/gio";
+import { decodeBase64 } from "@std/encoding/base64";
+import { TextLineStream } from "@std/streams/text-line-stream";
 import type { ChefInternal } from "./chef-internal.ts";
 import type { Recipe } from "../mod.ts";
 import { setStatusListener } from "./dax_wrapper.ts";
-import { decodeBase64 } from "@std/encoding/base64";
 import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
 import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
 export async function startGui(chef: ChefInternal) {
   Application.setName("Chef");
-  const app = new Application("io.github.sigmasd.chef", 0);
+  const appId = "io.github.sigmasd.chef";
+  const app = new Application(appId, 0);
+  const startTime = new Date();
   const eventLoop = new EventLoop();
 
   app.onActivate(() => {
@@ -55,6 +63,13 @@ export async function startGui(chef: ChefInternal) {
     const searchBar = builder.get("search_bar", SearchBar)!;
     const searchEntry = builder.get("search_entry", SearchEntry)!;
 
+    const stack = builder.get("stack", ViewStack)!;
+    const backBtn = builder.get("back_btn", Button)!;
+    const hamburgerMenuModel = builder.get("hamburger_menu_model", Menu)!;
+    const scrollBottomBtn = builder.get("scroll_bottom_btn", Button)!;
+    const logScrolled = builder.get("log_scrolled", ScrolledWindow)!;
+    const logView = builder.get("log_view", TextView)!;
+
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);
 
@@ -65,6 +80,114 @@ export async function startGui(chef: ChefInternal) {
     searchBar.onNotify("search-mode-enabled", () => {
       searchBtn.setActive(searchBar.getSearchMode());
     });
+
+    const updateMenu = (isLogsPage: boolean) => {
+      hamburgerMenuModel.removeAll();
+      hamburgerMenuModel.append(
+        isLogsPage ? "Show Recipes (Ctrl+L)" : "Show Logs (Ctrl+L)",
+        "win.toggle-logs",
+      );
+      hamburgerMenuModel.append("About Chef", "win.about");
+    };
+
+    const toggleLogs = () => {
+      const isLogsPage = stack.getVisibleChildName() === "logs";
+      if (isLogsPage) {
+        stack.setVisibleChildName("recipes");
+        backBtn.setVisible(false);
+        updateMenu(false);
+      } else {
+        stack.setVisibleChildName("logs");
+        backBtn.setVisible(true);
+        updateMenu(true);
+      }
+    };
+
+    scrollBottomBtn.onClick(() => {
+      const adj = logScrolled.getVadjustment();
+      adj.setValue(adj.getUpper() - adj.getPageSize());
+    });
+
+    const toggleLogsAction = new SimpleAction("toggle-logs");
+    toggleLogsAction.connect("activate", toggleLogs);
+    window.addAction(toggleLogsAction);
+    app.setAccelsForAction("win.toggle-logs", ["<Control>l"]);
+
+    const aboutAction = new SimpleAction("about");
+    aboutAction.connect("activate", () => {
+      const about = new AboutWindow();
+      about.setTransientFor(window);
+      about.setApplicationName("Chef");
+      about.setApplicationIcon(appId);
+      about.setDeveloperName("sigmaSd");
+      about.setVersion(chef.chefVersion);
+      about.setWebsite("https://github.com/sigmaSd/Chef");
+      about.setIssueUrl("https://github.com/sigmaSd/Chef/issues");
+      about.setLicenseType(7); // MIT
+      about.present();
+    });
+    window.addAction(aboutAction);
+
+    backBtn.onClick(toggleLogs);
+
+    const logBuffer = logView.getBuffer();
+    let logProcess: Deno.ChildProcess | null = null;
+
+    const startLogging = async () => {
+      try {
+        // Format start time for journalctl --since "YYYY-MM-DD HH:MM:SS"
+        const format = (d: Date) =>
+          `${d.getFullYear()}-${
+            (d.getMonth() + 1).toString().padStart(2, "0")
+          }-${d.getDate().toString().padStart(2, "0")} ${
+            d.getHours().toString().padStart(2, "0")
+          }:${d.getMinutes().toString().padStart(2, "0")}:${
+            d.getSeconds().toString().padStart(2, "0")
+          }`;
+
+        const since = format(startTime);
+
+        const command = new Deno.Command("journalctl", {
+          args: [
+            "-f",
+            "-a", // Show blob data
+            "-o",
+            "cat",
+            "-t",
+            `${appId}.desktop`,
+            "--since",
+            since,
+          ],
+          stdout: "piped",
+          stderr: "piped",
+        });
+
+        logProcess = command.spawn();
+
+        const stream = logProcess.stdout
+          .pipeThrough(new TextDecoderStream())
+          .pipeThrough(new TextLineStream());
+
+        const ansiRegex =
+          // deno-lint-ignore no-control-regex
+          /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+
+        for await (const line of stream) {
+          const cleanLine = line.replace(ansiRegex, "");
+          const iter = logBuffer.getEndIter();
+          logBuffer.insert(iter, cleanLine + "\n");
+
+          // Auto scroll to bottom
+          const adj = logScrolled.getVadjustment();
+          adj.setValue(adj.getUpper() - adj.getPageSize());
+        }
+      } catch (e) {
+        console.error("Failed to start logging:", e);
+      }
+    };
+
+    // Logging starts immediately in background
+    startLogging();
 
     const applyFilters = () => {
       const filterText = searchEntry.getText().toLowerCase();
@@ -141,6 +264,14 @@ export async function startGui(chef: ChefInternal) {
         if (searchBar.getSearchMode()) {
           searchEntry.grabFocus();
         }
+        return true;
+      }
+      // Ctrl+l
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === 108 || keyval === 76)
+      ) {
+        toggleLogs();
         return true;
       }
       // Escape
@@ -340,6 +471,13 @@ export async function startGui(chef: ChefInternal) {
     });
 
     window.onCloseRequest(() => {
+      if (logProcess) {
+        try {
+          logProcess.kill();
+        } catch {
+          // Ignore
+        }
+      }
       app.quit();
       // Ensure the process exits
       setTimeout(() => {

@@ -1,6 +1,17 @@
 using Gtk 4.0;
 using Adw 1;
 
+menu hamburger_menu_model {
+    item {
+        label: "Show Logs (Ctrl+L)";
+        action: "win.toggle-logs";
+    }
+    item {
+        label: "About Chef";
+        action: "win.about";
+    }
+}
+
 Adw.ApplicationWindow window {
     title: "Chef";
     default-width: 800;
@@ -10,6 +21,13 @@ Adw.ApplicationWindow window {
         orientation: vertical;
 
         Adw.HeaderBar {
+            [start]
+            Button back_btn {
+                icon-name: "go-previous-symbolic";
+                visible: false;
+                tooltip-text: "Back to Recipes";
+            }
+
             title-widget: Label {
                 label: "Chef";
                 styles [
@@ -29,15 +47,25 @@ Adw.ApplicationWindow window {
                 icon-name: "system-search-symbolic";
                 tooltip-text: "Search";
             }
+
+            [end]
+            MenuButton hamburger_menu {
+                icon-name: "open-menu-symbolic";
+                menu-model: hamburger_menu_model;
+                primary: true;
+            }
         }
 
         Adw.ViewStack stack {
+            vexpand: true;
+
             Adw.ViewStackPage {
                 name: "recipes";
                 title: "Recipes";
                 icon-name: "view-list-bullet-symbolic";
                 child: Box {
                     orientation: vertical;
+                    vexpand: true;
 
                     SearchBar search_bar {
                         child: SearchEntry search_entry {
@@ -278,6 +306,47 @@ Adw.ApplicationWindow window {
                                 visible: false;
                             }
                         }
+                    }
+                };
+            }
+
+            Adw.ViewStackPage {
+                name: "logs";
+                title: "Logs";
+                icon-name: "view-list-bullet-symbolic";
+                child: Overlay {
+                    vexpand: true;
+                    hexpand: true;
+
+                    child: ScrolledWindow log_scrolled {
+                        vexpand: true;
+                        styles [
+                            "frame",
+                        ]
+                        TextView log_view {
+                            editable: false;
+                            cursor-visible: false;
+                            monospace: true;
+                            wrap-mode: word_char;
+                            left-margin: 10;
+                            right-margin: 10;
+                            top-margin: 10;
+                            bottom-margin: 10;
+                        }
+                    };
+
+                    [overlay]
+                    Button scroll_bottom_btn {
+                        icon-name: "go-bottom-symbolic";
+                        halign: end;
+                        valign: end;
+                        margin-bottom: 20;
+                        margin-end: 20;
+                        tooltip-text: "Scroll to Bottom";
+                        styles [
+                            "osd",
+                            "circular",
+                        ]
                     }
                 };
             }
