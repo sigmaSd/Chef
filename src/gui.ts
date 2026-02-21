@@ -239,10 +239,10 @@ export async function startGui(chef: ChefInternal) {
       // Track which expanders should be visible
       const expanderVisibility = new Map<ExpanderRow, boolean>();
 
-      let anyUpdate = false;
+      let updateCount = 0;
       for (const r of recipeRows) {
         if (r.isInstalled && r.hasUpdate) {
-          anyUpdate = true;
+          updateCount++;
         }
 
         const matchesSearch = !filterText ||
@@ -263,10 +263,12 @@ export async function startGui(chef: ChefInternal) {
 
       updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
 
-      if (anyUpdate) {
+      if (updateCount > 0) {
         updatesOnlyBtn.setVisible(true);
         updatesOnlyBtn.addCssClass("warning");
-        updatesOnlyBtn.setLabel("🔄");
+        updatesOnlyBtn.setTooltipText(
+          `Show updates only (${updateCount} available)`,
+        );
       } else {
         updatesOnlyBtn.setVisible(false);
         updatesOnlyBtn.setActive(false);
@@ -538,6 +540,7 @@ export async function startGui(chef: ChefInternal) {
       return false;
     });
 
+    window.maximize();
     window.present();
   });
 

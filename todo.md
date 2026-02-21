@@ -22,5 +22,8 @@ and proceeding. Update task descriptions as implementation details evolve.
 
 # Upcoming Tasks
 
-- [ ] Start with the window maximized
-- [ ] Improve the "Update Available" toggle icon
+- [x] Start with the window maximized
+- [x] Improve the "Update Available" toggle icon
+  - Replaced the emoji with a standard symbolic icon.
+  - Added an update count to the tooltip for better UX.
+  - Maintained the "warning" highlight when updates are available.
