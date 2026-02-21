@@ -8,6 +8,7 @@ import {
   Entry,
   EventControllerKey,
   ExpanderRow,
+  Key,
   Label,
   ListBox,
   ListBoxRow,
@@ -85,6 +86,9 @@ export async function startGui(chef: ChefInternal) {
     const searchBtn = builder.get("search_btn", ToggleButton) ?? expect(
       "missing search_btn",
     );
+    const refreshBtn = builder.get("refresh_btn", Button) ?? expect(
+      "missing refresh_btn",
+    );
     const updatesOnlyBtn = builder.get("updates_only_btn", ToggleButton) ??
       expect(
         "missing updates_only_btn",
@@ -126,6 +130,9 @@ export async function startGui(chef: ChefInternal) {
 
     const updateMenu = (isLogsPage: boolean) => {
       hamburgerMenuModel.removeAll();
+      if (!isLogsPage) {
+        hamburgerMenuModel.append("Refresh Recipes (Ctrl+R)", "win.refresh");
+      }
       hamburgerMenuModel.append(
         isLogsPage ? "Show Recipes (Ctrl+L)" : "Show Logs (Ctrl+L)",
         "win.toggle-logs",
@@ -307,38 +314,6 @@ export async function startGui(chef: ChefInternal) {
 
     searchEntry.onChanged(applyFilters);
 
-    const keyController = new EventControllerKey();
-    keyController.onKeyPressed((keyval, _keycode, state) => {
-      // Ctrl+f
-      if (
-        (state & ModifierType.CONTROL_MASK) &&
-        (keyval === 102 || keyval === 70)
-      ) {
-        searchBar.setSearchMode(!searchBar.getSearchMode());
-        if (searchBar.getSearchMode()) {
-          searchEntry.grabFocus();
-        }
-        return true;
-      }
-      // Ctrl+l
-      if (
-        (state & ModifierType.CONTROL_MASK) &&
-        (keyval === 108 || keyval === 76)
-      ) {
-        toggleLogs();
-        return true;
-      }
-      // Escape
-      if (keyval === 65307) {
-        if (searchBar.getSearchMode()) {
-          searchBar.setSearchMode(false);
-          return true;
-        }
-      }
-      return false;
-    });
-    window.addController(keyController);
-
     versionLabel.setText(`v${chef.chefVersion}`);
     editorEntry.setText(chef.getEditorCommand());
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
@@ -447,6 +422,73 @@ export async function startGui(chef: ChefInternal) {
       }
     });
 
+    const onRefresh = async () => {
+      if (!refreshBtn.getSensitive()) return;
+      console.log("Refreshing recipes...");
+      refreshBtn.setSensitive(false);
+      await refreshList();
+      refreshBtn.setSensitive(true);
+    };
+
+    refreshBtn.onClick(onRefresh);
+
+    const refreshAction = new SimpleAction("refresh");
+    refreshAction.connect("activate", () => {
+      console.log("Refresh action activated");
+      const page = stack.getVisibleChildName();
+      console.log("Current page:", page);
+      if (page === "recipes") {
+        onRefresh();
+      }
+    });
+    window.addAction(refreshAction);
+    app.setAccelsForAction("win.refresh", ["<Control>r", "F5"]);
+
+    const keyController = new EventControllerKey();
+    keyController.onKeyPressed((keyval, _keycode, state) => {
+      // Ctrl+f
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === Key.f || keyval === Key.F)
+      ) {
+        searchBar.setSearchMode(!searchBar.getSearchMode());
+        if (searchBar.getSearchMode()) {
+          searchEntry.grabFocus();
+        }
+        return true;
+      }
+      // Ctrl+l
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === Key.l || keyval === Key.L)
+      ) {
+        toggleLogs();
+        return true;
+      }
+      // Ctrl+r
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === Key.r || keyval === Key.R)
+      ) {
+        onRefresh();
+        return true;
+      }
+      // F5
+      if (keyval === Key.F5) {
+        onRefresh();
+        return true;
+      }
+      // Escape
+      if (keyval === Key.Escape) {
+        if (searchBar.getSearchMode()) {
+          searchBar.setSearchMode(false);
+          return true;
+        }
+      }
+      return false;
+    });
+    window.addController(keyController);
+
     updateAllBtn.onClick(async () => {
       const updatesOnly = updatesOnlyBtn.getActive();
       updateAllBtn.setSensitive(false);
@@ -499,6 +541,7 @@ export async function startGui(chef: ChefInternal) {
     });
 
     // Initial populate
+    updateMenu(false);
     refreshList();
 
     // Register dax command listener

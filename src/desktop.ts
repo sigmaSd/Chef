@@ -24,6 +24,7 @@ export class DesktopFileManager {
       icon?: string;
     },
   ) {
+    if (Deno.build.os !== "linux") return;
     const recipe = this.recipes.find((r) => r.name === name);
     if (!recipe) {
       console.error(
@@ -89,6 +90,7 @@ export class DesktopFileManager {
    * Install Chef GUI as a desktop application
    */
   async installGui() {
+    if (Deno.build.os !== "linux") return;
     const appId = "io.github.sigmasd.chef";
     const desktopDir = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
@@ -159,6 +161,7 @@ Icon=${iconValue}`;
    * Uninstall Chef GUI desktop application
    */
   uninstallGui() {
+    if (Deno.build.os !== "linux") return;
     const appId = "io.github.sigmasd.chef";
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
@@ -196,6 +199,7 @@ Icon=${iconValue}`;
    * Remove a desktop file for a binary
    */
   remove(name: string, options: { silent?: boolean } = {}) {
+    if (Deno.build.os !== "linux") return;
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
@@ -268,6 +272,7 @@ ${icon ? `Icon=${icon}` : ""}`;
    * Check if a desktop file exists for a binary
    */
   exists(name: string): boolean {
+    if (Deno.build.os !== "linux") return false;
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",

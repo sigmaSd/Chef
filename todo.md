@@ -27,3 +27,12 @@ and proceeding. Update task descriptions as implementation details evolve.
   - Replaced the emoji with a standard symbolic icon.
   - Added an update count to the tooltip for better UX.
   - Maintained the "warning" highlight when updates are available.
+- [x] Maybe we need a refresh button to relook for updates
+  - Added a "Refresh" button in the header bar with `view-refresh-symbolic`
+    icon.
+  - Implemented `Ctrl+R` and `F5` keyboard shortcuts for refreshing.
+  - Added "Refresh Recipes (Ctrl+R)" to the hamburger menu.
+  - Refresh logic re-triggers provider discovery and update checks for all
+    recipes.
+- [ ] Epic: Add a way to see older version of an app and offer to install them,
+  thisrequrie planning
