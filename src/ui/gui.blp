@@ -141,7 +141,7 @@ Adw.ApplicationWindow window {
                                 icon-name: "emblem-system-symbolic";
                                 tooltip-text: "Settings";
 
-                                popover: Popover {
+                                popover: Popover settings_popover {
                                     Box {
                                         orientation: vertical;
                                         spacing: 10;
@@ -167,6 +167,16 @@ Adw.ApplicationWindow window {
 
                                         Entry terminal_entry {
                                             placeholder-text: "e.g. kgx -e";
+                                        }
+
+                                        CheckButton background_btn {
+                                            label: "Stay in background";
+                                            margin-top: 10;
+                                        }
+
+                                        CheckButton auto_update_btn {
+                                            label: "Automatic update check";
+                                            margin-top: 5;
                                         }
 
                                         Button save_settings_btn {

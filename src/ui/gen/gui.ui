@@ -154,7 +154,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                 <property name="icon-name">emblem-system-symbolic</property>
                                 <property name="tooltip-text">Settings</property>
                                 <property name="popover">
-                                  <object class="GtkPopover">
+                                  <object class="GtkPopover" id="settings_popover">
                                     <child>
                                       <object class="GtkBox">
                                         <property name="orientation">1</property>
@@ -184,6 +184,18 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                         <child>
                                           <object class="GtkEntry" id="terminal_entry">
                                             <property name="placeholder-text">e.g. kgx -e</property>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkCheckButton" id="background_btn">
+                                            <property name="label">Stay in background</property>
+                                            <property name="margin-top">10</property>
+                                          </object>
+                                        </child>
+                                        <child>
+                                          <object class="GtkCheckButton" id="auto_update_btn">
+                                            <property name="label">Automatic update check</property>
+                                            <property name="margin-top">5</property>
                                           </object>
                                         </child>
                                         <child>

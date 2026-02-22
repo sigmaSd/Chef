@@ -42,3 +42,9 @@ and proceeding. Update task descriptions as implementation details evolve.
   - Replaced latest version label in GUI with a `MenuButton` and `Popover`.
   - Added search and pagination ("Load More") for versions in the GUI.
   - Added "Install custom version" option when searching for unlisted versions.
+
+- Add an option that allows the app to stay active in the background instead of
+  exiting
+- Make it check for updates automaticlly each minutes, Make sure that updating
+  doesnt' conflict with installing, as in if something is already installing
+  updates should wait I guess?

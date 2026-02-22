@@ -31,6 +31,7 @@ export class ChefInternal {
   chefPath: string = Deno.mainModule;
   recipes: Recipe[] = [];
   private providerSessions: Map<string, ProviderSession> = new Map();
+  isBusy = false;
 
   // Get the script name for namespacing
   private get scriptName() {
@@ -868,6 +869,35 @@ export class ChefInternal {
    */
   setTerminalCommand = (command: string) => {
     this.database.setSetting("terminalCommand", command);
+  };
+
+  /**
+   * Check if the app should stay active in the background
+   */
+  getStayInBackground = (): boolean => {
+    return this.database.getSetting("stayInBackground") === "true";
+  };
+
+  /**
+   * Set if the app should stay active in the background
+   */
+  setStayInBackground = (stay: boolean) => {
+    this.database.setSetting("stayInBackground", stay.toString());
+  };
+
+  /**
+   * Check if the app should automatically check for updates
+   */
+  getAutoUpdateCheck = (): boolean => {
+    const setting = this.database.getSetting("autoUpdateCheck");
+    return setting === undefined || setting === "true";
+  };
+
+  /**
+   * Set if the app should automatically check for updates
+   */
+  setAutoUpdateCheck = (auto: boolean) => {
+    this.database.setSetting("autoUpdateCheck", auto.toString());
   };
 
   /**

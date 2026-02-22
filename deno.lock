@@ -8,7 +8,7 @@
     "jsr:@sigma/deno-compat@0.22.0": "0.22.0",
     "jsr:@sigma/parse@0.46": "0.46.0",
     "jsr:@sigma/parse@0.53": "0.53.0",
-    "jsr:@sigmasd/gtk@0.46": "0.46.0",
+    "jsr:@sigmasd/gtk@0.47": "0.47.0",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/async@^1.2.0": "1.2.0",
@@ -63,8 +63,8 @@
     "@sigma/parse@0.53.0": {
       "integrity": "40a409349a448f591d2f8a7df704d15c83155d343403e322c55f562b5bae95ff"
     },
-    "@sigmasd/gtk@0.46.0": {
-      "integrity": "ae0a593bac6cac12f4f86efb38a7bced903f57cd7ed0704c14b794d610d97d8c",
+    "@sigmasd/gtk@0.47.0": {
+      "integrity": "53423fbaf4b4dca4d4063b097223d3011d0babf5ffd0a0ed81c766514f739289",
       "dependencies": [
         "jsr:@sigma/deno-compat"
       ]
@@ -144,7 +144,7 @@
     "dependencies": [
       "jsr:@david/dax@0.45",
       "jsr:@sigma/parse@0.53",
-      "jsr:@sigmasd/gtk@0.46",
+      "jsr:@sigmasd/gtk@0.47",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/async@^1.2.0",

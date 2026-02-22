@@ -5,6 +5,7 @@ import {
   Box,
   Builder,
   Button,
+  CheckButton,
   Entry,
   EventControllerKey,
   ExpanderRow,
@@ -42,14 +43,23 @@ export async function startGui(chef: ChefInternal) {
   const startTime = new Date();
   const eventLoop = new EventLoop();
 
+  let window: ApplicationWindow | null = null;
+
   app.onActivate(() => {
+    if (window) {
+      window.present();
+      return;
+    }
     const builder = new Builder();
     const uiData = new TextDecoder().decode(decodeBase64(guiUiJson.value));
     builder.addFromString(uiData);
 
-    const window = builder.get("window", ApplicationWindow) ?? expect(
+    window = builder.get("window", ApplicationWindow) ?? expect(
       "missing window",
     );
+    // Setting hide-on-close to true ensures that the window is just hidden by default
+    // when clicking the close button.
+    window.setHideOnClose(true);
     const versionLabel = builder.get("version_label", Label) ?? expect(
       "missing version_label",
     );
@@ -72,6 +82,15 @@ export async function startGui(chef: ChefInternal) {
     );
     const terminalEntry = builder.get("terminal_entry", Entry) ?? expect(
       "missing terminal_entry",
+    );
+    const backgroundBtn = builder.get("background_btn", CheckButton) ?? expect(
+      "missing background_btn",
+    );
+    const autoUpdateBtn = builder.get("auto_update_btn", CheckButton) ?? expect(
+      "missing auto_update_btn",
+    );
+    const settingsPopover = builder.get("settings_popover", Popover) ?? expect(
+      "missing settings_popover",
     );
     const saveSettingsBtn = builder.get("save_settings_btn", Button) ?? expect(
       "missing save_settings_btn",
@@ -166,7 +185,9 @@ export async function startGui(chef: ChefInternal) {
     const aboutAction = new SimpleAction("about");
     aboutAction.connect("activate", () => {
       const about = new AboutWindow();
-      about.setTransientFor(window);
+      if (window) {
+        about.setTransientFor(window);
+      }
       about.setApplicationName("Chef");
       about.setApplicationIcon(appId);
       about.setDeveloperName("sigmaSd");
@@ -317,13 +338,15 @@ export async function startGui(chef: ChefInternal) {
     versionLabel.setText(`v${chef.chefVersion}`);
     editorEntry.setText(chef.getEditorCommand());
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
+    backgroundBtn.setActive(chef.getStayInBackground());
+    autoUpdateBtn.setActive(chef.getAutoUpdateCheck());
 
     saveSettingsBtn.onClick(() => {
       chef.setEditorCommand(editorEntry.getText());
       chef.setTerminalCommand(terminalEntry.getText());
-      // The popover is handled by GtkMenuButton in the UI file,
-      // but we might want to close it manually.
-      // For now, let's assume it stays open or closes on focus loss.
+      chef.setStayInBackground(backgroundBtn.getActive());
+      chef.setAutoUpdateCheck(autoUpdateBtn.getActive());
+      settingsPopover.popdown();
     });
 
     const refreshList = async (skipProviderRefresh = false) => {
@@ -424,11 +447,13 @@ export async function startGui(chef: ChefInternal) {
     });
 
     const onRefresh = async () => {
-      if (!refreshBtn.getSensitive()) return;
+      if (!refreshBtn.getSensitive() || chef.isBusy) return;
+      chef.isBusy = true;
       console.log("Refreshing recipes...");
       refreshBtn.setSensitive(false);
       await refreshList();
       refreshBtn.setSensitive(true);
+      chef.isBusy = false;
     };
 
     refreshBtn.onClick(onRefresh);
@@ -491,6 +516,8 @@ export async function startGui(chef: ChefInternal) {
     window.addController(keyController);
 
     updateAllBtn.onClick(async () => {
+      if (chef.isBusy) return;
+      chef.isBusy = true;
       const updatesOnly = updatesOnlyBtn.getActive();
       updateAllBtn.setSensitive(false);
       updateAllBtn.setLabel(
@@ -524,6 +551,7 @@ export async function startGui(chef: ChefInternal) {
         cancelBtn.setVisible(false);
         recipeRows.forEach((r) => r.setSensitive(true));
         abortController = null;
+        chef.isBusy = false;
       }
     });
 
@@ -572,6 +600,10 @@ export async function startGui(chef: ChefInternal) {
     });
 
     window.onCloseRequest(() => {
+      if (chef.getStayInBackground()) {
+        window?.hide();
+        return true; // Signal that we handled it, preventing destruction
+      }
       if (logProcess) {
         try {
           logProcess.kill();
@@ -584,8 +616,16 @@ export async function startGui(chef: ChefInternal) {
       setTimeout(() => {
         Deno.exit(0);
       }, 100);
-      return false;
+      return false; // Default action (hide/destroy)
     });
+
+    // Automatic update check every 60 minutes
+    setInterval(() => {
+      if (chef.getAutoUpdateCheck()) {
+        console.log("Automatic update check...");
+        onRefresh();
+      }
+    }, 60 * 60 * 1000);
 
     window.maximize();
     window.present();
@@ -919,9 +959,11 @@ function createRecipeRow(
   });
 
   versionsList.onRowActivated(async (row) => {
+    if (chef.isBusy) return;
     const version = row.getData("version");
     if (!version) return;
 
+    chef.isBusy = true;
     versionsPopover.popdown();
     setGroupState(false, `Installing ${version}...`);
     statusLabel.removeCssClass("success");
@@ -951,6 +993,7 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
+      chef.isBusy = false;
     }
   });
 
@@ -982,6 +1025,8 @@ function createRecipeRow(
   updateButtons();
 
   installBtn.onClick(async () => {
+    if (chef.isBusy) return;
+    chef.isBusy = true;
     setGroupState(false, "Installing...");
     installBtn.setLabel("Installing...");
     statusLabel.removeCssClass("success");
@@ -1012,10 +1057,13 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
+      chef.isBusy = false;
     }
   });
 
   removeBtn.onClick(async () => {
+    if (chef.isBusy) return;
+    chef.isBusy = true;
     morePopover.popdown();
     setGroupState(false, "Removing...");
     statusLabel.removeCssClass("success");
@@ -1041,10 +1089,13 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
+      chef.isBusy = false;
     }
   });
 
   const onUpdateOrReinstall = async (force: boolean) => {
+    if (chef.isBusy) return;
+    chef.isBusy = true;
     const isReinstall = force;
     const btn = isReinstall ? reinstallBtn : updateBtn;
     if (isReinstall) {
@@ -1084,6 +1135,7 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
+      chef.isBusy = false;
     }
   };
 
