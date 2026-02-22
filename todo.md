@@ -43,8 +43,11 @@ and proceeding. Update task descriptions as implementation details evolve.
   - Added search and pagination ("Load More") for versions in the GUI.
   - Added "Install custom version" option when searching for unlisted versions.
 
-- Add an option that allows the app to stay active in the background instead of
-  exiting
-- Make it check for updates automaticlly each minutes, Make sure that updating
-  doesnt' conflict with installing, as in if something is already installing
-  updates should wait I guess?
+- [x] Add an option that allows the app to stay active in the background instead
+      of exiting
+- [x] Make it check for updates automaticlly each minutes, Make sure that
+      updating doesnt' conflict with installing, as in if something is already
+      installing updates should wait I guess?
+
+- [ ] If we detect new updates while being in the background we should notify
+      the user, also add a setting to enable/disable this behavior
