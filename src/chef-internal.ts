@@ -875,7 +875,7 @@ export class ChefInternal {
    * Check if the app should stay active in the background
    */
   getStayInBackground = (): boolean => {
-    return this.database.getSetting("stayInBackground") === "false";
+    return this.database.getSetting("stayInBackground") === "true";
   };
 
   /**
