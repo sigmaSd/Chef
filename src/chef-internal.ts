@@ -33,23 +33,35 @@ export class ChefInternal {
   private providerSessions: Map<string, ProviderSession> = new Map();
   isBusy = false;
 
-  // Get the script name for namespacing
-  get scriptName() {
+  private _scriptName: string | null = null;
+
+  async init() {
+    if (this._scriptName) return;
+
     const fullPath = this.chefPath.startsWith("file://")
       ? path.fromFileUrl(this.chefPath)
       : this.chefPath;
 
     const name = path.basename(fullPath, path.extname(fullPath)) || "default";
 
-    // Simple hash of fullPath to ensure uniqueness for different scripts with the same name
-    let hash = 0;
-    for (let i = 0; i < fullPath.length; i++) {
-      hash = ((hash << 5) - hash) + fullPath.charCodeAt(i);
-      hash |= 0; // Convert to 32bit integer
-    }
-    const hashStr = Math.abs(hash).toString(36);
+    // Use a hash of the full path to ensure uniqueness
+    const data = new TextEncoder().encode(fullPath);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray
+      .slice(0, 4) // Use first 4 bytes for a short hash
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
 
-    return `${name}-${hashStr}`;
+    this._scriptName = `${name}-${hashHex}`;
+  }
+
+  // Get the script name for namespacing
+  get scriptName() {
+    if (!this._scriptName) {
+      throw new Error("ChefInternal not initialized. Call init() first.");
+    }
+    return this._scriptName;
   }
 
   /**
@@ -642,6 +654,7 @@ export class ChefInternal {
    * Now throws parsing errors for caller to handle (exit or test)
    */
   start = async (args: string[]) => {
+    await this.init();
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
         await this.refreshRecipes();

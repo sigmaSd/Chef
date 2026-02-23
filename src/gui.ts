@@ -40,6 +40,14 @@ export async function startGui(chef: ChefInternal) {
   const appId = chef.getAppId();
   Application.setName(`Chef - ${chef.scriptName}`);
   const app = new Application(appId, 0);
+
+  app.register();
+  if (app.getIsRemote()) {
+    console.log("Another instance is already running. Focusing it.");
+    app.activate();
+    return;
+  }
+
   const startTime = new Date();
   const eventLoop = new EventLoop();
 
