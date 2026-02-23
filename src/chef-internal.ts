@@ -875,7 +875,7 @@ export class ChefInternal {
    * Check if the app should stay active in the background
    */
   getStayInBackground = (): boolean => {
-    return this.database.getSetting("stayInBackground") === "true";
+    return this.database.getSetting("stayInBackground") === "false";
   };
 
   /**
@@ -898,6 +898,24 @@ export class ChefInternal {
    */
   setAutoUpdateCheck = (auto: boolean) => {
     this.database.setSetting("autoUpdateCheck", auto.toString());
+  };
+
+  /**
+   * Check if the app should notify about updates in background
+   */
+  getBackgroundUpdateNotification = (): boolean => {
+    const setting = this.database.getSetting("backgroundUpdateNotification");
+    return setting === undefined || setting === "true";
+  };
+
+  /**
+   * Set if the app should notify about updates in background
+   */
+  setBackgroundUpdateNotification = (notify: boolean) => {
+    this.database.setSetting(
+      "backgroundUpdateNotification",
+      notify.toString(),
+    );
   };
 
   /**

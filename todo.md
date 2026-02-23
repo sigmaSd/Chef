@@ -7,6 +7,4 @@ implementation details evolve.
 
 ## Upcoming Tasks
 
-- [ ] Detect new updates while in the background and notify the user.
-
-- [ ] Add a setting to enable/disable background notification behavior.
+- [ ] (Empty)

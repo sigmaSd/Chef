@@ -21,3 +21,7 @@
       styling and 🔄 icon
 
 - [x] Add live logs view in the GUI (Togglable with Hamburger menu or Ctrl+L)
+
+- [x] Detect new updates while in the background and notify the user
+
+- [x] Add a setting to enable/disable background notification behavior

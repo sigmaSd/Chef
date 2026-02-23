@@ -199,6 +199,12 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                           </object>
                                         </child>
                                         <child>
+                                          <object class="GtkCheckButton" id="notification_btn">
+                                            <property name="label">Background update notification</property>
+                                            <property name="margin-top">5</property>
+                                          </object>
+                                        </child>
+                                        <child>
                                           <object class="GtkButton" id="save_settings_btn">
                                             <property name="label">Save</property>
                                             <style>

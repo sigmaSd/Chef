@@ -26,7 +26,7 @@ import {
   ViewStack,
 } from "@sigmasd/gtk/gtk4";
 import { EventLoop } from "@sigmasd/gtk/eventloop";
-import { Menu, SimpleAction } from "@sigmasd/gtk/gio";
+import { Menu, Notification, SimpleAction } from "@sigmasd/gtk/gio";
 import { decodeBase64 } from "@std/encoding/base64";
 import { TextLineStream } from "@std/streams/text-line-stream";
 import type { ChefInternal } from "./chef-internal.ts";
@@ -89,6 +89,10 @@ export async function startGui(chef: ChefInternal) {
     const autoUpdateBtn = builder.get("auto_update_btn", CheckButton) ?? expect(
       "missing auto_update_btn",
     );
+    const notificationBtn = builder.get("notification_btn", CheckButton) ??
+      expect(
+        "missing notification_btn",
+      );
     const settingsPopover = builder.get("settings_popover", Popover) ?? expect(
       "missing settings_popover",
     );
@@ -331,6 +335,7 @@ export async function startGui(chef: ChefInternal) {
       expanderRow: ExpanderRow;
       isInstalled: boolean;
       hasUpdate: boolean;
+      updateStatusPromise: Promise<void>;
     }[] = [];
 
     searchEntry.onChanged(applyFilters);
@@ -340,12 +345,14 @@ export async function startGui(chef: ChefInternal) {
     chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
     backgroundBtn.setActive(chef.getStayInBackground());
     autoUpdateBtn.setActive(chef.getAutoUpdateCheck());
+    notificationBtn.setActive(chef.getBackgroundUpdateNotification());
 
     saveSettingsBtn.onClick(() => {
       chef.setEditorCommand(editorEntry.getText());
       chef.setTerminalCommand(terminalEntry.getText());
       chef.setStayInBackground(backgroundBtn.getActive());
       chef.setAutoUpdateCheck(autoUpdateBtn.getActive());
+      chef.setBackgroundUpdateNotification(notificationBtn.getActive());
       settingsPopover.popdown();
     });
 
@@ -400,6 +407,7 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
+            updateStatusPromise,
           } = createRecipeRow(
             chef,
             recipe,
@@ -432,10 +440,17 @@ export async function startGui(chef: ChefInternal) {
             expanderRow: expander,
             isInstalled: false,
             hasUpdate: false,
+            updateStatusPromise,
           });
           expander.addRow(row);
         }
       }
+
+      // Wait for all rows to finish checking updates
+      await Promise.all(
+        recipeRows.map((r) => r.updateStatusPromise),
+      );
+
       applyFilters();
     };
 
@@ -620,10 +635,26 @@ export async function startGui(chef: ChefInternal) {
     });
 
     // Automatic update check every 60 minutes
-    setInterval(() => {
+    setInterval(async () => {
       if (chef.getAutoUpdateCheck()) {
         console.log("Automatic update check...");
-        onRefresh();
+        await onRefresh();
+
+        if (
+          chef.getBackgroundUpdateNotification() &&
+          window && !window.getVisible()
+        ) {
+          const updates = recipeRows.filter((r) =>
+            r.isInstalled && r.hasUpdate
+          );
+          if (updates.length > 0) {
+            const notification = new Notification("Chef Updates Available");
+            notification.setBody(
+              `${updates.length} updates are available for your apps.`,
+            );
+            app.sendNotification("chef-updates", notification);
+          }
+        }
       }
     }, 60 * 60 * 1000);
 
@@ -668,6 +699,7 @@ function createRecipeRow(
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
   updateStatusLabel: (text: string) => void;
+  updateStatusPromise: Promise<void>;
 } {
   const builder = new Builder();
   const uiData = new TextDecoder().decode(decodeBase64(recipeRowUiJson.value));
@@ -892,7 +924,7 @@ function createRecipeRow(
     // Always check for latest version regardless of installation status
     await checkUpdate();
   };
-  updateStatus();
+  const updateStatusPromise = updateStatus();
 
   const fetchVersions = async (page: number) => {
     if (isFetching) return;
@@ -1183,5 +1215,11 @@ function createRecipeRow(
     }
   });
 
-  return { row, setSensitive, updateRunningStatus, updateStatusLabel };
+  return {
+    row,
+    setSensitive,
+    updateRunningStatus,
+    updateStatusLabel,
+    updateStatusPromise,
+  };
 }
