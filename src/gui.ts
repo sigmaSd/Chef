@@ -37,8 +37,8 @@ import guiUiJson from "./ui/gen/gui.json" with { type: "json" };
 import recipeRowUiJson from "./ui/gen/recipe_row.json" with { type: "json" };
 
 export async function startGui(chef: ChefInternal) {
-  Application.setName("Chef");
-  const appId = "io.github.sigmasd.chef";
+  const appId = chef.getAppId();
+  Application.setName(`Chef - ${chef.scriptName}`);
   const app = new Application(appId, 0);
   const startTime = new Date();
   const eventLoop = new EventLoop();

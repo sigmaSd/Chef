@@ -34,12 +34,37 @@ export class ChefInternal {
   isBusy = false;
 
   // Get the script name for namespacing
-  private get scriptName() {
-    const name = this.chefPath.startsWith("file://")
-      ? path.basename(path.fromFileUrl(this.chefPath))
-      : path.basename(this.chefPath);
-    return name ? path.basename(name, path.extname(name)) : "default";
+  get scriptName() {
+    const fullPath = this.chefPath.startsWith("file://")
+      ? path.fromFileUrl(this.chefPath)
+      : this.chefPath;
+
+    const name = path.basename(fullPath, path.extname(fullPath)) || "default";
+
+    // Simple hash of fullPath to ensure uniqueness for different scripts with the same name
+    let hash = 0;
+    for (let i = 0; i < fullPath.length; i++) {
+      hash = ((hash << 5) - hash) + fullPath.charCodeAt(i);
+      hash |= 0; // Convert to 32bit integer
+    }
+    const hashStr = Math.abs(hash).toString(36);
+
+    return `${name}-${hashStr}`;
   }
+
+  /**
+   * Get a valid appId for GTK based on the script name
+   */
+  getAppId = () => {
+    // App ID must be at least two components, all lowercase, alphanumeric/dots/hyphens
+    // and must not start with a digit.
+    const sanitized = this.scriptName
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/^([0-9])/, "n$1");
+    return `io.github.sigmasd.chef.${sanitized}`;
+  };
 
   private readonly basePath = getChefBasePath();
 
@@ -77,6 +102,8 @@ export class ChefInternal {
       this.iconsPath,
       this.chefPath,
       this.recipes,
+      this.getAppId(),
+      this.scriptName,
     );
   }
 

@@ -12,6 +12,8 @@ export class DesktopFileManager {
     private iconsPath: string,
     private chefPath: string,
     private recipes: Recipe[],
+    private appId: string,
+    private scriptName: string,
   ) {}
 
   /**
@@ -91,7 +93,6 @@ export class DesktopFileManager {
    */
   async installGui() {
     if (Deno.build.os !== "linux") return;
-    const appId = "io.github.sigmasd.chef";
     const desktopDir = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
@@ -107,22 +108,24 @@ export class DesktopFileManager {
 
     // Try to find and copy the chef icon
     try {
-      const svgUrl = new URL(`../distro/${appId}.svg`, import.meta.url);
-      const destIconPath = path.join(iconDir, `${appId}.svg`);
+      // Default icon name in the distro
+      const defaultAppId = "io.github.sigmasd.chef";
+      const svgUrl = new URL(`../distro/${defaultAppId}.svg`, import.meta.url);
+      const destIconPath = path.join(iconDir, `${this.appId}.svg`);
 
       const response = await fetch(svgUrl);
       if (response.ok) {
         const bytes = await response.bytes();
         await Deno.writeFile(destIconPath, bytes);
-        iconValue = appId;
+        iconValue = this.appId;
       }
     } catch {
       // Fallback to generic icon if icon not found
     }
 
-    const desktopPath = path.join(desktopDir, `${appId}.desktop`);
+    const desktopPath = path.join(desktopDir, `${this.appId}.desktop`);
     const content = `[Desktop Entry]
-Name=Chef
+Name=Chef - ${this.scriptName}
 Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} gui
 Type=Application
 Terminal=false
@@ -162,11 +165,10 @@ Icon=${iconValue}`;
    */
   uninstallGui() {
     if (Deno.build.os !== "linux") return;
-    const appId = "io.github.sigmasd.chef";
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
-      `${appId}.desktop`,
+      `${this.appId}.desktop`,
     );
 
     // Remove icon if it exists
@@ -174,7 +176,7 @@ Icon=${iconValue}`;
       const iconPath = path.join(
         Deno.env.get("HOME") ?? expect("HOME env var not set"),
         ".local/share/icons/hicolor/scalable/apps",
-        `${appId}.svg`,
+        `${this.appId}.svg`,
       );
       Deno.removeSync(iconPath);
     } catch {

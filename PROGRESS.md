@@ -25,3 +25,6 @@
 - [x] Detect new updates while in the background and notify the user
 
 - [x] Add a setting to enable/disable background notification behavior
+
+- [x] Use a unique appId per Chef script to avoid collisions in desktop files,
+      icons, and GTK instances
