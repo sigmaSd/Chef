@@ -11,7 +11,7 @@ export interface ProviderApp {
   /** The currently installed version, or "-" if not installed. */
   version: string;
   /** The latest available version. */
-  latestVersion: string;
+  latestVersion?: string;
   /** A short description of the application. */
   description?: string;
   /** Whether the application supports listing multiple versions. */

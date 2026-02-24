@@ -389,13 +389,16 @@ export class ChefInternal {
         const apps: ProviderApp[] = msg.data as ProviderApp[];
 
         for (const app of apps) {
+          const currentVersion = app.version ?? "-";
+          const latestVersion = app.latestVersion ?? "-";
+
           const recipe: Recipe = {
             name: app.name,
             provider: provider.name,
             description: app.description,
             _dynamic: true,
             _group: app.group,
-            version: () => Promise.resolve(app.latestVersion),
+            version: () => Promise.resolve(latestVersion),
             download: async ({ latestVersion, signal, force }) => {
               const msg = await this.callProvider(provider.name, "update", {
                 name: app.name,
@@ -412,8 +415,8 @@ export class ChefInternal {
               }
               return { extern: app.name };
             },
-            _currentVersion: app.version,
-            _latestVersion: app.latestVersion,
+            _currentVersion: currentVersion,
+            _latestVersion: latestVersion,
           };
 
           if (app.hasVersions) {
@@ -641,12 +644,15 @@ export class ChefInternal {
 
     if (recipe.provider) {
       // Provider recipes are special
-      const hasLatest = recipe._latestVersion && recipe._latestVersion !== "-";
+      const current = recipe._currentVersion;
+      const latest = recipe._latestVersion;
+
+      const hasLatest = latest && latest !== "-";
+
       return {
-        needsUpdate:
-          !!(hasLatest && recipe._currentVersion !== recipe._latestVersion),
-        currentVersion: recipe._currentVersion,
-        latestVersion: recipe._latestVersion,
+        needsUpdate: !!(hasLatest && current !== latest),
+        currentVersion: current ?? "-",
+        latestVersion: latest ?? "-",
       };
     }
 
