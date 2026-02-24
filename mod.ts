@@ -63,6 +63,7 @@ import { isParseError } from "@sigma/parse";
 import { ChefInternal } from "./src/lib.ts";
 
 export { $ } from "./src/dax_wrapper.ts";
+export * from "./src/sdk.ts";
 
 /**
  * Represents an application.
