@@ -312,6 +312,16 @@ export class ChefInternal {
 
     const onAbort = () => {
       session.pendingRequests.delete(id);
+      // Try to notify the provider about the cancellation (fire and forget)
+      if (this.providerSessions.has(name)) {
+        session.writer.write(
+          JSON.stringify({
+            id: crypto.randomUUID(),
+            command: "cancel",
+            targetId: id,
+          }) + "\n",
+        ).catch(() => {});
+      }
       reject(new DOMException("Aborted", "AbortError"));
     };
     signal?.addEventListener("abort", onAbort);
@@ -340,7 +350,7 @@ export class ChefInternal {
   /**
    * Fetch recipes from all registered providers
    */
-  getProviderRecipes = async (): Promise<Recipe[]> => {
+  getProviderRecipes = async (signal?: AbortSignal): Promise<Recipe[]> => {
     const providers = this.getProviders();
     const providerRecipes: Recipe[] = [];
 
@@ -358,6 +368,8 @@ export class ChefInternal {
         const msg = await this.callProvider(
           provider.name,
           "list",
+          {},
+          signal,
         ) as ProviderResponse;
 
         if (msg.success === false) {
@@ -384,11 +396,12 @@ export class ChefInternal {
             _dynamic: true,
             _group: app.group,
             version: () => Promise.resolve(app.latestVersion),
-            download: async ({ latestVersion }) => {
+            download: async ({ latestVersion, signal, force }) => {
               const msg = await this.callProvider(provider.name, "update", {
                 name: app.name,
                 version: latestVersion,
-              }) as ProviderResponse;
+                force,
+              }, signal) as ProviderResponse;
 
               if (!msg.success) {
                 throw new Error(
@@ -413,6 +426,9 @@ export class ChefInternal {
           providerRecipes.push(recipe);
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
         console.error(
           `Failed to fetch recipes from provider "${provider.name}":`,
           error,
@@ -444,7 +460,7 @@ export class ChefInternal {
       version: options.version,
     });
     if (!options.dryRun) {
-      await this.refreshRecipes();
+      await this.refreshRecipes(options.signal);
     }
   };
 
@@ -474,6 +490,9 @@ export class ChefInternal {
           return msg.data as string[];
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
         console.error(
           `Failed to fetch versions from provider "${recipe.provider}":`,
           error,
@@ -499,7 +518,7 @@ export class ChefInternal {
   ) => {
     await this.binaryUpdater.update(options);
     if (!options.dryRun) {
-      await this.refreshRecipes();
+      await this.refreshRecipes(options.signal);
     }
   };
 
@@ -562,25 +581,32 @@ export class ChefInternal {
   /**
    * Fetch recipes from all registered providers and add them to internal list
    */
-  refreshRecipes = async () => {
-    // Remove old provider recipes that were dynamically discovered
-    const nativeRecipes = this.recipes.filter((r) =>
-      !(r.provider && r._dynamic)
-    );
-    const providerRecipes = await this.getProviderRecipes();
-
-    this.recipes.splice(
-      0,
-      this.recipes.length,
-      ...nativeRecipes,
-      ...providerRecipes,
-    );
-    this.recipes.sort((a, b) => a.name.localeCompare(b.name));
-
-    if (providerRecipes.length > 0) {
-      console.log(
-        `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
+  refreshRecipes = async (signal?: AbortSignal) => {
+    try {
+      // Remove old provider recipes that were dynamically discovered
+      const nativeRecipes = this.recipes.filter((r) =>
+        !(r.provider && r._dynamic)
       );
+      const providerRecipes = await this.getProviderRecipes(signal);
+
+      this.recipes.splice(
+        0,
+        this.recipes.length,
+        ...nativeRecipes,
+        ...providerRecipes,
+      );
+      this.recipes.sort((a, b) => a.name.localeCompare(b.name));
+
+      if (providerRecipes.length > 0) {
+        console.log(
+          `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
+        );
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
+      throw e;
     }
   };
 
@@ -783,11 +809,12 @@ export class ChefInternal {
 
         if (msg.success) {
           console.log(`✅ Successfully uninstalled "${name}"`);
-          await this.refreshRecipes();
+          await this.refreshRecipes(options.signal);
         } else {
           console.error(`❌ Failed to uninstall "${name}"`);
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") throw e;
         console.error(`Failed to uninstall ${name}:`, e);
       }
       return;

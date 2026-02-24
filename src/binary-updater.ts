@@ -272,6 +272,7 @@ export class BinaryUpdater {
           recipe,
           latestVersion,
           options.signal,
+          options.force,
         );
 
         if (recipe.postInstall && !installInfo.extern) {
@@ -372,12 +373,14 @@ export class BinaryUpdater {
     recipe: Recipe,
     latestVersion: string,
     signal?: AbortSignal,
+    force?: boolean,
   ): Promise<{ binaryPath: string; destDir?: string; extern?: string }> {
     return await runInTempDir(async () => {
       setSignal(signal);
-      const tempBin = await recipe.download({ latestVersion, signal }).finally(
-        () => setSignal(undefined),
-      );
+      const tempBin = await recipe.download({ latestVersion, signal, force })
+        .finally(
+          () => setSignal(undefined),
+        );
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
       const binaryPath = path.join(this.binPath, recipe.name + exeExtension);
 

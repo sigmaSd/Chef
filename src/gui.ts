@@ -364,18 +364,19 @@ export async function startGui(chef: ChefInternal) {
       settingsPopover.popdown();
     });
 
-    const refreshList = async (skipProviderRefresh = false) => {
+    const refreshList = async (
+      skipProviderRefresh = false,
+      signal?: AbortSignal,
+    ) => {
       if (!skipProviderRefresh) {
         statusLabel.setText("Refreshing recipes...");
+        await chef.refreshRecipes(signal);
       }
       listBox.removeAll();
       listBox.append(headerRow);
 
       recipeRows.length = 0;
 
-      if (!skipProviderRefresh) {
-        await chef.refreshRecipes();
-      }
       const allRecipes = chef.recipes;
       statusLabel.setText("Idle");
 
@@ -474,9 +475,20 @@ export async function startGui(chef: ChefInternal) {
       chef.isBusy = true;
       console.log("Refreshing recipes...");
       refreshBtn.setSensitive(false);
-      await refreshList();
-      refreshBtn.setSensitive(true);
-      chef.isBusy = false;
+      cancelBtn.setVisible(true);
+      abortController = new AbortController();
+      try {
+        await refreshList(false, abortController.signal);
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          console.error(e);
+        }
+      } finally {
+        refreshBtn.setSensitive(true);
+        cancelBtn.setVisible(false);
+        abortController = null;
+        chef.isBusy = false;
+      }
     };
 
     refreshBtn.onClick(onRefresh);
@@ -565,9 +577,11 @@ export async function startGui(chef: ChefInternal) {
         } else {
           await chef.updateAll({ signal: abortController.signal });
         }
-        await refreshList();
+        await refreshList(false, abortController.signal);
       } catch (e) {
-        console.error(e);
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          console.error(e);
+        }
       } finally {
         updateAllBtn.setSensitive(true);
         updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
