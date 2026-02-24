@@ -1,5 +1,6 @@
 import {
   AboutWindow,
+  AlertDialog,
   Application,
   ApplicationWindow,
   Box,
@@ -117,6 +118,9 @@ export async function startGui(chef: ChefInternal) {
     const searchBtn = builder.get("search_btn", ToggleButton) ?? expect(
       "missing search_btn",
     );
+    const exitBtn = builder.get("exit_btn", Button) ?? expect(
+      "missing exit_btn",
+    );
     const refreshBtn = builder.get("refresh_btn", Button) ?? expect(
       "missing refresh_btn",
     );
@@ -147,6 +151,10 @@ export async function startGui(chef: ChefInternal) {
     const logView = builder.get("log_view", TextView) ?? expect(
       "missing log_view",
     );
+    const exitConfirmDialog = builder.get(
+      "exit_confirm_dialog",
+      AlertDialog,
+    ) ?? expect("missing exit_confirm_dialog");
 
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);
@@ -169,6 +177,7 @@ export async function startGui(chef: ChefInternal) {
         "win.toggle-logs",
       );
       hamburgerMenuModel.append("About Chef", "win.about");
+      hamburgerMenuModel.append("Exit (Ctrl+Q)", "win.quit");
     };
 
     const toggleLogs = () => {
@@ -210,6 +219,36 @@ export async function startGui(chef: ChefInternal) {
       about.present();
     });
     window.addAction(aboutAction);
+
+    const quit = () => {
+      const doQuit = () => {
+        if (logProcess) {
+          try {
+            logProcess.kill();
+          } catch {
+            // Ignore
+          }
+        }
+        Deno.exit(0);
+      };
+
+      if (chef.getStayInBackground()) {
+        exitConfirmDialog.choose(window, null, (response) => {
+          if (response === "exit") {
+            doQuit();
+          }
+        });
+      } else {
+        doQuit();
+      }
+    };
+
+    exitBtn.onClick(quit);
+
+    const quitAction = new SimpleAction("quit");
+    quitAction.connect("activate", quit);
+    window.addAction(quitAction);
+    app.setAccelsForAction("win.quit", ["<Control>q"]);
 
     backBtn.onClick(toggleLogs);
 
@@ -349,11 +388,21 @@ export async function startGui(chef: ChefInternal) {
     searchEntry.onChanged(applyFilters);
 
     versionLabel.setText(`v${chef.chefVersion}`);
-    editorEntry.setText(chef.getEditorCommand());
-    chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
-    backgroundBtn.setActive(chef.getStayInBackground());
-    autoUpdateBtn.setActive(chef.getAutoUpdateCheck());
-    notificationBtn.setActive(chef.getBackgroundUpdateNotification());
+
+    const resetSettings = () => {
+      editorEntry.setText(chef.getEditorCommand());
+      chef.getTerminalCommand().then((cmd) => terminalEntry.setText(cmd));
+      backgroundBtn.setActive(chef.getStayInBackground());
+      autoUpdateBtn.setActive(chef.getAutoUpdateCheck());
+      notificationBtn.setActive(chef.getBackgroundUpdateNotification());
+    };
+
+    resetSettings();
+    settingsPopover.onNotify("visible", () => {
+      if (settingsPopover.getVisible()) {
+        resetSettings();
+      }
+    });
 
     saveSettingsBtn.onClick(() => {
       chef.setEditorCommand(editorEntry.getText());
@@ -524,6 +573,14 @@ export async function startGui(chef: ChefInternal) {
         (keyval === Key.l || keyval === Key.L)
       ) {
         toggleLogs();
+        return true;
+      }
+      // Ctrl+q
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === Key.q || keyval === Key.Q)
+      ) {
+        quit();
         return true;
       }
       // Ctrl+r

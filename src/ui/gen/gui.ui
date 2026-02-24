@@ -15,6 +15,10 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <attribute name="label">About Chef</attribute>
       <attribute name="action">win.about</attribute>
     </item>
+    <item>
+      <attribute name="label">Exit (Ctrl+Q)</attribute>
+      <attribute name="action">win.quit</attribute>
+    </item>
   </menu>
   <object class="AdwApplicationWindow" id="window">
     <property name="title">Chef</property>
@@ -57,6 +61,12 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               <object class="GtkToggleButton" id="search_btn">
                 <property name="icon-name">system-search-symbolic</property>
                 <property name="tooltip-text">Search</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkButton" id="exit_btn">
+                <property name="icon-name">application-exit-symbolic</property>
+                <property name="tooltip-text">Exit Chef (ignores background setting)</property>
               </object>
             </child>
             <child type="end">
@@ -406,6 +416,14 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         </child>
       </object>
     </child>
+  </object>
+  <object class="AdwAlertDialog" id="exit_confirm_dialog">
+    <property name="heading">Exit Chef?</property>
+    <property name="body">This will completely close Chef, even though it is set to stay in the background.</property>
+    <responses>
+      <response id="cancel">Cancel</response>
+      <response id="exit" appearance="destructive">Exit</response>
+    </responses>
   </object>
   <object class="GtkSizeGroup" id="name_group">
     <property name="mode">1</property>

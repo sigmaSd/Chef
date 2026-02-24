@@ -28,3 +28,5 @@
 
 - [x] Use a unique appId per Chef script to avoid collisions in desktop files,
       icons, and GTK instances
+
+- [x] Add an exit button that ignores background setting

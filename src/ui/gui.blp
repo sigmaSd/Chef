@@ -10,6 +10,10 @@ menu hamburger_menu_model {
         label: "About Chef";
         action: "win.about";
     }
+    item {
+        label: "Exit (Ctrl+Q)";
+        action: "win.quit";
+    }
 }
 
 Adw.ApplicationWindow window {
@@ -52,6 +56,12 @@ Adw.ApplicationWindow window {
             ToggleButton search_btn {
                 icon-name: "system-search-symbolic";
                 tooltip-text: "Search";
+            }
+
+            [end]
+            Button exit_btn {
+                icon-name: "application-exit-symbolic";
+                tooltip-text: "Exit Chef (ignores background setting)";
             }
 
             [end]
@@ -373,6 +383,16 @@ Adw.ApplicationWindow window {
             }
         }
     }
+}
+
+Adw.AlertDialog exit_confirm_dialog {
+    heading: "Exit Chef?";
+    body: "This will completely close Chef, even though it is set to stay in the background.";
+
+    responses [
+        cancel: "Cancel",
+        exit: "Exit" destructive,
+    ]
 }
 
 SizeGroup name_group {
