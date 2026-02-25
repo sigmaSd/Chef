@@ -1,5 +1,4 @@
 /**
- * @module
  * SDK for building Chef providers.
  *
  * This module provides the {@link ChefProvider} interface and the {@link runChefProvider}
@@ -21,6 +20,8 @@
  *   },
  * });
  * ```
+ *
+ * @module
  */
 
 import { TextLineStream } from "@std/streams/text-line-stream";
