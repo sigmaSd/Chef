@@ -1,3 +1,28 @@
+/**
+ * @module
+ * SDK for building Chef providers.
+ *
+ * This module provides the {@link ChefProvider} interface and the {@link runChefProvider}
+ * function to help you build applications that can be integrated with Chef as external providers.
+ *
+ * @example
+ * ```ts
+ * import { runChefProvider } from "jsr:@sigmasd/chef/sdk";
+ *
+ * await runChefProvider({
+ *   list: async () => [{ name: "my-app", version: "1.0.0" }],
+ *   update: async ({ name, version }) => {
+ *     console.error(`Installing ${name}@${version}`);
+ *     return true;
+ *   },
+ *   remove: async (name) => {
+ *     console.error(`Removing ${name}`);
+ *     return true;
+ *   },
+ * });
+ * ```
+ */
+
 import { TextLineStream } from "@std/streams/text-line-stream";
 
 /**

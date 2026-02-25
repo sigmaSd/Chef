@@ -98,10 +98,28 @@ Chef supports external providers, which allow you to integrate other package
 managers or custom binary sources. Providers are external commands that
 communicate with Chef using a JSON-based protocol.
 
-You can use the Chef provider SDK to create your own providers.
-
 Example provider: [rustman](https://jsr.io/@sigmasd/rustman) (A provider for
 Rust binaries).
+
+### Provider SDK
+
+You can use the Chef provider SDK to create your own providers easily:
+
+```typescript
+import { runChefProvider } from "jsr:@sigmasd/chef/sdk";
+
+await runChefProvider({
+  list: async () => [{ name: "my-app", version: "1.0.0" }],
+  update: async ({ name, version }) => {
+    console.error(`Installing ${name}@${version}`);
+    return true;
+  },
+  remove: async (name) => {
+    console.error(`Removing ${name}`);
+    return true;
+  },
+});
+```
 
 ### Managing Providers
 
