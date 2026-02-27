@@ -143,7 +143,7 @@ export async function runChefProvider(
       }
 
       // Process commands concurrently so we can receive "cancel" messages
-      (async () => {
+      void (async () => {
         const controller = new AbortController();
         activeRequests.set(id, controller);
         const signal = controller.signal;

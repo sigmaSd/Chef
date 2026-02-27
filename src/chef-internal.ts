@@ -202,7 +202,7 @@ export class ChefInternal {
 
       // Check if process is still alive after a short delay
       // This helps catch "Module not found" or "Command not found" errors immediately
-      (async () => {
+      void (async () => {
         try {
           const status = await process.status;
           if (!status.success) {
@@ -214,7 +214,7 @@ export class ChefInternal {
       })();
 
       const encoder = new TextEncoderStream();
-      encoder.readable.pipeTo(process.stdin).catch((e) => {
+      void encoder.readable.pipeTo(process.stdin).catch((e) => {
         // Only log if it's not a broken pipe (which is expected if process exits)
         if (!(e instanceof Deno.errors.BrokenPipe)) {
           console.error(`Provider "${name}" stdin pipe error:`, e);
@@ -228,7 +228,7 @@ export class ChefInternal {
         .pipeThrough(new TextLineStream());
 
       // Also consume stderr so it doesn't block, but log it if it's not empty
-      (async () => {
+      void (async () => {
         try {
           const stderrStream = process.stderr
             .pipeThrough(new TextDecoderStream())
@@ -248,7 +248,7 @@ export class ChefInternal {
       this.providerSessions.set(name, session);
 
       // Start background listener
-      (async () => {
+      void (async () => {
         try {
           for await (const line of stream) {
             if (!line || !line.trim()) continue;

@@ -254,7 +254,7 @@ export async function parseAndExecute(
   if (parsedArgs.run && handlers.run) {
     await handlers.run(parsedArgs.run.name!, parsedArgs.run.binArgs);
   } else if (parsedArgs.list && handlers.list) {
-    handlers.list();
+    await handlers.list();
   } else if ((parsedArgs.update || parsedArgs.install) && handlers.update) {
     const updateArgs = parsedArgs.update || parsedArgs.install;
     await handlers.update({

@@ -109,7 +109,7 @@ export class BinaryRunner {
 
     this.statusListener?.(name, true);
 
-    process.status.then(() => {
+    void process.status.then(() => {
       processes.delete(process);
       this.statusListener?.(name, false);
     });

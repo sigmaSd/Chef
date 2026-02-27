@@ -75,7 +75,7 @@ chef.addMany(
             await $`tar -xzf data.tar.gz`;
             return { exe: "./usr/bin/heimer" };
         }
-        throw "Not implemented";
+        throw new Error("Not implemented");
       },
       version: () => utils.getLatestGithubRelease("juzzlin/Heimer"),
       desktopFile: {

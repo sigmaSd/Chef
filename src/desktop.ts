@@ -123,9 +123,19 @@ export class DesktopFileManager {
       // Fallback to generic icon if icon not found
     }
 
+    const baseName = this.scriptName.split("-").slice(0, -1).join("-") ||
+      this.scriptName;
+    const isLocal = this.chefPath.startsWith("file://");
+    const isStandardName = baseName === "chef" || baseName === "mod" ||
+      baseName === "default";
+
+    const displayName = isStandardName
+      ? (isLocal ? "Chef (Local)" : "Chef")
+      : `Chef (${baseName})`;
+
     const desktopPath = path.join(desktopDir, `${this.appId}.desktop`);
     const content = `[Desktop Entry]
-Name=Chef - ${this.scriptName}
+Name=${displayName}
 Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} gui
 Type=Application
 Terminal=false
