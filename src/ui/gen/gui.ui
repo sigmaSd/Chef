@@ -45,6 +45,13 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               </object>
             </property>
             <child type="end">
+              <object class="GtkMenuButton" id="hamburger_menu">
+                <property name="icon-name">open-menu-symbolic</property>
+                <property name="menu-model">hamburger_menu_model</property>
+                <property name="primary">true</property>
+              </object>
+            </child>
+            <child type="end">
               <object class="GtkButton" id="refresh_btn">
                 <property name="icon-name">view-refresh-symbolic</property>
                 <property name="tooltip-text">Refresh recipes and check for updates</property>
@@ -67,13 +74,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               <object class="GtkButton" id="exit_btn">
                 <property name="icon-name">application-exit-symbolic</property>
                 <property name="tooltip-text">Exit Chef (ignores background setting)</property>
-              </object>
-            </child>
-            <child type="end">
-              <object class="GtkMenuButton" id="hamburger_menu">
-                <property name="icon-name">open-menu-symbolic</property>
-                <property name="menu-model">hamburger_menu_model</property>
-                <property name="primary">true</property>
               </object>
             </child>
           </object>

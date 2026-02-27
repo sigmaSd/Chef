@@ -40,6 +40,13 @@ Adw.ApplicationWindow window {
             };
 
             [end]
+            MenuButton hamburger_menu {
+                icon-name: "open-menu-symbolic";
+                menu-model: hamburger_menu_model;
+                primary: true;
+            }
+
+            [end]
             Button refresh_btn {
                 icon-name: "view-refresh-symbolic";
                 tooltip-text: "Refresh recipes and check for updates";
@@ -62,13 +69,6 @@ Adw.ApplicationWindow window {
             Button exit_btn {
                 icon-name: "application-exit-symbolic";
                 tooltip-text: "Exit Chef (ignores background setting)";
-            }
-
-            [end]
-            MenuButton hamburger_menu {
-                icon-name: "open-menu-symbolic";
-                menu-model: hamburger_menu_model;
-                primary: true;
             }
         }
 
