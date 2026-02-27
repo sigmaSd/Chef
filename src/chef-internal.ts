@@ -689,7 +689,12 @@ export class ChefInternal {
     await this.init();
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
-        await this.refreshRecipes();
+        // Only refresh if binary is not in native recipes AND not in the database
+        const isNative = this.recipes.some((r) => r.name === name);
+        if (!isNative && !this.database.isInstalled(name)) {
+          await this.refreshRecipes();
+        }
+
         const process = await this.binaryRunner.run(name, binArgs);
         if (process instanceof Deno.ChildProcess) {
           await process.status;

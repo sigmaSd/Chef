@@ -1,5 +1,4 @@
 import * as path from "@std/path";
-import { assert } from "@std/assert";
 import type { Recipe } from "../mod.ts";
 import type { ChefDatabase } from "./database.ts";
 import { commandExists } from "./internal_utils.ts";
@@ -44,7 +43,10 @@ export class BinaryRunner {
     }
 
     const recipe = this.recipes.find((recipe) => recipe.name === name);
-    if (!recipe) {
+    const db = this.database.read();
+    const entry = db[name];
+
+    if (!recipe && !entry) {
       statusMessage("error", `Unknown binary: ${name}`);
       spacer();
       console.log(
@@ -56,12 +58,10 @@ export class BinaryRunner {
     }
 
     let binPath: string;
-    if (recipe.provider) {
+    if (recipe?.provider) {
       // For provider binaries, assume they are in PATH
       binPath = name;
     } else {
-      const db = this.database.read() ?? expect("failed to read database");
-      const entry = db[name];
       if (!entry) {
         statusMessage("error", `Binary "${name}" is not installed.`);
         return;
@@ -74,15 +74,13 @@ export class BinaryRunner {
       }
     }
 
-    assert(recipe, "Recipe for this binary doesn't exist");
-
-    let finalArgs = recipe.cmdArgs ? recipe.cmdArgs : [];
+    let finalArgs = recipe?.cmdArgs ? recipe.cmdArgs : [];
     finalArgs = finalArgs.concat(binArgs);
 
     try {
       const command = new Deno.Command(binPath, {
         args: finalArgs,
-        env: recipe.cmdEnv,
+        env: recipe?.cmdEnv,
       });
       const process = command.spawn();
 

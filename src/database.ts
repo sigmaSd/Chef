@@ -45,30 +45,26 @@ export class ChefDatabase {
   }
 
   /**
-   * Read the database from disk and filter out recipes that no longer exist.
+   * Read the database from disk.
    * Returns only binary entries (DbEntry).
    */
   read(): Record<string, DbEntry> {
     const dbParsed = this.readRaw();
 
-    // Normalize entries to DbEntry and filter out entries for recipes that no longer exist
+    // Normalize entries to DbEntry
     const normalized: Record<string, DbEntry> = {};
     for (const [name, value] of Object.entries(dbParsed)) {
       if (name === "_settings" || name === "_providers") continue;
-      if (this.recipes.find((r) => r.name === name)) {
-        if (typeof value === "string") {
-          normalized[name] = { version: value };
-        } else if (typeof value === "object" && value !== null) {
-          const entry = value as Record<string, unknown>;
-          if (typeof entry.version === "string") {
-            normalized[name] = {
-              version: entry.version,
-              dir: typeof entry.dir === "string" ? entry.dir : undefined,
-              extern: typeof entry.extern === "string"
-                ? entry.extern
-                : undefined,
-            };
-          }
+      if (typeof value === "string") {
+        normalized[name] = { version: value };
+      } else if (typeof value === "object" && value !== null) {
+        const entry = value as Record<string, unknown>;
+        if (typeof entry.version === "string") {
+          normalized[name] = {
+            version: entry.version,
+            dir: typeof entry.dir === "string" ? entry.dir : undefined,
+            extern: typeof entry.extern === "string" ? entry.extern : undefined,
+          };
         }
       }
     }
