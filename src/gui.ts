@@ -156,6 +156,16 @@ export async function startGui(chef: ChefInternal) {
       AlertDialog,
     ) ?? expect("missing exit_confirm_dialog");
 
+    const providersListBox = builder.get("providers_list_box", ListBox) ??
+      expect("missing providers_list_box");
+    const providerNameEntry = builder.get("provider_name_entry", Entry) ??
+      expect("missing provider_name_entry");
+    const providerCommandEntry = builder.get("provider_command_entry", Entry) ??
+      expect("missing provider_command_entry");
+    const addProviderBtn = builder.get("add_provider_btn", Button) ?? expect(
+      "missing add_provider_btn",
+    );
+
     searchBar.connectEntry(searchEntry);
     searchBar.setKeyCaptureWidget(window);
 
@@ -167,13 +177,19 @@ export async function startGui(chef: ChefInternal) {
       searchBtn.setActive(searchBar.getSearchMode());
     });
 
-    const updateMenu = (isLogsPage: boolean) => {
+    const updateMenu = (page: string) => {
       hamburgerMenuModel.removeAll();
-      if (!isLogsPage) {
+      if (page === "recipes") {
         hamburgerMenuModel.append("Refresh Recipes (Ctrl+R)", "win.refresh");
       }
       hamburgerMenuModel.append(
-        isLogsPage ? "Show Recipes (Ctrl+L)" : "Show Logs (Ctrl+L)",
+        page === "providers"
+          ? "Show Recipes (Ctrl+P)"
+          : "Manage Providers (Ctrl+P)",
+        "win.toggle-providers",
+      );
+      hamburgerMenuModel.append(
+        page === "logs" ? "Show Recipes (Ctrl+L)" : "Show Logs (Ctrl+L)",
         "win.toggle-logs",
       );
       hamburgerMenuModel.append("About Chef", "win.about");
@@ -185,11 +201,25 @@ export async function startGui(chef: ChefInternal) {
       if (isLogsPage) {
         stack.setVisibleChildName("recipes");
         backBtn.setVisible(false);
-        updateMenu(false);
+        updateMenu("recipes");
       } else {
         stack.setVisibleChildName("logs");
         backBtn.setVisible(true);
-        updateMenu(true);
+        updateMenu("logs");
+      }
+    };
+
+    const toggleProviders = () => {
+      const isProvidersPage = stack.getVisibleChildName() === "providers";
+      if (isProvidersPage) {
+        stack.setVisibleChildName("recipes");
+        backBtn.setVisible(false);
+        updateMenu("recipes");
+      } else {
+        stack.setVisibleChildName("providers");
+        backBtn.setVisible(true);
+        updateMenu("providers");
+        void refreshProvidersList();
       }
     };
 
@@ -202,6 +232,161 @@ export async function startGui(chef: ChefInternal) {
     toggleLogsAction.connect("activate", toggleLogs);
     window.addAction(toggleLogsAction);
     app.setAccelsForAction("win.toggle-logs", ["<Control>l"]);
+
+    const toggleProvidersAction = new SimpleAction("toggle-providers");
+    toggleProvidersAction.connect("activate", toggleProviders);
+    window.addAction(toggleProvidersAction);
+    app.setAccelsForAction("win.toggle-providers", ["<Control>p"]);
+
+    const refreshProvidersList = async () => {
+      providersListBox.removeAll();
+
+      const installedProviders = chef.getProviders();
+
+      // Show installed providers
+      if (installedProviders.length > 0) {
+        const header = new Label("<b>Installed Providers</b>");
+        header.setUseMarkup(true);
+        header.setMarginTop(10);
+        header.setMarginBottom(10);
+        header.setHalign(3); // Start
+        providersListBox.append(header);
+
+        for (const p of installedProviders) {
+          const row = new ListBoxRow();
+          const box = new Box(0, 10);
+          box.setMarginTop(10);
+          box.setMarginBottom(10);
+          box.setMarginStart(10);
+          box.setMarginEnd(10);
+
+          const nameLabel = new Label(`<b>${p.name}</b>`);
+          nameLabel.setUseMarkup(true);
+          nameLabel.setHalign(3);
+          box.append(nameLabel);
+
+          const cmdLabel = new Label(p.command);
+          cmdLabel.setHalign(3);
+          cmdLabel.setHexpand(true);
+          cmdLabel.setEllipsize(3); // End
+          box.append(cmdLabel);
+
+          const removeBtn = new Button();
+          removeBtn.setLabel("Remove");
+          removeBtn.addCssClass("destructive-action");
+          removeBtn.onClick(() => {
+            chef.removeProvider(p.name);
+            void refreshProvidersList();
+            void onRefresh(); // Refresh recipes to remove provider's apps
+          });
+          box.append(removeBtn);
+
+          row.setChild(box);
+          providersListBox.append(row);
+        }
+      }
+
+      // Fetch from JSR
+      const header = new Label("<b>Discover Providers (JSR)</b>");
+      header.setUseMarkup(true);
+      header.setMarginTop(20);
+      header.setMarginBottom(10);
+      header.setHalign(3);
+      providersListBox.append(header);
+
+      try {
+        const response = await fetch(
+          "https://api.jsr.io/scopes/sigmasd/packages/chef/dependents",
+        );
+        if (response.ok) {
+          const data = await response.json();
+          // Assume data is an array of package objects
+          interface JsrPackage {
+            scope: string;
+            package: string;
+            description?: string;
+          }
+          const dependents: JsrPackage[] = data.items || [];
+
+          for (const pkg of dependents) {
+            const fullName = `@${pkg.scope}/${pkg.package}`;
+            const isInstalled = installedProviders.some((p) =>
+              p.name === pkg.package
+            );
+
+            const row = new ListBoxRow();
+            const box = new Box(0, 10);
+            box.setMarginTop(10);
+            box.setMarginBottom(10);
+            box.setMarginStart(10);
+            box.setMarginEnd(10);
+
+            const nameLabel = new Label(`<b>${pkg.package}</b>`);
+            nameLabel.setUseMarkup(true);
+            nameLabel.setHalign(3);
+            nameLabel.setTooltipText(fullName);
+            box.append(nameLabel);
+
+            const descLabel = new Label(pkg.description || "No description");
+            descLabel.setHalign(3);
+            descLabel.setHexpand(true);
+            descLabel.setEllipsize(3);
+            box.append(descLabel);
+
+            // Try to fetch description asynchronously
+            void (async () => {
+              try {
+                const pkgResponse = await fetch(
+                  `https://api.jsr.io/scopes/${pkg.scope}/packages/${pkg.package}`,
+                );
+                if (pkgResponse.ok) {
+                  const pkgData = await pkgResponse.json();
+                  if (pkgData.description) {
+                    descLabel.setText(pkgData.description);
+                  }
+                }
+              } catch {
+                // Ignore
+              }
+            })();
+
+            if (!isInstalled) {
+              const installBtn = new Button();
+              installBtn.setLabel("Install");
+              installBtn.addCssClass("suggested-action");
+              installBtn.onClick(() => {
+                chef.addProvider(pkg.package, `deno run -A jsr:${fullName}`);
+                void refreshProvidersList();
+                void onRefresh();
+              });
+              box.append(installBtn);
+            } else {
+              const installedLabel = new Label("Installed");
+              installedLabel.addCssClass("dim-label");
+              box.append(installedLabel);
+            }
+
+            row.setChild(box);
+            providersListBox.append(row);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch providers from JSR:", e);
+        providersListBox.append(new Label("Failed to fetch from JSR"));
+      }
+    };
+
+    addProviderBtn.onClick(() => {
+      const name = providerNameEntry.getText().trim();
+      const command = providerCommandEntry.getText().trim();
+      if (name && command) {
+        chef.addProvider(name, command);
+        providerNameEntry.setText("");
+        providerCommandEntry.setText("");
+        void refreshProvidersList();
+        void onRefresh();
+      }
+    });
 
     const aboutAction = new SimpleAction("about");
     aboutAction.connect("activate", () => {
@@ -250,7 +435,14 @@ export async function startGui(chef: ChefInternal) {
     window.addAction(quitAction);
     app.setAccelsForAction("win.quit", ["<Control>q"]);
 
-    backBtn.onClick(toggleLogs);
+    backBtn.onClick(() => {
+      const page = stack.getVisibleChildName();
+      if (page === "logs") {
+        toggleLogs();
+      } else if (page === "providers") {
+        toggleProviders();
+      }
+    });
 
     const logBuffer = logView.getBuffer();
     let logProcess: Deno.ChildProcess | null = null;
@@ -576,6 +768,14 @@ export async function startGui(chef: ChefInternal) {
         toggleLogs();
         return true;
       }
+      // Ctrl+p
+      if (
+        (state & ModifierType.CONTROL_MASK) &&
+        (keyval === Key.p || keyval === Key.P)
+      ) {
+        toggleProviders();
+        return true;
+      }
       // Ctrl+q
       if (
         (state & ModifierType.CONTROL_MASK) &&
@@ -595,6 +795,11 @@ export async function startGui(chef: ChefInternal) {
       // F5
       if (keyval === Key.F5) {
         void onRefresh();
+        return true;
+      }
+      // F11
+      if (keyval === Key.F11) {
+        toggleProviders();
         return true;
       }
       // Escape
@@ -667,7 +872,7 @@ export async function startGui(chef: ChefInternal) {
     });
 
     // Initial populate
-    updateMenu(false);
+    updateMenu("recipes");
     void refreshList();
 
     // Register dax command listener

@@ -3,6 +3,14 @@ using Adw 1;
 
 menu hamburger_menu_model {
     item {
+        label: "Refresh Recipes (Ctrl+R)";
+        action: "win.refresh";
+    }
+    item {
+        label: "Manage Providers (Ctrl+P)";
+        action: "win.toggle-providers";
+    }
+    item {
         label: "Show Logs (Ctrl+L)";
         action: "win.toggle-logs";
     }
@@ -336,6 +344,61 @@ Adw.ApplicationWindow window {
                                 hexpand: true;
                                 visible: false;
                             }
+                        }
+                    }
+                };
+            }
+
+            Adw.ViewStackPage {
+                name: "providers";
+                title: "Providers";
+                icon-name: "system-run-symbolic";
+                child: Box {
+                    orientation: vertical;
+                    spacing: 10;
+                    margin-top: 10;
+                    margin-bottom: 10;
+                    margin-start: 10;
+                    margin-end: 10;
+
+                    Label {
+                        label: "Manage External Providers";
+                        styles [
+                            "title-1",
+                        ]
+                    }
+
+                    Box {
+                        orientation: horizontal;
+                        spacing: 10;
+                        margin-bottom: 10;
+
+                        Entry provider_name_entry {
+                            placeholder-text: "Provider Name (e.g. rustman)";
+                            hexpand: true;
+                        }
+
+                        Entry provider_command_entry {
+                            placeholder-text: "Command (e.g. deno run -A jsr:@sigmasd/rustman)";
+                            hexpand: true;
+                        }
+
+                        Button add_provider_btn {
+                            label: "Add Provider";
+                            styles [
+                                "suggested-action",
+                            ]
+                        }
+                    }
+
+                    ScrolledWindow {
+                        vexpand: true;
+                        styles [
+                            "frame",
+                        ]
+                        ListBox providers_list_box {
+                            selection-mode: none;
+                            show-separators: true;
                         }
                     }
                 };

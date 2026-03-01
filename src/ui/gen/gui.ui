@@ -8,6 +8,14 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
   <requires lib="gtk" version="4.0"/>
   <menu id="hamburger_menu_model">
     <item>
+      <attribute name="label">Refresh Recipes (Ctrl+R)</attribute>
+      <attribute name="action">win.refresh</attribute>
+    </item>
+    <item>
+      <attribute name="label">Manage Providers (Ctrl+P)</attribute>
+      <attribute name="action">win.toggle-providers</attribute>
+    </item>
+    <item>
       <attribute name="label">Show Logs (Ctrl+L)</attribute>
       <attribute name="action">win.toggle-logs</attribute>
     </item>
@@ -357,6 +365,72 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                 <property name="visible">false</property>
                               </object>
                             </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwViewStackPage">
+                <property name="name">providers</property>
+                <property name="title">Providers</property>
+                <property name="icon-name">system-run-symbolic</property>
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="orientation">1</property>
+                    <property name="spacing">10</property>
+                    <property name="margin-top">10</property>
+                    <property name="margin-bottom">10</property>
+                    <property name="margin-start">10</property>
+                    <property name="margin-end">10</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Manage External Providers</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">0</property>
+                        <property name="spacing">10</property>
+                        <property name="margin-bottom">10</property>
+                        <child>
+                          <object class="GtkEntry" id="provider_name_entry">
+                            <property name="placeholder-text">Provider Name (e.g. rustman)</property>
+                            <property name="hexpand">true</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkEntry" id="provider_command_entry">
+                            <property name="placeholder-text">Command (e.g. deno run -A jsr:@sigmasd/rustman)</property>
+                            <property name="hexpand">true</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="add_provider_btn">
+                            <property name="label">Add Provider</property>
+                            <style>
+                              <class name="suggested-action"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="vexpand">true</property>
+                        <style>
+                          <class name="frame"/>
+                        </style>
+                        <child>
+                          <object class="GtkListBox" id="providers_list_box">
+                            <property name="selection-mode">0</property>
+                            <property name="show-separators">true</property>
                           </object>
                         </child>
                       </object>

@@ -30,3 +30,6 @@
       icons, and GTK instances
 
 - [x] Add an exit button that ignores background setting
+
+- [x] Add provider management in the GUI (List, Add, Remove, and Discover from
+      JSR)
