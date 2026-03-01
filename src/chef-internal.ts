@@ -528,8 +528,8 @@ export class ChefInternal {
   /**
    * Run a binary
    */
-  runBin = (name: string, args: string[]) => {
-    return this.binaryRunner.run(name, args);
+  runBin = async (name: string, args: string[]) => {
+    return await this.binaryRunner.run(name, args);
   };
 
   /**
@@ -691,7 +691,7 @@ export class ChefInternal {
       run: async (name: string, binArgs: string[]) => {
         // Only refresh if binary is not in native recipes AND not in the database
         const isNative = this.recipes.some((r) => r.name === name);
-        if (!isNative && !this.database.isInstalled(name)) {
+        if (name && !isNative && !this.database.isInstalled(name)) {
           await this.refreshRecipes();
         }
 
@@ -702,7 +702,7 @@ export class ChefInternal {
       },
       list: async () => {
         await this.refreshRecipes();
-        this.binaryRunner.list();
+        await this.binaryRunner.list();
       },
       update: async (options) => {
         await this.refreshRecipes();
