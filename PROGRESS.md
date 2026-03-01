@@ -33,3 +33,15 @@
 
 - [x] Add provider management in the GUI (List, Add, Remove, and Discover from
       JSR)
+
+- [x] Refactor ChefInternal into specialized managers (Paths, Settings,
+      Providers)
+
+- [x] Replace non-standard rustJoin with path.join
+
+- [x] Migrate from underscore private members to native JS private fields (#var)
+
+- [x] Prevent duplicate recipe names in add() and refreshRecipes() (prefixing
+      providers)
+
+- [x] Fix UI bug where duplicate names caused simultaneous state updates

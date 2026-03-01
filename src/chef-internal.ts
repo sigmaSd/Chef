@@ -1,6 +1,5 @@
 import * as path from "@std/path";
-import { commandExists, getChefBasePath } from "./internal_utils.ts";
-import { expect } from "./utils.ts";
+import { getChefBasePath } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
 import { ChefDatabase } from "./database.ts";
 import { DesktopFileManager } from "./desktop.ts";
@@ -8,20 +7,9 @@ import { BinaryRunner } from "./binary-runner.ts";
 import { BinaryUpdater } from "./binary-updater.ts";
 import { type CommandHandlers, parseAndExecute } from "./commands/commands.ts";
 import denoJson from "../deno.json" with { type: "json" };
-import { TextLineStream } from "@std/streams/text-line-stream";
-
-interface ProviderSession {
-  process: Deno.ChildProcess;
-  writer: WritableStreamDefaultWriter<string>;
-  pendingRequests: Map<string, (msg: unknown) => void>;
-}
-
-interface ProviderResponse {
-  type?: string;
-  data?: unknown;
-  success?: boolean;
-  error?: string;
-}
+import { ChefPaths } from "./paths.ts";
+import { SettingsManager } from "./settings.ts";
+import { ProviderManager } from "./providers.ts";
 
 /**
  * Main internal coordinator class for Chef
@@ -30,13 +18,15 @@ interface ProviderResponse {
 export class ChefInternal {
   chefPath: string = Deno.mainModule;
   recipes: Recipe[] = [];
-  private providerSessions: Map<string, ProviderSession> = new Map();
   isBusy = false;
 
-  private _scriptName: string | null = null;
+  #scriptName: string | null = null;
+  #paths?: ChefPaths;
+  #settings?: SettingsManager;
+  #providers?: ProviderManager;
 
-  async init() {
-    if (this._scriptName) return;
+  async init(options: { paths?: ChefPaths } = {}) {
+    if (this.#scriptName) return;
 
     const fullPath = this.chefPath.startsWith("file://")
       ? path.fromFileUrl(this.chefPath)
@@ -53,23 +43,41 @@ export class ChefInternal {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    this._scriptName = `${name}-${hashHex}`;
+    this.#scriptName = `${name}-${hashHex}`;
+    this.#paths = options.paths ??
+      new ChefPaths(this.#scriptName, this.chefPath);
+    this.#settings = new SettingsManager(this.database);
+    this.#providers = new ProviderManager(this.database, this.recipes);
+  }
+
+  // Getters for extracted managers
+  get paths(): ChefPaths {
+    if (!this.#paths) throw new Error("ChefInternal not initialized");
+    return this.#paths;
+  }
+
+  get settings(): SettingsManager {
+    if (!this.#settings) throw new Error("ChefInternal not initialized");
+    return this.#settings;
+  }
+
+  get providers(): ProviderManager {
+    if (!this.#providers) throw new Error("ChefInternal not initialized");
+    return this.#providers;
   }
 
   // Get the script name for namespacing
   get scriptName() {
-    if (!this._scriptName) {
+    if (!this.#scriptName) {
       throw new Error("ChefInternal not initialized. Call init() first.");
     }
-    return this._scriptName;
+    return this.#scriptName;
   }
 
   /**
    * Get a valid appId for GTK based on the script name
    */
   getAppId = () => {
-    // App ID must be at least two components, all lowercase, alphanumeric/dots/hyphens
-    // and must not start with a digit.
     const sanitized = this.scriptName
       .toLowerCase()
       .replace(/[^a-z0-9.-]/g, "-")
@@ -78,39 +86,39 @@ export class ChefInternal {
     return `io.github.sigmasd.chef.${sanitized}`;
   };
 
-  private readonly basePath = getChefBasePath();
-
+  // Re-map path properties for backward compatibility within this class
   get scriptDir() {
-    return path.join(this.basePath, this.scriptName);
+    return this.paths.scriptDir;
   }
-
   get binPath() {
-    return path.join(this.scriptDir, "bin");
+    return this.paths.binPath;
   }
-
   get iconsPath() {
-    return path.join(this.scriptDir, "icons");
+    return this.paths.iconsPath;
   }
-
   get dbPath() {
-    return path.join(this.scriptDir, "db.json");
+    return this.paths.dbPath;
   }
-
   get exportsPath() {
-    return path.join(this.basePath, "exports");
+    return this.paths.exportsPath;
   }
 
   // Lazy initialization of service classes
-  private _database?: ChefDatabase;
+  #database?: ChefDatabase;
   private get database() {
-    if (this._database) return this._database;
-    Deno.mkdirSync(this.scriptDir, { recursive: true });
-    return this._database = new ChefDatabase(this.dbPath, this.recipes);
+    if (this.#database) return this.#database;
+    const dbPath = this.#paths ? this.#paths.dbPath : path.join(
+      getChefBasePath(),
+      this.#scriptName || "default",
+      "db.json",
+    );
+    Deno.mkdirSync(path.dirname(dbPath), { recursive: true });
+    return this.#database = new ChefDatabase(dbPath, this.recipes);
   }
 
-  private _desktopManager?: DesktopFileManager;
+  #desktopManager?: DesktopFileManager;
   private get desktopManager() {
-    return this._desktopManager ??= new DesktopFileManager(
+    return this.#desktopManager ??= new DesktopFileManager(
       this.iconsPath,
       this.chefPath,
       this.recipes,
@@ -119,18 +127,18 @@ export class ChefInternal {
     );
   }
 
-  private _binaryRunner?: BinaryRunner;
+  #binaryRunner?: BinaryRunner;
   private get binaryRunner() {
-    return this._binaryRunner ??= new BinaryRunner(
+    return this.#binaryRunner ??= new BinaryRunner(
       this.binPath,
       this.database,
       this.recipes,
     );
   }
 
-  private _binaryUpdater?: BinaryUpdater;
+  #binaryUpdater?: BinaryUpdater;
   private get binaryUpdater() {
-    return this._binaryUpdater ??= new BinaryUpdater(
+    return this.#binaryUpdater ??= new BinaryUpdater(
       this.binPath,
       this.database,
       this.recipes,
@@ -149,6 +157,9 @@ export class ChefInternal {
    * Add a single recipe
    */
   add = (recipe: Recipe) => {
+    if (this.recipes.some((r) => r.name === recipe.name)) {
+      throw new Error(`Recipe with name "${recipe.name}" already exists.`);
+    }
     this.recipes.push(recipe);
   };
 
@@ -170,276 +181,64 @@ export class ChefInternal {
    * List all registered providers
    */
   getProviders = () => {
-    return this.database.getProviders();
+    return this.providers.getProviders();
   };
 
   /**
-   * Get or create a persistent session with a provider
+   * Fetch recipes from all registered providers and add them to internal list
    */
-  private getProviderSession(
-    name: string,
-    commandStr: string,
-  ): ProviderSession | null {
-    if (this.providerSessions.has(name)) {
-      return this.providerSessions.get(name) ?? expect("session not found");
-    }
-
+  refreshRecipes = async (signal?: AbortSignal) => {
     try {
-      const [cmd, ...args] = commandStr.split(" ");
-      const finalArgs = [...args];
-      if (!finalArgs.includes("--chef")) {
-        finalArgs.push("--chef");
-      }
-
-      const command = new Deno.Command(cmd, {
-        args: finalArgs,
-        stdin: "piped",
-        stdout: "piped",
-        stderr: "piped",
-      });
-
-      const process = command.spawn();
-
-      // Check if process is still alive after a short delay
-      // This helps catch "Module not found" or "Command not found" errors immediately
-      void (async () => {
-        try {
-          const status = await process.status;
-          if (!status.success) {
-            this.providerSessions.delete(name);
-          }
-        } catch {
-          this.providerSessions.delete(name);
-        }
-      })();
-
-      const encoder = new TextEncoderStream();
-      void encoder.readable.pipeTo(process.stdin).catch((e) => {
-        // Only log if it's not a broken pipe (which is expected if process exits)
-        if (!(e instanceof Deno.errors.BrokenPipe)) {
-          console.error(`Provider "${name}" stdin pipe error:`, e);
-        }
-        this.providerSessions.delete(name);
-      });
-      const writer = encoder.writable.getWriter();
-
-      const stream = process.stdout
-        .pipeThrough(new TextDecoderStream())
-        .pipeThrough(new TextLineStream());
-
-      // Also consume stderr so it doesn't block, but log it if it's not empty
-      void (async () => {
-        try {
-          const stderrStream = process.stderr
-            .pipeThrough(new TextDecoderStream())
-            .pipeThrough(new TextLineStream());
-          for await (const line of stderrStream) {
-            if (line.trim()) {
-              console.error(`Provider "${name}" stderr: ${line}`);
-            }
-          }
-        } catch {
-          // Ignore
-        }
-      })();
-
-      const pendingRequests = new Map<string, (msg: unknown) => void>();
-      const session: ProviderSession = { process, writer, pendingRequests };
-      this.providerSessions.set(name, session);
-
-      // Start background listener
-      void (async () => {
-        try {
-          for await (const line of stream) {
-            if (!line || !line.trim()) continue;
-            try {
-              const msg = JSON.parse(line);
-              if (
-                typeof msg === "object" && msg !== null && "id" in msg &&
-                pendingRequests.has(msg.id as unknown as string)
-              ) {
-                const resolve =
-                  pendingRequests.get(msg.id as unknown as string) ??
-                    expect("request not found");
-                pendingRequests.delete(msg.id as unknown as string);
-                resolve(msg);
-              }
-            } catch {
-              // Ignore non-JSON
-            }
-          }
-        } catch (e) {
-          console.error(`Provider session "${name}" reader error:`, e);
-        } finally {
-          this.providerSessions.delete(name);
-          // Reject all pending requests
-          for (const resolve of pendingRequests.values()) {
-            resolve({ success: false, error: "Provider session closed" });
-          }
-          pendingRequests.clear();
-        }
-      })();
-
-      return session;
-    } catch (e) {
-      console.error(`Failed to start provider session for "${name}":`, e);
-      return null;
-    }
-  }
-
-  /**
-   * Send a command to a provider and wait for response
-   */
-  private async callProvider(
-    name: string,
-    command: string,
-    payload: Record<string, unknown> = {},
-    signal?: AbortSignal,
-  ): Promise<unknown> {
-    const provider = this.getProviders().find((p) => p.name === name);
-    if (!provider) throw new Error(`Provider "${name}" not found`);
-
-    const session = this.getProviderSession(provider.name, provider.command);
-    if (!session) throw new Error(`Could not start provider "${name}"`);
-
-    if (signal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
-    }
-
-    const id = crypto.randomUUID();
-    const { promise, resolve, reject } = Promise.withResolvers<unknown>();
-    session.pendingRequests.set(id, resolve);
-
-    const onAbort = () => {
-      session.pendingRequests.delete(id);
-      // Try to notify the provider about the cancellation (fire and forget)
-      if (this.providerSessions.has(name)) {
-        session.writer.write(
-          JSON.stringify({
-            id: crypto.randomUUID(),
-            command: "cancel",
-            targetId: id,
-          }) + "\n",
-        ).catch(() => {});
-      }
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", onAbort);
-
-    try {
-      // Check if session is still alive before writing
-      if (!this.providerSessions.has(name)) {
-        throw new Error("Provider session closed");
-      }
-      await session.writer.write(
-        JSON.stringify({ id, command, ...payload }) + "\n",
+      const nativeRecipes = this.recipes.filter((r) =>
+        !(r.provider && r._dynamic)
       );
-      const result = await promise;
-      return result;
-    } catch (e) {
-      session.pendingRequests.delete(id);
-      if (!(e instanceof DOMException && e.name === "AbortError")) {
-        this.providerSessions.delete(name);
-      }
-      throw e;
-    } finally {
-      signal?.removeEventListener("abort", onAbort);
-    }
-  }
+      const providerRecipes = await this.providers.getProviderRecipes(
+        (name, opts) => this.getVersions(name, opts),
+        signal,
+      );
 
-  /**
-   * Fetch recipes from all registered providers
-   */
-  getProviderRecipes = async (signal?: AbortSignal): Promise<Recipe[]> => {
-    const providers = this.getProviders();
-    const providerRecipes: Recipe[] = [];
+      // Name de-duplication: Native recipes always keep their name.
+      // Provider recipes are prefixed if they collide with native or previous provider recipes.
+      const seenNames = new Set(nativeRecipes.map((r) => r.name));
+      for (const recipe of providerRecipes) {
+        if (seenNames.has(recipe.name)) {
+          const originalName = recipe.name;
+          // Use - as separator for cross-platform compatibility
+          recipe.name = `${recipe.provider}-${originalName}`;
 
-    for (const provider of providers) {
-      try {
-        interface ProviderApp {
-          name: string;
-          group?: string;
-          version: string;
-          latestVersion: string;
-          description?: string;
-          hasVersions?: boolean;
-        }
-
-        const msg = await this.callProvider(
-          provider.name,
-          "list",
-          {},
-          signal,
-        ) as ProviderResponse;
-
-        if (msg.success === false) {
-          console.error(
-            `Failed to fetch recipes from provider "${provider.name}": ${
-              msg.error || "Unknown error"
-            }`,
-          );
-          continue;
-        }
-
-        if (msg.type !== "list") {
-          console.error(`Unexpected response type from provider: ${msg.type}`);
-          continue;
-        }
-
-        const apps: ProviderApp[] = msg.data as ProviderApp[];
-
-        for (const app of apps) {
-          const currentVersion = app.version ?? "-";
-          const latestVersion = app.latestVersion ?? "-";
-
-          const recipe: Recipe = {
-            name: app.name,
-            provider: provider.name,
-            description: app.description,
-            _dynamic: true,
-            _group: app.group,
-            version: () => Promise.resolve(latestVersion),
-            download: async ({ latestVersion, signal, force }) => {
-              const msg = await this.callProvider(provider.name, "update", {
-                name: app.name,
-                version: latestVersion,
-                force,
-              }, signal) as ProviderResponse;
-
-              if (!msg.success) {
-                throw new Error(
-                  `Update failed for ${app.name}: ${
-                    msg.error || "Unknown error"
-                  }`,
-                );
-              }
-              return { extern: app.name };
-            },
-            _currentVersion: currentVersion,
-            _latestVersion: latestVersion,
-          };
-
-          if (app.hasVersions) {
-            recipe.versions = (options) =>
-              this.getVersions(app.name, {
-                page: options?.page,
-              });
+          // Extreme edge case: what if the prefixed name also collides?
+          let counter = 1;
+          const basePrefixedName = recipe.name;
+          while (seenNames.has(recipe.name)) {
+            recipe.name = `${basePrefixedName}-${counter}`;
+            counter++;
           }
+          console.warn(
+            `⚠️ Name collision: renamed provider app "${originalName}" to "${recipe.name}"`,
+          );
+        }
+        seenNames.add(recipe.name);
+      }
 
-          providerRecipes.push(recipe);
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          throw error;
-        }
-        console.error(
-          `Failed to fetch recipes from provider "${provider.name}":`,
-          error,
+      this.recipes.splice(
+        0,
+        this.recipes.length,
+        ...nativeRecipes,
+        ...providerRecipes,
+      );
+      this.recipes.sort((a, b) => a.name.localeCompare(b.name));
+
+      if (providerRecipes.length > 0) {
+        console.log(
+          `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
         );
       }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return;
+      }
+      throw e;
     }
-
-    return providerRecipes;
   };
 
   /**
@@ -479,7 +278,7 @@ export class ChefInternal {
 
     if (recipe.provider) {
       try {
-        const msg = await this.callProvider(
+        const msg = await this.providers.callProvider(
           recipe.provider,
           "versions",
           {
@@ -487,7 +286,7 @@ export class ChefInternal {
             page: options.page,
           },
           options.signal,
-        ) as ProviderResponse;
+        ) as { success: boolean; data: unknown };
 
         if (msg.success && Array.isArray(msg.data)) {
           return msg.data as string[];
@@ -508,7 +307,6 @@ export class ChefInternal {
       return await recipe.versions(options);
     }
 
-    // Default to just the latest version if no versions method provided
     const latest = await recipe.version?.();
     return latest ? [latest] : [];
   };
@@ -543,8 +341,7 @@ export class ChefInternal {
     let finalArgs = recipe?.cmdArgs ? [...recipe.cmdArgs] : [];
     finalArgs = finalArgs.concat(args);
 
-    const terminalCommand = await this.getTerminalCommand();
-
+    const terminalCommand = await this.settings.getTerminalCommand();
     const [termBin, ...termArgs] = terminalCommand.split(" ");
 
     try {
@@ -553,7 +350,6 @@ export class ChefInternal {
       }).spawn();
 
       this.binaryRunner.trackProcess(name, process);
-
       return process;
     } catch (e) {
       console.error(`Failed to run in terminal: ${e}`);
@@ -561,56 +357,19 @@ export class ChefInternal {
   };
 
   /**
-
-         * Kill all running instances of a binary
-
-         */
-
+   * Kill all running instances of a binary
+   */
   killAll = (name: string) => {
     this.binaryRunner.killAll(name);
   };
 
   /**
-
-         * Set a listener for binary status changes
-
-
-     */
+   * Set a listener for binary status changes
+   */
   setBinaryStatusListener = (
     listener: (name: string, running: boolean) => void,
   ) => {
     this.binaryRunner.setStatusListener(listener);
-  };
-  /**
-   * Fetch recipes from all registered providers and add them to internal list
-   */
-  refreshRecipes = async (signal?: AbortSignal) => {
-    try {
-      // Remove old provider recipes that were dynamically discovered
-      const nativeRecipes = this.recipes.filter((r) =>
-        !(r.provider && r._dynamic)
-      );
-      const providerRecipes = await this.getProviderRecipes(signal);
-
-      this.recipes.splice(
-        0,
-        this.recipes.length,
-        ...nativeRecipes,
-        ...providerRecipes,
-      );
-      this.recipes.sort((a, b) => a.name.localeCompare(b.name));
-
-      if (providerRecipes.length > 0) {
-        console.log(
-          `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
-        );
-      }
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        return;
-      }
-      throw e;
-    }
   };
 
   /**
@@ -643,10 +402,8 @@ export class ChefInternal {
     if (!recipe) return { needsUpdate: false };
 
     if (recipe.provider) {
-      // Provider recipes are special
       const current = recipe._currentVersion;
       const latest = recipe._latestVersion;
-
       const hasLatest = latest && latest !== "-";
 
       return {
@@ -660,7 +417,6 @@ export class ChefInternal {
     try {
       let latestVersion = await recipe.version?.();
 
-      // If version() is missing but versions() is present, use the first one
       if (!latestVersion && recipe.versions) {
         const all = await recipe.versions({ page: 1 });
         latestVersion = all[0];
@@ -683,13 +439,11 @@ export class ChefInternal {
 
   /**
    * Main entry point - parse arguments and execute commands
-   * Now throws parsing errors for caller to handle (exit or test)
    */
   start = async (args: string[]) => {
     await this.init();
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
-        // Only refresh if binary is not in native recipes AND not in the database
         const isNative = this.recipes.some((r) => r.name === name);
         if (name && !isNative && !this.database.isInstalled(name)) {
           await this.refreshRecipes();
@@ -707,9 +461,7 @@ export class ChefInternal {
       update: async (options) => {
         await this.refreshRecipes();
         if (options.only || (options.binary && options.binary.length > 0)) {
-          const binaries = options.only
-            ? [options.only]
-            : options.binary ?? expect("binary list missing");
+          const binaries = options.only ? [options.only] : options.binary ?? [];
           for (const name of binaries) {
             await this.installOrUpdate(name, {
               force: options.force,
@@ -787,15 +539,9 @@ export class ChefInternal {
    * Close all provider sessions
    */
   cleanup = async () => {
-    for (const [name, session] of this.providerSessions) {
-      try {
-        await session.writer.close();
-        await session.process.status;
-      } catch (e) {
-        console.error(`Error closing provider session "${name}":`, e);
-      }
+    if (this.#providers) {
+      await this.#providers.cleanup();
     }
-    this.providerSessions.clear();
   };
 
   /**
@@ -809,14 +555,14 @@ export class ChefInternal {
     if (recipe?.provider) {
       console.log(`🗑️ Uninstalling "${name}" (via ${recipe.provider})...`);
       try {
-        const msg = await this.callProvider(
+        const msg = await this.providers.callProvider(
           recipe.provider,
           "remove",
           {
             name: name,
           },
           options.signal,
-        ) as ProviderResponse;
+        ) as { success: boolean };
 
         if (msg.success) {
           console.log(`✅ Successfully uninstalled "${name}"`);
@@ -889,112 +635,23 @@ export class ChefInternal {
     return this.chefPath;
   };
 
-  /**
-   * Get the configured editor command or default
-   */
-  getEditorCommand = (): string => {
-    return this.database.getSetting("editorCommand") || (
-      Deno.build.os === "windows"
-        ? "start"
-        : Deno.build.os === "darwin"
-        ? "open"
-        : "xdg-open"
-    );
-  };
-
-  /**
-   * Set the editor command
-   */
-  setEditorCommand = (command: string) => {
-    this.database.setSetting("editorCommand", command);
-  };
-
-  /**
-   * Get the configured terminal command or default
-   */
-  getTerminalCommand = async (): Promise<string> => {
-    const saved = this.database.getSetting("terminalCommand");
-    if (saved) return saved;
-
-    if (Deno.build.os === "windows") return "cmd /c start";
-    if (Deno.build.os === "darwin") return "open -a Terminal";
-
-    const envTerminal = Deno.env.get("TERMINAL");
-    if (envTerminal) return `${envTerminal} -e`;
-
-    const commonTerminals = [
-      { bin: "kgx", args: "--" },
-      { bin: "gnome-terminal", args: "--" },
-      { bin: "xfce4-terminal", args: "-e" },
-      { bin: "konsole", args: "-e" },
-      { bin: "x-terminal-emulator", args: "-e" },
-      { bin: "alacritty", args: "-e" },
-      { bin: "kitty", args: "" },
-      { bin: "xterm", args: "-e" },
-    ];
-
-    for (const { bin, args } of commonTerminals) {
-      if (await commandExists(bin)) {
-        return `${bin} ${args}`.trim();
-      }
-    }
-
-    return "xterm -e";
-  };
-
-  /**
-   * Set the terminal command
-   */
-  setTerminalCommand = (command: string) => {
-    this.database.setSetting("terminalCommand", command);
-  };
-
-  /**
-   * Check if the app should stay active in the background
-   */
-  getStayInBackground = (): boolean => {
-    return this.database.getSetting("stayInBackground") === "true";
-  };
-
-  /**
-   * Set if the app should stay active in the background
-   */
-  setStayInBackground = (stay: boolean) => {
-    this.database.setSetting("stayInBackground", stay.toString());
-  };
-
-  /**
-   * Check if the app should automatically check for updates
-   */
-  getAutoUpdateCheck = (): boolean => {
-    const setting = this.database.getSetting("autoUpdateCheck");
-    return setting === undefined || setting === "true";
-  };
-
-  /**
-   * Set if the app should automatically check for updates
-   */
-  setAutoUpdateCheck = (auto: boolean) => {
-    this.database.setSetting("autoUpdateCheck", auto.toString());
-  };
-
-  /**
-   * Check if the app should notify about updates in background
-   */
-  getBackgroundUpdateNotification = (): boolean => {
-    const setting = this.database.getSetting("backgroundUpdateNotification");
-    return setting === undefined || setting === "true";
-  };
-
-  /**
-   * Set if the app should notify about updates in background
-   */
-  setBackgroundUpdateNotification = (notify: boolean) => {
-    this.database.setSetting(
-      "backgroundUpdateNotification",
-      notify.toString(),
-    );
-  };
+  // Redirect settings methods to SettingsManager
+  getEditorCommand = () => this.settings.getEditorCommand();
+  setEditorCommand = (command: string) =>
+    this.settings.setEditorCommand(command);
+  getTerminalCommand = () => this.settings.getTerminalCommand();
+  setTerminalCommand = (command: string) =>
+    this.settings.setTerminalCommand(command);
+  getStayInBackground = () => this.settings.getStayInBackground();
+  setStayInBackground = (stay: boolean) =>
+    this.settings.setStayInBackground(stay);
+  getAutoUpdateCheck = () => this.settings.getAutoUpdateCheck();
+  setAutoUpdateCheck = (auto: boolean) =>
+    this.settings.setAutoUpdateCheck(auto);
+  getBackgroundUpdateNotification = () =>
+    this.settings.getBackgroundUpdateNotification();
+  setBackgroundUpdateNotification = (notify: boolean) =>
+    this.settings.setBackgroundUpdateNotification(notify);
 
   /**
    * Create a symlink to a binary in the exports directory
@@ -1023,14 +680,12 @@ export class ChefInternal {
     const linkPath = path.join(this.exportsPath, name + exeExtension);
 
     try {
-      // Remove existing symlink if it exists
       try {
         await Deno.remove(linkPath);
       } catch {
-        // Ignore if file doesn't exist
+        // Ignore
       }
 
-      // Create symlink
       await Deno.symlink(binaryPath, linkPath);
 
       console.log(`✅ Created symlink for "${name}"`);
@@ -1063,7 +718,6 @@ export class ChefInternal {
     const linkPath = path.join(this.exportsPath, name + exeExtension);
 
     try {
-      // Check if the symlink exists
       const stat = await Deno.lstat(linkPath);
       if (!stat.isSymlink) {
         if (!options.silent) {
@@ -1072,7 +726,6 @@ export class ChefInternal {
         return;
       }
 
-      // Remove the symlink
       await Deno.remove(linkPath);
 
       if (!options.silent) {

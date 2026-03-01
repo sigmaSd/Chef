@@ -113,24 +113,14 @@ export async function copyDirRecursively(from: string, to: string) {
   await Deno.mkdir(to, { recursive: true });
   const readDir = Deno.readDir(from);
   for await (const entry of readDir) {
-    const newFrom = rustJoin(from, entry.name);
-    const newTo = rustJoin(to, entry.name);
+    const newFrom = path.join(from, entry.name);
+    const newTo = path.join(to, entry.name);
     if (entry.isDirectory) {
       await copyDirRecursively(newFrom, newTo);
     } else if (entry.isFile) {
       await Deno.copyFile(newFrom, newTo);
     }
   }
-}
-function rustJoin(path1: string, path2: string) {
-  const maybeCommon = path.common([path1, path2]);
-  if (!maybeCommon) return path.join(path1, path2);
-
-  return path.join(
-    maybeCommon,
-    path1.replace(maybeCommon, ""),
-    path2.replace(maybeCommon, ""),
-  );
 }
 
 //https://deno.land/x/dir@1.5.2/cache_dir/mod.ts

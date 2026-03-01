@@ -570,6 +570,7 @@ export async function startGui(chef: ChefInternal) {
       updateRunningStatus: (running: boolean) => void;
       updateStatusLabel: (text: string) => void;
       name: string;
+      provider: string;
       group?: string;
       expanderRow: ExpanderRow;
       isInstalled: boolean;
@@ -671,7 +672,10 @@ export async function startGui(chef: ChefInternal) {
             refreshList,
             recipeRows,
             (isInstalled, hasUpdate) => {
-              const rowObj = recipeRows.find((r) => r.name === recipe.name);
+              const rowObj = recipeRows.find((r) =>
+                r.name === recipe.name &&
+                r.provider === (recipe.provider || "Chef apps")
+              );
               if (rowObj) {
                 rowObj.isInstalled = isInstalled;
                 rowObj.hasUpdate = hasUpdate;
@@ -686,6 +690,7 @@ export async function startGui(chef: ChefInternal) {
             updateRunningStatus,
             updateStatusLabel,
             name: recipe.name,
+            provider: recipe.provider || "Chef apps",
             group: recipe._group,
             expanderRow: expander,
             isInstalled: false,
@@ -976,6 +981,7 @@ function createRecipeRow(
     setSensitive: (sensitive: boolean) => void;
     updateStatusLabel: (text: string) => void;
     name: string;
+    provider: string;
     group?: string;
     expanderRow: ExpanderRow;
   }[],
@@ -1082,9 +1088,10 @@ function createRecipeRow(
   };
 
   const setGroupState = (sensitive: boolean, status?: string) => {
+    const provider = recipe.provider || "Chef apps";
     for (const row of recipeRows) {
       if (
-        row.name === recipe.name ||
+        (row.name === recipe.name && row.provider === provider) ||
         (recipe._group && row.group === recipe._group)
       ) {
         row.setSensitive(sensitive);

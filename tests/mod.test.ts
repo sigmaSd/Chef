@@ -3,30 +3,37 @@ import { assertEquals } from "@std/assert";
 import { expect } from "../src/utils.ts";
 import { ChefInternal } from "../src/lib.ts";
 
+import { ChefPaths } from "../src/paths.ts";
+
 class TestChef extends ChefInternal {
   // Override the base path for testing
   private testBasePath = path.join(Deno.makeTempDirSync(), "chef");
-
-  override get binPath() {
-    return path.join(this.testBasePath, this.getScriptName(), "bin");
-  }
-
-  override get iconsPath() {
-    return path.join(this.testBasePath, this.getScriptName(), "icons");
-  }
-
-  override get dbPath() {
-    return path.join(
-      this.testBasePath,
-      this.getScriptName(),
-      "db.json",
-    );
-  }
 
   private getScriptName() {
     return this.chefPath
       ? path.basename(this.chefPath, path.extname(this.chefPath))
       : "default";
+  }
+
+  async testInit() {
+    const paths = new ChefPaths(
+      this.getScriptName(),
+      this.chefPath,
+      this.testBasePath,
+    );
+    await this.init({ paths });
+  }
+
+  override get binPath() {
+    return this.paths.binPath;
+  }
+
+  override get iconsPath() {
+    return this.paths.iconsPath;
+  }
+
+  override get dbPath() {
+    return this.paths.dbPath;
   }
 }
 
@@ -75,6 +82,7 @@ Deno.test("test chef1", async () =>
     }]);
 
     // install hello exe
+    await chef.testInit();
     await chef.start(["update"]);
 
     assertEquals(
@@ -86,6 +94,7 @@ Deno.test("test chef1", async () =>
     Deno.readTextFileSync(path.join(chef.binPath, "hello" + exeExtension));
 
     // run hello exe
+    await chef.testInit();
     await chef.start(["run", "hello"]);
     // assert it works
     assertEquals(
@@ -94,6 +103,7 @@ Deno.test("test chef1", async () =>
     );
 
     // uninstall hello
+    await chef.testInit();
     await chef.start(["uninstall", "hello"]);
     assertEquals(
       Deno.readTextFileSync(chef.dbPath),
@@ -145,6 +155,7 @@ Deno.test("test chef extern", async () =>
       }]);
 
       // install extern app
+      await chef.testInit();
       await chef.start(["update"]);
 
       assertEquals(
@@ -158,6 +169,7 @@ Deno.test("test chef extern", async () =>
       assertEquals(await chef.isInstalled("extern-app"), true);
 
       // run it (should execute the mock)
+      await chef.testInit();
       await chef.start(["run", "extern-app"]);
 
       // assert it works
@@ -167,6 +179,7 @@ Deno.test("test chef extern", async () =>
       );
 
       // uninstall
+      await chef.testInit();
       await chef.start(["uninstall", "extern-app"]);
       assertEquals(
         Deno.readTextFileSync(chef.dbPath),
