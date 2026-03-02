@@ -575,6 +575,8 @@ export async function startGui(chef: ChefInternal) {
       expanderRow: ExpanderRow;
       isInstalled: boolean;
       hasUpdate: boolean;
+      isBusy: boolean;
+      updateStatus: () => Promise<void>;
       updateStatusPromise: Promise<void>;
     }[] = [];
 
@@ -658,6 +660,7 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
+            updateStatus,
             updateStatusPromise,
           } = createRecipeRow(
             chef,
@@ -669,7 +672,7 @@ export async function startGui(chef: ChefInternal) {
               statusGroup,
               actionsGroup,
             },
-            refreshList,
+            applyFilters,
             recipeRows,
             (isInstalled, hasUpdate) => {
               const rowObj = recipeRows.find((r) =>
@@ -689,12 +692,14 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
+            updateStatus,
             name: recipe.name,
             provider: recipe.provider || "Chef apps",
             group: recipe._group,
             expanderRow: expander,
             isInstalled: false,
             hasUpdate: false,
+            isBusy: false,
             updateStatusPromise,
           });
           expander.addRow(row);
@@ -976,14 +981,16 @@ function createRecipeRow(
     statusGroup: SizeGroup;
     actionsGroup: SizeGroup;
   },
-  refreshList: (skipProviderRefresh?: boolean) => Promise<void>,
+  applyFilters: () => void,
   recipeRows: {
     setSensitive: (sensitive: boolean) => void;
     updateStatusLabel: (text: string) => void;
+    updateStatus: () => Promise<void>;
     name: string;
     provider: string;
     group?: string;
     expanderRow: ExpanderRow;
+    isBusy: boolean;
   }[],
   onStatusChanged: (isInstalled: boolean, hasUpdate: boolean) => void,
   globalStatusLabel: Label,
@@ -992,6 +999,7 @@ function createRecipeRow(
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
   updateStatusLabel: (text: string) => void;
+  updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
 } {
   const builder = new Builder();
@@ -1284,13 +1292,20 @@ function createRecipeRow(
     void fetchVersions(currentPage);
   });
 
+  const getRowObj = () =>
+    recipeRows.find((r) =>
+      r.name === recipe.name &&
+      r.provider === (recipe.provider || "Chef apps")
+    );
+
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   versionsList.onRowActivated(async (row) => {
-    if (chef.isBusy) return;
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
     const version = row.getData("version");
     if (!version) return;
 
-    chef.isBusy = true;
+    if (rowObj) rowObj.isBusy = true;
     versionsPopover.popdown();
     setGroupState(false, `Installing ${version}...`);
     statusLabel.removeCssClass("success");
@@ -1303,7 +1318,8 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      void refreshList(true);
+      await updateStatus();
+      applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(`Installation of ${recipe.name} ${version} cancelled`);
@@ -1320,7 +1336,7 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
-      chef.isBusy = false;
+      if (rowObj) rowObj.isBusy = false;
     }
   });
 
@@ -1353,9 +1369,10 @@ function createRecipeRow(
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   installBtn.onClick(async () => {
-    if (chef.isBusy) return;
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
 
-    chef.isBusy = true;
+    if (rowObj) rowObj.isBusy = true;
     setGroupState(false, "Installing...");
     installBtn.setLabel("Installing...");
     statusLabel.removeCssClass("success");
@@ -1366,7 +1383,8 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      await refreshList(true);
+      await updateStatus();
+      applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(`Installation of ${recipe.name} cancelled`);
@@ -1386,14 +1404,16 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
-      chef.isBusy = false;
+      if (rowObj) rowObj.isBusy = false;
     }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   removeBtn.onClick(async () => {
-    if (chef.isBusy) return;
-    chef.isBusy = true;
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
+    if (rowObj) rowObj.isBusy = true;
+
     morePopover.popdown();
     setGroupState(false, "Removing...");
     statusLabel.removeCssClass("success");
@@ -1402,7 +1422,8 @@ function createRecipeRow(
     try {
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
       globalStatusLabel.removeCssClass("error");
-      await refreshList(true);
+      await updateStatus();
+      applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(`Removal of ${recipe.name} cancelled`);
@@ -1419,13 +1440,15 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
-      chef.isBusy = false;
+      if (rowObj) rowObj.isBusy = false;
     }
   });
 
   const onUpdateOrReinstall = async (force: boolean) => {
-    if (chef.isBusy) return;
-    chef.isBusy = true;
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
+    if (rowObj) rowObj.isBusy = true;
+
     const isReinstall = force;
     const btn = isReinstall ? reinstallBtn : updateBtn;
     if (isReinstall) {
@@ -1444,7 +1467,8 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      await refreshList(true);
+      await updateStatus();
+      applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(
@@ -1465,7 +1489,7 @@ function createRecipeRow(
       setGroupState(true);
       cancelBtn.setVisible(false);
       rowAbortController = null;
-      chef.isBusy = false;
+      if (rowObj) rowObj.isBusy = false;
     }
   };
 
@@ -1522,6 +1546,7 @@ function createRecipeRow(
     setSensitive,
     updateRunningStatus,
     updateStatusLabel,
+    updateStatus,
     updateStatusPromise,
     // for eslint TODO: figure this out
     // deno-lint-ignore no-explicit-any

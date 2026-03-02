@@ -45,3 +45,10 @@
       providers)
 
 - [x] Fix UI bug where duplicate names caused simultaneous state updates
+
+- [x] Maintain "Updates only" view after an app is updated/reinstalled
+
+- [x] Allow concurrent updates for different apps in the GUI (per-row isBusy)
+
+- [x] Update only the relevant row in the GUI after installation/update (no full
+      rerender)
