@@ -10,6 +10,7 @@ import {
   Entry,
   EventControllerKey,
   ExpanderRow,
+  Image,
   Key,
   Label,
   ListBox,
@@ -117,6 +118,9 @@ export async function startGui(chef: ChefInternal) {
 
     const searchBtn = builder.get("search_btn", ToggleButton) ?? expect(
       "missing search_btn",
+    );
+    const offlineIndicator = builder.get("offline_indicator", Image) ?? expect(
+      "missing offline_indicator",
     );
     const exitBtn = builder.get("exit_btn", Button) ?? expect(
       "missing exit_btn",
@@ -721,6 +725,26 @@ export async function startGui(chef: ChefInternal) {
       }
     });
 
+    const updateConnectivity = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch("https://1.1.1.1", {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        offlineIndicator.setVisible(!response.ok);
+      } catch {
+        offlineIndicator.setVisible(true);
+      }
+    };
+
+    // Check connectivity periodically
+    setInterval(() => {
+      void updateConnectivity();
+    }, 30000);
+
     const onRefresh = async () => {
       if (!refreshBtn.getSensitive() || chef.isBusy) return;
       chef.isBusy = true;
@@ -729,6 +753,7 @@ export async function startGui(chef: ChefInternal) {
       cancelBtn.setVisible(true);
       abortController = new AbortController();
       try {
+        void updateConnectivity();
         await refreshList(false, abortController.signal);
       } catch (e) {
         if (!(e instanceof DOMException && e.name === "AbortError")) {
@@ -883,6 +908,7 @@ export async function startGui(chef: ChefInternal) {
 
     // Initial populate
     updateMenu("recipes");
+    void updateConnectivity();
     void refreshList();
 
     // Register dax command listener

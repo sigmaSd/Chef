@@ -52,3 +52,5 @@
 
 - [x] Update only the relevant row in the GUI after installation/update (no full
       rerender)
+
+- [x] Add an offline indicator in the GUI header bar

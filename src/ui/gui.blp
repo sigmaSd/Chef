@@ -40,6 +40,14 @@ Adw.ApplicationWindow window {
                 tooltip-text: "Back to Recipes";
             }
 
+            [start]
+            Image offline_indicator {
+                icon-name: "network-offline-symbolic";
+                tooltip-text: "Offline - Some features may be unavailable";
+                visible: false;
+                margin-start: 10;
+            }
+
             title-widget: Label {
                 label: "Chef";
                 styles [
