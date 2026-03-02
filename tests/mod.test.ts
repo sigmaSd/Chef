@@ -18,7 +18,6 @@ class TestChef extends ChefInternal {
   async testInit() {
     const paths = new ChefPaths(
       this.getScriptName(),
-      this.chefPath,
       this.testBasePath,
     );
     await this.init({ paths });

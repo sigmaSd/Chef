@@ -22,14 +22,11 @@ interface ProviderResponse {
 export class ProviderManager {
   #sessions: Map<string, ProviderSession> = new Map();
   #database: ChefDatabase;
-  #recipes: Recipe[];
 
   constructor(
     database: ChefDatabase,
-    recipes: Recipe[],
   ) {
     this.#database = database;
-    this.#recipes = recipes;
   }
 
   /**

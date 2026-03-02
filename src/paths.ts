@@ -6,16 +6,13 @@ import { getChefBasePath } from "./internal_utils.ts";
  */
 export class ChefPaths {
   #scriptName: string;
-  #chefPath: string;
   #basePath: string;
 
   constructor(
     scriptName: string,
-    chefPath: string,
     basePath: string = getChefBasePath(),
   ) {
     this.#scriptName = scriptName;
-    this.#chefPath = chefPath;
     this.#basePath = basePath;
   }
 

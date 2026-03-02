@@ -45,9 +45,9 @@ export class ChefInternal {
 
     this.#scriptName = `${name}-${hashHex}`;
     this.#paths = options.paths ??
-      new ChefPaths(this.#scriptName, this.chefPath);
+      new ChefPaths(this.#scriptName);
     this.#settings = new SettingsManager(this.database);
-    this.#providers = new ProviderManager(this.database, this.recipes);
+    this.#providers = new ProviderManager(this.database);
   }
 
   // Getters for extracted managers
