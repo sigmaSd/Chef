@@ -89,7 +89,7 @@ await chef.start(import.meta.url);
 
 export async function runInTempDir<T>(fn: () => Promise<T>) {
   const currentDir = Deno.cwd();
-  const tempDir = Deno.makeTempDirSync();
+  const tempDir = await Deno.makeTempDir();
   Deno.chdir(tempDir);
   let ret: T;
   try {

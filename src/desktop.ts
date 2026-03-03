@@ -80,8 +80,8 @@ export class DesktopFileManager {
     );
 
     const desktopPath = path.join(desktopDir, `${name}.desktop`);
-    Deno.writeTextFileSync(desktopPath, desktopFile);
-    Deno.chmodSync(desktopPath, 0o755);
+    await Deno.writeTextFile(desktopPath, desktopFile);
+    await Deno.chmod(desktopPath, 0o755);
     console.log(
       `%cCreated desktop file for ${name}`,
       `color: ${Colors.lightGreen}`,
@@ -143,8 +143,8 @@ Comment=Personal Package Manager
 Categories=System;
 Icon=${iconValue}`;
 
-    Deno.writeTextFileSync(desktopPath, content);
-    Deno.chmodSync(desktopPath, 0o755);
+    await Deno.writeTextFile(desktopPath, content);
+    await Deno.chmod(desktopPath, 0o755);
     console.log(
       `%cChef GUI installed as a desktop application`,
       `color: ${Colors.lightGreen}`,
