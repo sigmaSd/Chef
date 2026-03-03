@@ -1131,6 +1131,8 @@ function createRecipeRow(
         row.setSensitive(sensitive);
         if (status) {
           row.updateStatusLabel(status);
+        } else if (sensitive) {
+          void row.updateStatus();
         }
       }
     }
