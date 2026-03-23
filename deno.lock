@@ -7,11 +7,11 @@
     "jsr:@david/dax@0.45.0": "0.45.0",
     "jsr:@david/path@0.2": "0.2.0",
     "jsr:@david/which@~0.4.1": "0.4.1",
-    "jsr:@sigma/deno-compat@0.22.0": "0.22.0",
+    "jsr:@sigma/deno-compat@0.23.0": "0.23.0",
     "jsr:@sigma/parse@0.46": "0.46.0",
     "jsr:@sigma/parse@0.52": "0.52.0",
     "jsr:@sigma/parse@0.53": "0.53.0",
-    "jsr:@sigmasd/gtk@0.49": "0.49.0",
+    "jsr:@sigmasd/gtk@0.56": "0.56.0",
     "jsr:@sigmasd/infer@^3.1.3": "3.1.3",
     "jsr:@std/assert@^1.0.17": "1.0.19",
     "jsr:@std/assert@^1.0.19": "1.0.19",
@@ -69,8 +69,8 @@
     "@david/which@0.4.1": {
       "integrity": "896a682b111f92ab866cc70c5b4afab2f5899d2f9bde31ed00203b9c250f225e"
     },
-    "@sigma/deno-compat@0.22.0": {
-      "integrity": "a7e38065b8cf8918b0c2d7c6bce8ffe29086055fd67b4bed52b60c8a127391bd"
+    "@sigma/deno-compat@0.23.0": {
+      "integrity": "3e116e19096601c3e078311864b653a207592195ae6a3f634a45931eb1a21481"
     },
     "@sigma/parse@0.46.0": {
       "integrity": "f0a7f66d3446b00f0d2f499524ead1fee02943fd6af6e24106877bfc1eef6758"
@@ -81,8 +81,8 @@
     "@sigma/parse@0.53.0": {
       "integrity": "40a409349a448f591d2f8a7df704d15c83155d343403e322c55f562b5bae95ff"
     },
-    "@sigmasd/gtk@0.49.0": {
-      "integrity": "1936dfae8fe66de60b90055fc7fd729422be6bf15e6881b349c93e833740dab1",
+    "@sigmasd/gtk@0.56.0": {
+      "integrity": "b55719c7eccbae6213f4c52fb4e276b528e8b5a38c3b32806eb2a5f373bf9576",
       "dependencies": [
         "jsr:@sigma/deno-compat"
       ]
@@ -188,7 +188,7 @@
     "dependencies": [
       "jsr:@david/dax@0.45",
       "jsr:@sigma/parse@0.53",
-      "jsr:@sigmasd/gtk@0.49",
+      "jsr:@sigmasd/gtk@0.56",
       "jsr:@sigmasd/infer@^3.1.3",
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/async@^1.2.0",
