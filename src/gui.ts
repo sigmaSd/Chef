@@ -582,6 +582,7 @@ export async function startGui(chef: ChefInternal) {
       isBusy: boolean;
       updateStatus: () => Promise<void>;
       updateStatusPromise: Promise<void>;
+      cleanup?: () => void;
     }[] = [];
 
     searchEntry.onChanged(applyFilters);
@@ -620,6 +621,14 @@ export async function startGui(chef: ChefInternal) {
         statusLabel.setText("Refreshing recipes...");
         await chef.refreshRecipes(signal);
       }
+
+      // Call cleanup for each row to disconnect signals and dispose builder
+      for (const r of recipeRows) {
+        if (r.cleanup) {
+          r.cleanup();
+        }
+      }
+
       listBox.removeAll();
       listBox.append(headerRow);
 
@@ -666,6 +675,7 @@ export async function startGui(chef: ChefInternal) {
             updateStatusLabel,
             updateStatus,
             updateStatusPromise,
+            cleanup,
           } = createRecipeRow(
             chef,
             recipe,
@@ -705,6 +715,7 @@ export async function startGui(chef: ChefInternal) {
             hasUpdate: false,
             isBusy: false,
             updateStatusPromise,
+            cleanup,
           });
           expander.addRow(row);
         }
@@ -714,8 +725,6 @@ export async function startGui(chef: ChefInternal) {
       await Promise.all(
         recipeRows.map((r) => r.updateStatusPromise),
       );
-
-      applyFilters();
     };
 
     chef.setBinaryStatusListener((name, running) => {
@@ -997,6 +1006,10 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
+const RECIPE_ROW_UI_DATA = new TextDecoder().decode(
+  decodeBase64(recipeRowUiJson.value),
+);
+
 function createRecipeRow(
   chef: ChefInternal,
   recipe: Recipe,
@@ -1027,10 +1040,10 @@ function createRecipeRow(
   updateStatusLabel: (text: string) => void;
   updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
+  cleanup: () => void; // Add cleanup function to disconnect signals
 } {
   const builder = new Builder();
-  const uiData = new TextDecoder().decode(decodeBase64(recipeRowUiJson.value));
-  builder.addFromString(uiData);
+  builder.addFromString(RECIPE_ROW_UI_DATA);
 
   const row = builder.get("recipe_row", ListBoxRow) ?? expect(
     "missing recipe_row",
@@ -1146,6 +1159,7 @@ function createRecipeRow(
   groups.actionsGroup.addWidget(actionBox);
 
   let rowAbortController: AbortController | null = null;
+  const lifecycleAbortController = new AbortController();
   let fetchedVersions: string[] = [];
   let currentPage = 1;
   let isFetching = false;
@@ -1153,6 +1167,7 @@ function createRecipeRow(
   const checkUpdate = async () => {
     try {
       const info = await chef.checkUpdate(recipe.name);
+      if (lifecycleAbortController.signal.aborted) return;
       const hasVersions = !!recipe.versions;
 
       if (info.latestVersion) {
@@ -1206,6 +1221,7 @@ function createRecipeRow(
         }
       }
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       console.error(`Failed to check update for ${recipe.name}:`, e);
       latestVersionBtn.setLabel("Error");
     }
@@ -1226,13 +1242,14 @@ function createRecipeRow(
       runningCounterLabel.setText(`(${runningCount})`);
     } else {
       runningCounterLabel.setText("");
-      await updateStatus();
+      updateStatus();
     }
     await updateButtons();
   };
 
-  const updateStatus = async () => {
-    const installed = await chef.isInstalled(recipe.name);
+  const updateStatus = () => {
+    const installed = chef.isInstalled(recipe.name);
+    if (lifecycleAbortController.signal.aborted) return;
     statusLabel.setText(installed ? "Installed" : "Not Installed");
     const version = chef.getVersion(recipe.name);
     versionLabel.setText(version || "-");
@@ -1260,7 +1277,11 @@ function createRecipeRow(
     if (isFetching) return;
     isFetching = true;
     try {
-      const versions = await chef.getVersions(recipe.name, { page });
+      const versions = await chef.getVersions(recipe.name, {
+        page,
+        signal: lifecycleAbortController.signal,
+      });
+      if (lifecycleAbortController.signal.aborted) return;
       if (page === 1) {
         fetchedVersions = versions;
       } else {
@@ -1269,6 +1290,7 @@ function createRecipeRow(
       loadMoreBtn.setVisible(versions.length === 30);
       updateVersionsList();
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       console.error(`Failed to fetch versions for ${recipe.name}:`, e);
     } finally {
       isFetching = false;
@@ -1346,7 +1368,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      await updateStatus();
+      updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1368,8 +1390,8 @@ function createRecipeRow(
     }
   });
 
-  const updateButtons = async () => {
-    const installed = await chef.isInstalled(recipe.name);
+  const updateButtons = () => {
+    const installed = chef.isInstalled(recipe.name);
     const isRunning = runningCount > 0;
 
     installBtn.setVisible(!installed);
@@ -1411,7 +1433,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      await updateStatus();
+      updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1425,8 +1447,8 @@ function createRecipeRow(
         globalStatusLabel.addCssClass("error");
       }
       // Reset buttons on error or cancel
-      await updateButtons();
-      await updateStatus();
+      updateButtons();
+      updateStatus();
     } finally {
       installBtn.setLabel("Install");
       setGroupState(true);
@@ -1450,7 +1472,7 @@ function createRecipeRow(
     try {
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
       globalStatusLabel.removeCssClass("error");
-      await updateStatus();
+      updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1462,8 +1484,8 @@ function createRecipeRow(
         );
         globalStatusLabel.addCssClass("error");
       }
-      await updateStatus();
-      await updateButtons();
+      updateStatus();
+      updateButtons();
     } finally {
       setGroupState(true);
       cancelBtn.setVisible(false);
@@ -1495,7 +1517,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      await updateStatus();
+      updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1510,8 +1532,8 @@ function createRecipeRow(
         globalStatusLabel.addCssClass("error");
       }
       // Reset buttons on error or cancel
-      await updateButtons();
-      await updateStatus();
+      updateButtons();
+      updateStatus();
     } finally {
       btn.setLabel(oldLabel);
       setGroupState(true);
@@ -1569,6 +1591,15 @@ function createRecipeRow(
     }
   });
 
+  // Cleanup function to disconnect signals and free resources
+  const cleanup = () => {
+    // Cancel all pending background tasks
+    lifecycleAbortController.abort();
+
+    // Dispose builder to free parser resources
+    builder.unref();
+  };
+
   return {
     row,
     setSensitive,
@@ -1576,6 +1607,7 @@ function createRecipeRow(
     updateStatusLabel,
     updateStatus,
     updateStatusPromise,
+    cleanup,
     // for eslint TODO: figure this out
     // deno-lint-ignore no-explicit-any
   } as any;
