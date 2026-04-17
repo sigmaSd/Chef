@@ -546,7 +546,9 @@ export async function startGui(chef: ChefInternal) {
         );
       } else {
         updatesOnlyBtn.setVisible(false);
-        updatesOnlyBtn.setActive(false);
+        if (!chef.isBusy) {
+          updatesOnlyBtn.setActive(false);
+        }
       }
     };
 
@@ -717,6 +719,7 @@ export async function startGui(chef: ChefInternal) {
             updateStatusPromise,
             cleanup,
           });
+          setSensitive(!chef.isBusy);
           expander.addRow(row);
         }
       }
@@ -760,6 +763,7 @@ export async function startGui(chef: ChefInternal) {
       console.log("Refreshing recipes...");
       refreshBtn.setSensitive(false);
       cancelBtn.setVisible(true);
+      recipeRows.forEach((r) => r.setSensitive(false));
       abortController = new AbortController();
       try {
         void updateConnectivity();
@@ -771,8 +775,10 @@ export async function startGui(chef: ChefInternal) {
       } finally {
         refreshBtn.setSensitive(true);
         cancelBtn.setVisible(false);
+        recipeRows.forEach((r) => r.setSensitive(true));
         abortController = null;
         chef.isBusy = false;
+        applyFilters();
       }
     };
 
@@ -897,6 +903,7 @@ export async function startGui(chef: ChefInternal) {
         recipeRows.forEach((r) => r.setSensitive(true));
         abortController = null;
         chef.isBusy = false;
+        applyFilters();
       }
     });
 
@@ -1242,12 +1249,12 @@ function createRecipeRow(
       runningCounterLabel.setText(`(${runningCount})`);
     } else {
       runningCounterLabel.setText("");
-      updateStatus();
+      void updateStatus();
     }
     await updateButtons();
   };
 
-  const updateStatus = () => {
+  const updateStatus = async () => {
     const installed = chef.isInstalled(recipe.name);
     if (lifecycleAbortController.signal.aborted) return;
     statusLabel.setText(installed ? "Installed" : "Not Installed");
@@ -1269,7 +1276,7 @@ function createRecipeRow(
       reinstallBtn.setVisible(false);
     }
     // Always check for latest version regardless of installation status
-    void checkUpdate();
+    await checkUpdate();
   };
   const updateStatusPromise = updateStatus();
 
@@ -1368,7 +1375,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      updateStatus();
+      await updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1433,7 +1440,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      updateStatus();
+      await updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1448,7 +1455,7 @@ function createRecipeRow(
       }
       // Reset buttons on error or cancel
       updateButtons();
-      updateStatus();
+      void updateStatus();
     } finally {
       installBtn.setLabel("Install");
       setGroupState(true);
@@ -1472,7 +1479,7 @@ function createRecipeRow(
     try {
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
       globalStatusLabel.removeCssClass("error");
-      updateStatus();
+      await updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1484,7 +1491,7 @@ function createRecipeRow(
         );
         globalStatusLabel.addCssClass("error");
       }
-      updateStatus();
+      void updateStatus();
       updateButtons();
     } finally {
       setGroupState(true);
@@ -1517,7 +1524,7 @@ function createRecipeRow(
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
-      updateStatus();
+      await updateStatus();
       applyFilters();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -1533,7 +1540,7 @@ function createRecipeRow(
       }
       // Reset buttons on error or cancel
       updateButtons();
-      updateStatus();
+      void updateStatus();
     } finally {
       btn.setLabel(oldLabel);
       setGroupState(true);
