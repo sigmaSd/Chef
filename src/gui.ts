@@ -1148,6 +1148,7 @@ function createRecipeRow(
         (row.name === recipe.name && row.provider === provider) ||
         (recipe._group && row.group === recipe._group)
       ) {
+        row.isBusy = !sensitive;
         row.setSensitive(sensitive);
         if (status) {
           row.updateStatusLabel(status);
@@ -1172,6 +1173,8 @@ function createRecipeRow(
   let isFetching = false;
 
   const checkUpdate = async () => {
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
     try {
       const info = await chef.checkUpdate(recipe.name);
       if (lifecycleAbortController.signal.aborted) return;
@@ -1234,6 +1237,12 @@ function createRecipeRow(
     }
   };
 
+  const getRowObj = () =>
+    recipeRows.find((r) =>
+      r.name === recipe.name &&
+      r.provider === (recipe.provider || "Chef apps")
+    );
+
   let runningCount = 0;
   const updateRunningStatus = async (running: boolean) => {
     if (running) {
@@ -1255,6 +1264,8 @@ function createRecipeRow(
   };
 
   const updateStatus = async () => {
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
     const installed = chef.isInstalled(recipe.name);
     if (lifecycleAbortController.signal.aborted) return;
     statusLabel.setText(installed ? "Installed" : "Not Installed");
@@ -1349,12 +1360,6 @@ function createRecipeRow(
     void fetchVersions(currentPage);
   });
 
-  const getRowObj = () =>
-    recipeRows.find((r) =>
-      r.name === recipe.name &&
-      r.provider === (recipe.provider || "Chef apps")
-    );
-
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   versionsList.onRowActivated(async (row) => {
     const rowObj = getRowObj();
@@ -1398,6 +1403,8 @@ function createRecipeRow(
   });
 
   const updateButtons = () => {
+    const rowObj = getRowObj();
+    if (rowObj?.isBusy) return;
     const installed = chef.isInstalled(recipe.name);
     const isRunning = runningCount > 0;
 
