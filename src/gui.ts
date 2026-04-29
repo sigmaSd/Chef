@@ -1382,6 +1382,7 @@ function createRecipeRow(
       globalStatusLabel.removeCssClass("error");
       await updateStatus();
       applyFilters();
+      void updateButtons();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         console.log(`Installation of ${recipe.name} ${version} cancelled`);
@@ -1399,6 +1400,7 @@ function createRecipeRow(
       cancelBtn.setVisible(false);
       rowAbortController = null;
       if (rowObj) rowObj.isBusy = false;
+      void updateButtons();
     }
   });
 
@@ -1469,6 +1471,7 @@ function createRecipeRow(
       cancelBtn.setVisible(false);
       rowAbortController = null;
       if (rowObj) rowObj.isBusy = false;
+      void updateButtons();
     }
   });
 
@@ -1505,6 +1508,7 @@ function createRecipeRow(
       cancelBtn.setVisible(false);
       rowAbortController = null;
       if (rowObj) rowObj.isBusy = false;
+      void updateButtons();
     }
   });
 
@@ -1554,6 +1558,7 @@ function createRecipeRow(
       cancelBtn.setVisible(false);
       rowAbortController = null;
       if (rowObj) rowObj.isBusy = false;
+      void updateButtons();
     }
   };
 
