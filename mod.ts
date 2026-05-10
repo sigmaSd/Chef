@@ -132,8 +132,8 @@ export interface Recipe {
    * Pre-defined environment variables
    */
   cmdEnv?: Record<string, string>;
-  /** Change log URL */
-  changeLog?: ({ latestVersion }: { latestVersion: string }) => string;
+  /** Changelog URL */
+  changelog?: ({ latestVersion }: { latestVersion: string }) => string;
   /**
    * The name of the provider if this recipe comes from an external integration.
    */

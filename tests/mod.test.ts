@@ -1,5 +1,6 @@
 import * as path from "@std/path";
 import { assertEquals } from "@std/assert";
+import type { App } from "../mod.ts";
 import { expect } from "../src/utils.ts";
 import { ChefInternal } from "../src/lib.ts";
 
@@ -187,4 +188,53 @@ Deno.test("test chef extern", async () =>
     } finally {
       Deno.env.set("PATH", originalPath ?? expect("PATH env var not set"));
     }
+  }));
+
+Deno.test("changelog - app not found", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.add({
+      name: "test-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("v1.0.0"),
+    });
+
+    await chef.testInit();
+
+    // Capture console.error output
+    let errorMsg = "";
+    const originalError = console.error;
+    console.error = (msg) => {
+      errorMsg += msg;
+    };
+
+    await chef.start(["changelog", "nonexistent"]);
+
+    console.error = originalError;
+
+    assertEquals(errorMsg.includes("not found"), true);
+  }));
+
+Deno.test("changelog - non-GitHub without explicit URL", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.add({
+      name: "test-no-repo",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("v1.0.0"),
+    });
+
+    await chef.testInit();
+
+    let errorMsg = "";
+    const originalError = console.error;
+    console.error = (msg) => {
+      errorMsg += msg;
+    };
+
+    await chef.start(["changelog", "test-no-repo"]);
+
+    console.error = originalError;
+
+    assertEquals(errorMsg.includes("Auto-search is only supported"), true);
   }));

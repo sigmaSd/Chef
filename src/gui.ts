@@ -1425,10 +1425,10 @@ function createRecipeRow(
       removeBtn.setVisible(installed);
     }
 
-    changelogBtn.setVisible(!!recipe.changeLog);
+    changelogBtn.setVisible(!!recipe.changelog);
 
     moreBtn.setVisible(
-      (installed && !isRunning) || (!!recipe.changeLog),
+      (installed && !isRunning) || (!!recipe.changelog),
     );
   };
   void updateButtons();
@@ -1598,8 +1598,8 @@ function createRecipeRow(
   changelogBtn.onClick(() => {
     morePopover.popdown();
     const version = chef.getVersion(recipe.name);
-    if (recipe.changeLog && version) {
-      const url = recipe.changeLog({ latestVersion: version });
+    if (recipe.changelog && version) {
+      const url = recipe.changelog({ latestVersion: version });
       console.log(`Opening changelog: ${url}`);
       const command = Deno.build.os === "windows"
         ? "start"

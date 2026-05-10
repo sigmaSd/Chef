@@ -151,7 +151,7 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("zaproxy/zaproxy"),
-      changeLog: ({ latestVersion }) =>
+      changelog: ({ latestVersion }) =>
         // deno-fmt-ignore
         `https://www.zaproxy.org/docs/desktop/releases/${latestVersion.slice(1)}/`,
       desktopFile: {
@@ -172,7 +172,7 @@ chef.addMany(
         };
       },
       version: () => utils.getLatestGithubRelease("Myriad-Dreamin/tinymist"),
-      changeLog: () =>
+      changelog: () =>
         "https://github.com/Myriad-Dreamin/tinymist/blob/main/editors/vscode/CHANGELOG.md",
     },
     {

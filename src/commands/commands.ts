@@ -102,6 +102,16 @@ export class UnlinkCommand {
 }
 
 @command
+export class ChangelogCommand {
+  @arg({
+    description: "name of the app",
+    required: true,
+    type: "string",
+  })
+  name!: string;
+}
+
+@command
 export class ProviderAddCommand {
   @arg({
     description: "alias for the provider",
@@ -178,6 +188,7 @@ export interface CommandHandlers {
   providerAdd?: (name: string, command: string) => void;
   providerRemove?: (name: string) => void;
   providerList?: () => void;
+  changelog?: (name: string) => Promise<void>;
 }
 
 // Using new @cli decorator and Args class pattern
@@ -232,6 +243,9 @@ class ChefArgs extends Args {
 
   @subCommand(ProviderCommand, { description: "manage external providers" })
   provider?: ProviderCommand;
+
+  @subCommand(ChangelogCommand, { description: "show changelog for an app" })
+  changelog?: ChangelogCommand;
 }
 
 /**
@@ -300,5 +314,7 @@ export async function parseAndExecute(
     } else if (parsedArgs.provider.list && handlers.providerList) {
       handlers.providerList();
     }
+  } else if (parsedArgs.changelog && handlers.changelog) {
+    await handlers.changelog(parsedArgs.changelog.name!);
   }
 }

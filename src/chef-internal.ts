@@ -105,7 +105,7 @@ export class ChefInternal {
 
   // Lazy initialization of service classes
   #database?: ChefDatabase;
-  private get database() {
+  public get database() {
     if (this.#database) return this.#database;
     const dbPath = this.#paths ? this.#paths.dbPath : path.join(
       getChefBasePath(),
@@ -310,6 +310,258 @@ export class ChefInternal {
     const latest = await recipe.version?.();
     return latest ? [latest] : [];
   };
+
+  /**
+   * Show changelog for a binary
+   */
+  changelog = async (name: string): Promise<void> => {
+    const recipe = this.recipes.find((r) => r.name === name);
+    if (!recipe) {
+      console.error(`App "${name}" not found.`);
+      return;
+    }
+
+    let version: string | undefined;
+    try {
+      version = await recipe.version?.();
+    } catch {
+      // ignore
+    }
+
+    if (recipe.changelog) {
+      const url = recipe.changelog({ latestVersion: version ?? "" });
+      await this.#fetchAndDisplayChangelog(url, version);
+      return;
+    }
+
+    const repo = this.#extractGithubRepo(recipe);
+    if (!repo) {
+      console.error(
+        `No changelog found for "${name}". Auto-search is only supported for GitHub-based apps.`,
+      );
+      return;
+    }
+
+    const changelogMdUrl =
+      `https://raw.githubusercontent.com/${repo}/HEAD/CHANGELOG.md`;
+    const changelogContent = await this.#fetchChangelogFromUrl(changelogMdUrl);
+
+    if (changelogContent && version) {
+      const section = this.#extractVersionSection(changelogContent, version);
+      if (section) {
+        console.log(`\n📋 CHANGELOG.md (${changelogMdUrl})\n`);
+        console.log(section);
+        return;
+      }
+    }
+
+    const releaseTag = version?.startsWith("v") ? version : `v${version ?? ""}`;
+    await this.#fetchGitHubRelease(repo, releaseTag);
+  };
+
+  async #fetchGitHubRelease(repo: string, tag: string): Promise<void> {
+    try {
+      const apiUrl =
+        `https://api.github.com/repos/${repo}/releases/tags/${tag}`;
+      const response = await fetch(apiUrl, {
+        headers: { "User-Agent": "Chef-Package-Manager" },
+      });
+
+      if (!response.ok) {
+        console.error(`No changelog found for this version.`);
+        return;
+      }
+
+      const data = await response.json() as {
+        body: string | null;
+        html_url: string;
+      };
+      const body = data.body;
+
+      if (body && body.trim()) {
+        console.log(`\n📋 Release Notes (${data.html_url})\n`);
+        console.log(body);
+        return;
+      }
+
+      console.error(`No changelog found for this version.`);
+    } catch {
+      console.error(`No changelog found for this version.`);
+    }
+  }
+
+  #extractGithubRepo(recipe: Recipe): string | null {
+    const repoPattern =
+      /github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)(?:\/|$|\.git)/;
+
+    const downloadStr = recipe.download.toString();
+    const match = downloadStr.match(repoPattern);
+    if (match) {
+      return match[1];
+    }
+
+    if (recipe.versions) {
+      const versionsStr = recipe.versions.toString();
+      const match2 = versionsStr.match(repoPattern);
+      if (match2) {
+        return match2[1];
+      }
+    }
+
+    return null;
+  }
+
+  #extractVersionSection(content: string, version: string): string | null {
+    const cleanVersion = version.startsWith("v") ? version.slice(1) : version;
+    const patterns = [
+      new RegExp(
+        `##\\s+\\[?${
+          version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        }?\\]?\\s*([\\s\\S]*?)(?=##\\s+\\d|###\\s+\\d|$)`,
+        "i",
+      ),
+      new RegExp(
+        `###\\s+${
+          version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        }[^\\n]*\\n\\s*([\\s\\S]*?)(?=###\\s|##\\s)`,
+        "i",
+      ),
+      new RegExp(
+        `##\\s+${cleanVersion}\\s*\\n\\s*([\\s\\S]*?)(?=##\\s+\\d)`,
+        "i",
+      ),
+      new RegExp(
+        `^${
+          version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        }\\s*$\\n([\\s\\S]*?)(?=^\\d|^[A-Z])`,
+        "im",
+      ),
+    ];
+
+    for (const pattern of patterns) {
+      const match = content.match(pattern);
+      if (match) {
+        return match[0].trim();
+      }
+    }
+
+    const lines = content.split("\n");
+    let inSection = false;
+    const sectionLines: string[] = [];
+    let firstHeading = false;
+
+    for (const line of lines) {
+      if (!firstHeading && /^#+\s+/.test(line)) {
+        firstHeading = true;
+      }
+
+      if (firstHeading && /^#+\s+/.test(line)) {
+        const headingVersion = line.replace(/^#+\s*/, "").replace(/[\[\]]/g, "")
+          .trim();
+        const headingClean = headingVersion.startsWith("v")
+          ? headingVersion.slice(1)
+          : headingVersion;
+
+        if (headingClean === cleanVersion || headingVersion === version) {
+          inSection = true;
+          sectionLines.push(line);
+        } else if (inSection && /^#+\s+/.test(line)) {
+          break;
+        } else if (inSection) {
+          sectionLines.push(line);
+        }
+      } else if (inSection) {
+        sectionLines.push(line);
+      }
+    }
+
+    if (sectionLines.length > 0) {
+      return sectionLines.join("\n").trim();
+    }
+
+    return null;
+  }
+
+  async #fetchChangelogFromUrl(url: string): Promise<string | null> {
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Chef-Package-Manager" },
+      });
+      if (response.ok) {
+        return await response.text();
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  async #fetchAndDisplayChangelog(
+    url: string,
+    version?: string,
+  ): Promise<void> {
+    const githubMatch = url.match(
+      /github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)\/releases\/tag\/([^\/\?#]+)/,
+    );
+    if (githubMatch) {
+      const [, repo, tag] = githubMatch;
+      await this.#fetchGitHubRelease(repo, decodeURIComponent(tag));
+      return;
+    }
+
+    const blobMatch = url.match(
+      /github\.com\/([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)\/blob\/([^\/]+)\/(.+)/,
+    );
+    if (blobMatch) {
+      const [, repo, branch, path] = blobMatch;
+      url = `https://raw.githubusercontent.com/${repo}/${branch}/${path}`;
+    }
+
+    const isRawFile = /\.(md|txt|markdown|text)(\?|$|#)/i.test(url) ||
+      url.includes("/raw/") || url.includes("/blob/");
+
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Chef-Package-Manager" },
+        redirect: "follow",
+      });
+
+      if (!response.ok) {
+        console.log(
+          `\n🔗 ${url}\n\nFailed to fetch. Open in a browser to view the changelog.`,
+        );
+        return;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const text = await response.text();
+
+      if (
+        isRawFile || contentType.includes("text/plain") ||
+        contentType.includes("text/markdown") || text.trim().startsWith("#")
+      ) {
+        if (version) {
+          const section = this.#extractVersionSection(text, version);
+          if (section) {
+            console.log(`\n📋 ${url}\n`);
+            console.log(section);
+            return;
+          }
+        }
+        console.log(`\n📋 ${url}\n`);
+        console.log(text);
+        return;
+      }
+
+      console.log(
+        `\n🔗 ${url}\n\nThis appears to be an HTML page. Open the URL in a browser to view the changelog.`,
+      );
+    } catch {
+      console.log(
+        `\n🔗 ${url}\n\nFailed to fetch. Open in a browser to view the changelog.`,
+      );
+    }
+  }
 
   /**
    * Update all binaries
@@ -529,6 +781,9 @@ export class ChefInternal {
         for (const p of providers) {
           console.log(`- ${p.name}: ${p.command}`);
         }
+      },
+      changelog: async (name: string) => {
+        await this.changelog(name);
       },
     };
 

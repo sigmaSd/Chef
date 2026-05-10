@@ -254,12 +254,12 @@ export class BinaryUpdater {
           `color: ${UIColors.warning}; font-weight: bold`,
         );
 
-        if (recipe.changeLog) {
-          const changeLogUrl = recipe.changeLog({
+        if (recipe.changelog) {
+          const changelogUrl = recipe.changelog({
             latestVersion,
           });
           console.log(
-            `%c  ${Symbols.info} Changelog: ${changeLogUrl}`,
+            `%c  ${Symbols.info} Changelog: ${changelogUrl}`,
             `color: ${UIColors.info}`,
           );
         }
