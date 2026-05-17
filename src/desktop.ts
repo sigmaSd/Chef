@@ -307,9 +307,18 @@ Icon=${iconValue}`;
     terminal: boolean,
     icon?: string,
   ): string {
-    const exec = recipe.provider
+    let exec = recipe.provider
       ? `${recipe.name}`
       : `deno run ${this.getConfigArg()}-A ${this.chefPath} run ${recipe.name}`;
+
+    const envVars = recipe.desktopFile?.env;
+    if (envVars && Object.keys(envVars).length > 0) {
+      const envPrefix = Object.entries(envVars)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" ");
+      exec = `env ${envPrefix} ${exec}`;
+    }
+
     return `[Desktop Entry]
 Name=${recipe.desktopFile?.name ?? name}
 Exec=${exec}

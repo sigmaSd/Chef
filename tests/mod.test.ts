@@ -336,3 +336,64 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
       }
     }
   }));
+
+Deno.test("desktop env - env vars are prepended to Exec line", async () =>
+  await withTempDir(async (dir: string) => {
+    if (Deno.build.os !== "linux") return;
+
+    const fakeHome = path.join(dir, "fake-home");
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), {
+      recursive: true,
+    });
+    const originalHome = Deno.env.get("HOME");
+    Deno.env.set("HOME", fakeHome);
+
+    try {
+      const recipes: Recipe[] = [{
+        name: "envapp",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+        desktopFile: {
+          name: "Env App",
+          env: {
+            MY_VAR: "hello",
+            ANOTHER: "123",
+          },
+        },
+      }];
+
+      const dbPath = path.join(dir, "db.json");
+      const db = new ChefDatabase(dbPath, recipes);
+      db.setEntry("envapp", { version: "1.0.0" });
+
+      const desktopManager = new DesktopFileManager(
+        path.join(dir, "icons"),
+        "file:///fake/chef.ts",
+        recipes,
+        "io.github.sigmasd.chef.test",
+        "test",
+        db,
+      );
+
+      await desktopManager.create("envapp", {});
+
+      const desktopPath = path.join(
+        fakeHome,
+        `.local/share/applications/envapp.desktop`,
+      );
+      const content = Deno.readTextFileSync(desktopPath);
+
+      assert(
+        content.includes("Exec=env MY_VAR=hello ANOTHER=123 deno run"),
+        `Desktop file should contain env vars in Exec line, got:\n${content}`,
+      );
+
+      desktopManager.remove("envapp", { silent: true });
+    } finally {
+      if (originalHome !== undefined) {
+        Deno.env.set("HOME", originalHome);
+      } else {
+        Deno.env.delete("HOME");
+      }
+    }
+  }));
