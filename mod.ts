@@ -152,6 +152,8 @@ export interface Recipe {
     icon?: string;
     /** Icon path or url, it will be automaticlly fetched and set as Icon field in the desktop entry */
     iconPath?: string;
+    /** Freedesktop icon ID (e.g., "dev.openwarp.OpenWarp"). Icon will be installed to ~/.local/share/icons/hicolor/ and referenced by ID */
+    iconId?: string;
     /** Terminal field in the desktop entry */
     terminal?: boolean;
   };

@@ -124,6 +124,7 @@ export class ChefInternal {
       this.recipes,
       this.getAppId(),
       this.scriptName,
+      this.database,
     );
   }
 

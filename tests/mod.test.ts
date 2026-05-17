@@ -1,8 +1,11 @@
 import * as path from "@std/path";
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import type { App } from "../mod.ts";
 import { expect } from "../src/utils.ts";
 import { ChefInternal } from "../src/lib.ts";
+import { DesktopFileManager } from "../src/desktop.ts";
+import { ChefDatabase } from "../src/database.ts";
+import type { Recipe } from "../mod.ts";
 
 import { ChefPaths } from "../src/paths.ts";
 
@@ -237,4 +240,99 @@ Deno.test("changelog - non-GitHub without explicit URL", async () =>
     console.error = originalError;
 
     assertEquals(errorMsg.includes("Auto-search is only supported"), true);
+  }));
+
+Deno.test("iconId - install and uninstall with system icon", async () =>
+  await withTempDir(async (dir: string) => {
+    if (Deno.build.os !== "linux") return;
+
+    const fakeHome = path.join(dir, "fake-home");
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), {
+      recursive: true,
+    });
+    Deno.mkdirSync(
+      path.join(fakeHome, ".local/share/icons/hicolor/scalable/apps"),
+      { recursive: true },
+    );
+    Deno.mkdirSync(
+      path.join(fakeHome, ".local/share/icons/hicolor/512x512/apps"),
+      { recursive: true },
+    );
+    const originalHome = Deno.env.get("HOME");
+    Deno.env.set("HOME", fakeHome);
+
+    try {
+      const svgIconPath = path.join(dir, "test-icon.svg");
+      const svgContent =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="red" width="512" height="512"/></svg>`;
+      Deno.writeTextFileSync(svgIconPath, svgContent);
+
+      const iconId = "dev.test.TestApp";
+      const internalIconsPath = path.join(dir, "icons");
+      const dbPath = path.join(dir, "db.json");
+
+      const recipes: Recipe[] = [{
+        name: "testapp",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+        desktopFile: {
+          name: "Test App",
+          iconPath: `file://${svgIconPath}`,
+          iconId,
+        },
+      }];
+
+      const db = new ChefDatabase(dbPath, recipes);
+      db.setEntry("testapp", { version: "1.0.0", iconId });
+
+      const desktopManager = new DesktopFileManager(
+        internalIconsPath,
+        "file:///fake/chef.ts",
+        recipes,
+        "io.github.sigmasd.chef.test",
+        "test",
+        db,
+      );
+
+      await desktopManager.create("testapp", {});
+
+      // Verify icon was installed to system location
+      const systemIconPath = path.join(
+        fakeHome,
+        `.local/share/icons/hicolor/scalable/apps/${iconId}.svg`,
+      );
+      try {
+        Deno.statSync(systemIconPath);
+      } catch {
+        assert(false, `System icon not found at ${systemIconPath}`);
+      }
+
+      // Verify desktop file uses iconId (not full path)
+      const desktopPath = path.join(
+        fakeHome,
+        `.local/share/applications/testapp.desktop`,
+      );
+      const desktopContent = Deno.readTextFileSync(desktopPath);
+      assert(
+        desktopContent.includes(`Icon=${iconId}`),
+        `Desktop file should contain Icon=${iconId}`,
+      );
+
+      // Uninstall
+      desktopManager.remove("testapp", { silent: true });
+
+      // Verify icon was removed
+      try {
+        Deno.statSync(systemIconPath);
+        assert(false, "System icon should have been removed after uninstall");
+      } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) throw e;
+      }
+    } finally {
+      if (originalHome !== undefined) {
+        Deno.env.set("HOME", originalHome);
+      } else {
+        Deno.env.delete("HOME");
+      }
+    }
   }));

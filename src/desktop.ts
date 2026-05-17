@@ -3,6 +3,7 @@ import { ensureDirSync } from "@std/fs";
 import type { Recipe } from "../mod.ts";
 import { Colors, getExt } from "./internal_utils.ts";
 import { expect, isUrl } from "./utils.ts";
+import type { ChefDatabase } from "./database.ts";
 
 /**
  * Manages desktop file creation and removal for installed binaries
@@ -14,6 +15,7 @@ export class DesktopFileManager {
     private recipes: Recipe[],
     private appId: string,
     private scriptName: string,
+    private database?: ChefDatabase,
   ) {}
 
   /**
@@ -43,9 +45,37 @@ export class DesktopFileManager {
     ensureDirSync(desktopDir);
     ensureDirSync(this.iconsPath);
 
-    // Handle icon
+    const iconId = recipe.desktopFile?.iconId;
     let finalIcon = recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
-    if (
+
+    if (iconId) {
+      const iconSource = options.icon ?? recipe.desktopFile?.icon ??
+        recipe.desktopFile?.iconPath;
+      if (iconSource) {
+        const iconExt = await getExt(iconSource);
+        const sizeDir = iconExt === ".svg" ? "scalable" : "512x512";
+        const systemIconDir = path.join(
+          Deno.env.get("HOME") ?? expect("HOME env var not set"),
+          `.local/share/icons/hicolor/${sizeDir}/apps`,
+        );
+        ensureDirSync(systemIconDir);
+
+        const destIconPath = path.join(systemIconDir, `${iconId}${iconExt}`);
+        try {
+          const bytes = await fetch(
+            isUrl(iconSource) ? iconSource : `file://${iconSource}`,
+          ).then((r) => r.bytes());
+          await Deno.writeFile(destIconPath, bytes);
+          finalIcon = iconId;
+        } catch (e) {
+          console.error(
+            `%cFailed to install icon: ${e instanceof Error ? e.message : e}`,
+            `color: ${Colors.lightRed}`,
+          );
+          finalIcon = recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
+        }
+      }
+    } else if (
       options.icon || recipe.desktopFile?.icon || recipe.desktopFile?.iconPath
     ) {
       const iconProvidedPath = options.icon ?? recipe.desktopFile?.icon ??
@@ -218,7 +248,10 @@ Icon=${iconValue}`;
       `${name}.desktop`,
     );
 
-    // Remove icon if it exists
+    // Remove system icon by iconId from DB
+    this.removeSystemIcon(name);
+
+    // Remove internal icon if it exists
     this.removeIcon(name);
 
     try {
@@ -235,6 +268,32 @@ Icon=${iconValue}`;
           `%cNo desktop file found for ${name}`,
           `color: ${Colors.lightRed}`,
         );
+      }
+    }
+  }
+
+  /**
+   * Remove system icon file by iconId stored in DB
+   */
+  private removeSystemIcon(name: string) {
+    const entry = this.database?.getEntry(name);
+    const iconId = entry?.iconId;
+    if (!iconId) return;
+
+    const home = Deno.env.get("HOME") ?? expect("HOME env var not set");
+    for (const sizeDir of ["scalable", "512x512"]) {
+      for (const ext of [".svg", ".png", ".jpg", ".jpeg", ".ico"]) {
+        try {
+          const iconPath = path.join(
+            home,
+            `.local/share/icons/hicolor/${sizeDir}/apps`,
+            `${iconId}${ext}`,
+          );
+          Deno.removeSync(iconPath);
+          return;
+        } catch {
+          continue;
+        }
       }
     }
   }
