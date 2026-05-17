@@ -242,7 +242,7 @@ Deno.test("changelog - non-GitHub without explicit URL", async () =>
     assertEquals(errorMsg.includes("Auto-search is only supported"), true);
   }));
 
-Deno.test("iconId - install and uninstall with system icon", async () =>
+Deno.test("desktop id - install and uninstall with system icon", async () =>
   await withTempDir(async (dir: string) => {
     if (Deno.build.os !== "linux") return;
 
@@ -267,7 +267,7 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
         `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="red" width="512" height="512"/></svg>`;
       Deno.writeTextFileSync(svgIconPath, svgContent);
 
-      const iconId = "dev.test.TestApp";
+      const desktopId = "dev.test.TestApp";
       const internalIconsPath = path.join(dir, "icons");
       const dbPath = path.join(dir, "db.json");
 
@@ -278,12 +278,12 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
         desktopFile: {
           name: "Test App",
           iconPath: `file://${svgIconPath}`,
-          iconId,
+          id: desktopId,
         },
       }];
 
       const db = new ChefDatabase(dbPath, recipes);
-      db.setEntry("testapp", { version: "1.0.0", iconId });
+      db.setEntry("testapp", { version: "1.0.0", desktopId });
 
       const desktopManager = new DesktopFileManager(
         internalIconsPath,
@@ -299,7 +299,7 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
       // Verify icon was installed to system location
       const systemIconPath = path.join(
         fakeHome,
-        `.local/share/icons/hicolor/scalable/apps/${iconId}.svg`,
+        `.local/share/icons/hicolor/scalable/apps/${desktopId}.svg`,
       );
       try {
         Deno.statSync(systemIconPath);
@@ -307,15 +307,22 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
         assert(false, `System icon not found at ${systemIconPath}`);
       }
 
-      // Verify desktop file uses iconId (not full path)
+      // Verify desktop file uses desktopId as filename
       const desktopPath = path.join(
         fakeHome,
-        `.local/share/applications/testapp.desktop`,
+        `.local/share/applications/${desktopId}.desktop`,
       );
+      try {
+        Deno.statSync(desktopPath);
+      } catch {
+        assert(false, `Desktop file not found at ${desktopPath}`);
+      }
+
+      // Verify desktop file uses iconId (not full path)
       const desktopContent = Deno.readTextFileSync(desktopPath);
       assert(
-        desktopContent.includes(`Icon=${iconId}`),
-        `Desktop file should contain Icon=${iconId}`,
+        desktopContent.includes(`Icon=${desktopId}`),
+        `Desktop file should contain Icon=${desktopId}`,
       );
 
       // Uninstall
@@ -325,6 +332,80 @@ Deno.test("iconId - install and uninstall with system icon", async () =>
       try {
         Deno.statSync(systemIconPath);
         assert(false, "System icon should have been removed after uninstall");
+      } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) throw e;
+      }
+
+      // Verify desktop file was removed
+      try {
+        Deno.statSync(desktopPath);
+        assert(false, "Desktop file should have been removed after uninstall");
+      } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) throw e;
+      }
+    } finally {
+      if (originalHome !== undefined) {
+        Deno.env.set("HOME", originalHome);
+      } else {
+        Deno.env.delete("HOME");
+      }
+    }
+  }));
+
+Deno.test("desktop id - desktop file renamed without iconPath", async () =>
+  await withTempDir(async (dir: string) => {
+    if (Deno.build.os !== "linux") return;
+
+    const fakeHome = path.join(dir, "fake-home");
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), {
+      recursive: true,
+    });
+    const originalHome = Deno.env.get("HOME");
+    Deno.env.set("HOME", fakeHome);
+
+    try {
+      const desktopId = "com.example.MyApp";
+      const dbPath = path.join(dir, "db.json");
+
+      const recipes: Recipe[] = [{
+        name: "myapp",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+        desktopFile: {
+          name: "My App",
+          id: desktopId,
+        },
+      }];
+
+      const db = new ChefDatabase(dbPath, recipes);
+      db.setEntry("myapp", { version: "1.0.0", desktopId });
+
+      const desktopManager = new DesktopFileManager(
+        path.join(dir, "icons"),
+        "file:///fake/chef.ts",
+        recipes,
+        "io.github.sigmasd.chef.test",
+        "test",
+        db,
+      );
+
+      await desktopManager.create("myapp", {});
+
+      const desktopPath = path.join(
+        fakeHome,
+        `.local/share/applications/${desktopId}.desktop`,
+      );
+      try {
+        Deno.statSync(desktopPath);
+      } catch {
+        assert(false, `Desktop file not found at ${desktopPath}`);
+      }
+
+      desktopManager.remove("myapp", { silent: true });
+
+      try {
+        Deno.statSync(desktopPath);
+        assert(false, "Desktop file should have been removed");
       } catch (e) {
         if (!(e instanceof Deno.errors.NotFound)) throw e;
       }

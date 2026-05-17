@@ -305,7 +305,7 @@ export class BinaryUpdater {
           version: latestVersion,
           dir: installInfo.destDir,
           extern: installInfo.extern,
-          iconId: recipe.desktopFile?.iconId,
+          desktopId: recipe.desktopFile?.id,
         });
         statusMessage(
           "success",

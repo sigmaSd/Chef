@@ -6,7 +6,7 @@ export interface DbEntry {
   version: string;
   dir?: string;
   extern?: string;
-  iconId?: string;
+  desktopId?: string;
 }
 
 export interface ProviderEntry {
@@ -65,7 +65,9 @@ export class ChefDatabase {
             version: entry.version,
             dir: typeof entry.dir === "string" ? entry.dir : undefined,
             extern: typeof entry.extern === "string" ? entry.extern : undefined,
-            iconId: typeof entry.iconId === "string" ? entry.iconId : undefined,
+            desktopId: typeof entry.desktopId === "string"
+              ? entry.desktopId
+              : undefined,
           };
         }
       }

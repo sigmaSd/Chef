@@ -45,7 +45,8 @@ export class DesktopFileManager {
     ensureDirSync(desktopDir);
     ensureDirSync(this.iconsPath);
 
-    const iconId = recipe.desktopFile?.iconId;
+    const desktopId = recipe.desktopFile?.id;
+    const iconId = desktopId;
     let finalIcon = recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
 
     if (iconId) {
@@ -109,7 +110,10 @@ export class DesktopFileManager {
       finalIcon,
     );
 
-    const desktopPath = path.join(desktopDir, `${name}.desktop`);
+    const desktopFileName = desktopId
+      ? `${desktopId}.desktop`
+      : `${name}.desktop`;
+    const desktopPath = path.join(desktopDir, desktopFileName);
     await Deno.writeTextFile(desktopPath, desktopFile);
     await Deno.chmod(desktopPath, 0o755);
     console.log(
@@ -242,13 +246,20 @@ Icon=${iconValue}`;
    */
   remove(name: string, options: { silent?: boolean } = {}) {
     if (Deno.build.os !== "linux") return;
+
+    const entry = this.database?.getEntry(name);
+    const desktopId = entry?.desktopId;
+    const desktopFileName = desktopId
+      ? `${desktopId}.desktop`
+      : `${name}.desktop`;
+
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
-      `${name}.desktop`,
+      desktopFileName,
     );
 
-    // Remove system icon by iconId from DB
+    // Remove system icon by desktopId from DB
     this.removeSystemIcon(name);
 
     // Remove internal icon if it exists
@@ -277,8 +288,8 @@ Icon=${iconValue}`;
    */
   private removeSystemIcon(name: string) {
     const entry = this.database?.getEntry(name);
-    const iconId = entry?.iconId;
-    if (!iconId) return;
+    const desktopId = entry?.desktopId;
+    if (!desktopId) return;
 
     const home = Deno.env.get("HOME") ?? expect("HOME env var not set");
     for (const sizeDir of ["scalable", "512x512"]) {
@@ -287,7 +298,7 @@ Icon=${iconValue}`;
           const iconPath = path.join(
             home,
             `.local/share/icons/hicolor/${sizeDir}/apps`,
-            `${iconId}${ext}`,
+            `${desktopId}${ext}`,
           );
           Deno.removeSync(iconPath);
           return;
@@ -353,10 +364,15 @@ ${icon ? `Icon=${icon}` : ""}`;
    */
   exists(name: string): boolean {
     if (Deno.build.os !== "linux") return false;
+    const entry = this.database?.getEntry(name);
+    const desktopId = entry?.desktopId;
+    const desktopFileName = desktopId
+      ? `${desktopId}.desktop`
+      : `${name}.desktop`;
     const desktopPath = path.join(
       Deno.env.get("HOME") ?? expect("HOME env var not set"),
       ".local/share/applications",
-      `${name}.desktop`,
+      desktopFileName,
     );
     try {
       Deno.statSync(desktopPath);
