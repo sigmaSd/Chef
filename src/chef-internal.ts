@@ -275,9 +275,6 @@ export class ChefInternal {
       only: name,
       version: options.version,
     });
-    if (!options.dryRun) {
-      await this.refreshRecipes(options.signal);
-    }
   };
 
   /**
@@ -584,9 +581,6 @@ export class ChefInternal {
     options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
   ) => {
     await this.binaryUpdater.update(options);
-    if (!options.dryRun) {
-      await this.refreshRecipes(options.signal);
-    }
   };
 
   /**

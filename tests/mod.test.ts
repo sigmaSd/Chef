@@ -664,7 +664,7 @@ Deno.test("update - refreshRecipes is not called twice", async () =>
 
     await chef.start(["update", "hello"]);
 
-    assertEquals(refreshCount, 1);
+    assertEquals(refreshCount, 0);
   }));
 
 Deno.test("update - unknown binary is silently skipped", async () =>
