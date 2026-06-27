@@ -51,24 +51,27 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
     const chefFile = `${scriptDir}/${scriptName}.ts`;
     const oldVersion = "0.40.0";
     const newVersion = "0.41.0";
-    const libUrl = `jsr:@sigmasd/chef@${newVersion}/mod.ts`;
-    const utilsUrl = `jsr:@sigmasd/chef@${newVersion}/src/utils.ts`;
+    const libUrl = `https://jsr.io/@sigmasd/chef/${newVersion}/mod.ts`;
+    const utilsUrl = `https://jsr.io/@sigmasd/chef/${newVersion}/src/utils.ts`;
 
-    const content = `
-import { Chef, $ } from "jsr:@sigmasd/chef@${oldVersion}";
-import { getLatestGithubRelease } from "jsr:@sigmasd/chef@${oldVersion}/utils";
-
-const chef = new Chef();
-await chef.start(import.meta.url);
-`.trim();
+    // Use the full URL form (matching what the template actually generates)
+    const oldLibUrl = libUrl.replace(newVersion, oldVersion);
+    const oldUtilsUrl = utilsUrl.replace(newVersion, oldVersion);
+    const content = [
+      `import { Chef, $ } from "${oldLibUrl}";`,
+      `import { getLatestGithubRelease } from "${oldUtilsUrl}";`,
+      "",
+      "const chef = new Chef();",
+      "await chef.start(import.meta.url);",
+    ].join("\n");
 
     await Deno.writeTextFile(chefFile, content);
 
     await ensureDefaultChefFile(libUrl, utilsUrl);
 
     const newContent = await Deno.readTextFile(chefFile);
-    assertEquals(newContent.includes(`@sigmasd/chef@${newVersion}`), true);
-    assertEquals(newContent.includes(`@sigmasd/chef@${oldVersion}`), false);
+    assertEquals(newContent.includes(`@sigmasd/chef/${newVersion}`), true);
+    assertEquals(newContent.includes(`@sigmasd/chef/${oldVersion}`), false);
 
     // Test no update if version is same
     await ensureDefaultChefFile(libUrl, utilsUrl);
@@ -76,7 +79,7 @@ await chef.start(import.meta.url);
     assertEquals(sameContent, newContent);
 
     // Test no update if version is older
-    const olderLibUrl = `jsr:@sigmasd/chef@0.39.0/mod.ts`;
+    const olderLibUrl = `https://jsr.io/@sigmasd/chef/0.39.0/mod.ts`;
     await ensureDefaultChefFile(olderLibUrl, utilsUrl);
     const stillNewContent = await Deno.readTextFile(chefFile);
     assertEquals(stillNewContent, newContent);

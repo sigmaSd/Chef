@@ -715,6 +715,7 @@ export class ChefInternal {
    */
   start = async (args: string[]) => {
     await this.init();
+
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
         const isNative = this.recipes.some((r) => r.name === name);

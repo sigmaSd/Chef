@@ -32,7 +32,10 @@ export async function ensureDefaultChefFile(
       const runningVersion = getVersionFromUrl(libUrl);
 
       if (fileVersion && runningVersion) {
-        const semver = await import("@std/semver");
+        const [{ statusMessage }, semver] = await Promise.all([
+          import("./ui.ts"),
+          import("@std/semver"),
+        ]);
         if (
           semver.greaterThan(
             semver.parse(runningVersion),
@@ -40,15 +43,19 @@ export async function ensureDefaultChefFile(
           )
         ) {
           const newContent = content.replaceAll(
-            `@sigmasd/chef@${fileVersion}`,
-            `@sigmasd/chef@${runningVersion}`,
+            `@sigmasd/chef/${fileVersion}`,
+            `@sigmasd/chef/${runningVersion}`,
           );
           if (newContent !== content) {
             await Deno.writeTextFile(defaultChefPath, newContent);
-            const { statusMessage } = await import("./ui.ts");
             statusMessage(
               "update",
               `Updated ${scriptName}.ts from version ${fileVersion} to ${runningVersion}`,
+            );
+          } else {
+            statusMessage(
+              "warning",
+              `Could not update ${scriptName}.ts from version ${fileVersion} to ${runningVersion}`,
             );
           }
         }
