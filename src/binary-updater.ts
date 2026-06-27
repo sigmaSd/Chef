@@ -54,12 +54,18 @@ export class BinaryUpdater {
       options.binary.forEach((name) => targetBinaries.add(name));
     }
 
-    // Validate that specified binaries exist
+    // Skip binaries not in recipes (may be managed externally)
     for (const binaryName of targetBinaries) {
       if (!this.recipes.find((r) => r.name === binaryName)) {
-        statusMessage("error", `Binary "${binaryName}" not found in recipes`);
-        return;
+        targetBinaries.delete(binaryName);
       }
+    }
+
+    if (
+      targetBinaries.size === 0 &&
+      (options.only || (options.binary && options.binary.length > 0))
+    ) {
+      return;
     }
 
     // Show header and current status

@@ -666,3 +666,31 @@ Deno.test("update - refreshRecipes is not called twice", async () =>
 
     assertEquals(refreshCount, 1);
   }));
+
+Deno.test("update - unknown binary is silently skipped", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+
+    chef.add({
+      name: "real-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+
+    // Should not throw for unknown binary
+    await chef.start(["update", "--dry-run", "nonexistent"]);
+
+    // Should not print error for a known binary alongside an unknown one
+    let logOutput = "";
+    const originalLog = console.log;
+    console.log = (msg: string) => {
+      logOutput += msg;
+    };
+
+    await chef.start(["update", "--dry-run", "real-app", "nonexistent"]);
+
+    console.log = originalLog;
+    assertEquals(logOutput.includes("not found"), false);
+  }));
