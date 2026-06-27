@@ -478,3 +478,92 @@ Deno.test("desktop env - env vars are prepended to Exec line", async () =>
       }
     }
   }));
+
+Deno.test("versionCommand - populates _currentVersion and affects isInstalled/getVersion/checkUpdate", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+
+    chef.addMany([{
+      name: "detect-app",
+      download: () => Promise.resolve({ exe: "test" }),
+      version: () => Promise.resolve("2.0.0"),
+      versionCommand: () => Promise.resolve("1.5.0"),
+    }]);
+
+    await chef.testInit();
+
+    const recipe = chef.recipes.find((r) => r.name === "detect-app")!;
+    assertEquals(recipe._currentVersion, undefined);
+
+    await chef.refreshRecipes();
+
+    assertEquals(recipe._currentVersion, "1.5.0");
+    assertEquals(chef.isInstalled("detect-app"), true);
+    assertEquals(chef.getVersion("detect-app"), "1.5.0");
+
+    const updateInfo = await chef.checkUpdate("detect-app");
+    assertEquals(updateInfo.currentVersion, "1.5.0");
+    assertEquals(updateInfo.latestVersion, "2.0.0");
+    assertEquals(updateInfo.needsUpdate, true);
+  }));
+
+Deno.test("versionCommand - failure leaves _currentVersion undefined", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+
+    chef.addMany([{
+      name: "failing-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("1.0.0"),
+      versionCommand: () => Promise.reject(new Error("not found")),
+    }]);
+
+    await chef.testInit();
+    await chef.refreshRecipes();
+
+    const recipe = chef.recipes.find((r) => r.name === "failing-app")!;
+    assertEquals(recipe._currentVersion, undefined);
+    assertEquals(chef.isInstalled("failing-app"), false);
+    assertEquals(chef.getVersion("failing-app"), undefined);
+  }));
+
+Deno.test("versionCommand - takes priority over database version in checkUpdate", async () =>
+  await withTempDir(async (dir: string) => {
+    const detectedVersionPath = path.join(dir, "detected-version");
+    Deno.writeTextFileSync(detectedVersionPath, "2.0.0");
+
+    const chef = new TestChef();
+    chef.addMany([{
+      name: "detect-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("2.0.0"),
+      versionCommand: () => Deno.readTextFile(detectedVersionPath),
+    }]);
+
+    await chef.testInit();
+
+    // Write DB entry manually to simulate install
+    chef.database.setEntry("detect-app", { version: "2.0.0" });
+    assertEquals(chef.database.getVersion("detect-app"), "2.0.0");
+
+    // Refresh runs versionCommand
+    await chef.refreshRecipes();
+    const recipe = chef.recipes.find((r) => r.name === "detect-app")!;
+    assertEquals(recipe._currentVersion, "2.0.0");
+
+    // checkUpdate uses _currentVersion (not DB)
+    let updateInfo = await chef.checkUpdate("detect-app");
+    assertEquals(updateInfo.currentVersion, "2.0.0");
+    assertEquals(updateInfo.latestVersion, "2.0.0");
+
+    // Simulate external update: change what versionCommand detects
+    Deno.writeTextFileSync(detectedVersionPath, "3.0.0");
+    await chef.refreshRecipes();
+    assertEquals(recipe._currentVersion, "3.0.0");
+
+    // checkUpdate uses _currentVersion (3.0.0), not DB (2.0.0)
+    updateInfo = await chef.checkUpdate("detect-app");
+    assertEquals(updateInfo.currentVersion, "3.0.0");
+    assertEquals(updateInfo.latestVersion, "2.0.0");
+    assertEquals(updateInfo.needsUpdate, true);
+  }));

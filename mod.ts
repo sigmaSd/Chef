@@ -114,6 +114,13 @@ export interface Recipe {
    */
   version?: () => Promise<string | undefined>;
   /**
+   * Command to detect the currently installed version of the binary.
+   * Runs a shell command (using `$`) and parses its output to extract the version.
+   * This is checked each time recipes are refreshed.
+   * @returns A promise that resolves to the version string, if available.
+   */
+  versionCommand?: () => Promise<string | undefined>;
+  /**
    * Retrieves all available versions of the binary.
    * @param options - Options for version retrieval (e.g. pagination).
    * @returns A promise that resolves to an array of available versions.

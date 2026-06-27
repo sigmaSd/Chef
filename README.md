@@ -70,6 +70,34 @@ chef.add({
 await chef.start(import.meta.url);
 ```
 
+### Detecting the installed version
+
+By default, Chef tracks what version it installed in its database. If you update
+the binary externally (e.g., the app's own updater), Chef won't know about it.
+
+Use `versionCommand` to detect the **currently installed** version by running a
+shell command on the binary. This is checked every time recipes are refreshed
+(e.g., on `chef list`, `chef update`):
+
+```typescript
+import { $, Chef } from "jsr:@sigmasd/chef";
+
+const chef = new Chef();
+
+chef.add({
+  name: "zap",
+  download: async ({ latestVersion }) => {
+    // download the binary
+    return { exe: "./zap" };
+  },
+  version: () => getLatestGithubRelease("zap-zsh/zap"),
+  // Run `zap --version` and parse the output to extract the version
+  versionCommand: () => $`zap --version`.then((out) => out.split("Oz")[1]),
+});
+
+await chef.start(import.meta.url);
+```
+
 ### Running your custom script
 
 ```bash

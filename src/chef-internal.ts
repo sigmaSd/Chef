@@ -229,6 +229,19 @@ export class ChefInternal {
       );
       this.recipes.sort((a, b) => a.name.localeCompare(b.name));
 
+      // Run versionCommand for all recipes to detect current installed versions
+      for (const recipe of this.recipes) {
+        if (recipe.versionCommand) {
+          recipe._currentVersion = undefined;
+          try {
+            const version = await recipe.versionCommand();
+            if (version) recipe._currentVersion = version;
+          } catch {
+            // versionCommand failed, leave _currentVersion undefined
+          }
+        }
+      }
+
       if (providerRecipes.length > 0) {
         console.log(
           `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
@@ -630,8 +643,11 @@ export class ChefInternal {
    */
   isInstalled = (name: string) => {
     const recipe = this.recipes.find((r) => r.name === name);
+    if (recipe?._currentVersion && recipe._currentVersion !== "-") {
+      return true;
+    }
     if (recipe?.provider) {
-      return !!recipe._currentVersion && recipe._currentVersion !== "-";
+      return false;
     }
     return this.database.isInstalled(name);
   };
@@ -641,8 +657,11 @@ export class ChefInternal {
    */
   getVersion = (name: string) => {
     const recipe = this.recipes.find((r) => r.name === name);
-    if (recipe?.provider) {
+    if (recipe?._currentVersion) {
       return recipe._currentVersion;
+    }
+    if (recipe?.provider) {
+      return undefined;
     }
     return this.database.getVersion(name);
   };
@@ -666,7 +685,8 @@ export class ChefInternal {
       };
     }
 
-    const currentVersion = this.database.getVersion(recipe.name);
+    const currentVersion = recipe._currentVersion ??
+      this.database.getVersion(recipe.name);
     try {
       let latestVersion = await recipe.version?.();
 
