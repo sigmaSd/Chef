@@ -92,7 +92,8 @@ chef.add({
   },
   version: () => getLatestGithubRelease("zap-zsh/zap"),
   // Run `zap --version` and parse the output to extract the version
-  versionCommand: () => $`zap --version`.then((out) => out.split("Oz")[1]),
+  versionCommand: () =>
+    $`zap --version`.text().then((out) => out.split("Oz")[1]),
 });
 
 await chef.start(import.meta.url);
