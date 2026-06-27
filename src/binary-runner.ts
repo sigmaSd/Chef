@@ -200,7 +200,8 @@ export class BinaryRunner {
           latestVersion = recipe._latestVersion || "-";
         } else {
           // Native recipe
-          installedVersion = this.database.getVersion(recipe.name) || "-";
+          installedVersion = recipe._currentVersion ||
+            this.database.getVersion(recipe.name) || "-";
           latestVersion = recipe._latestVersion || "-";
         }
 

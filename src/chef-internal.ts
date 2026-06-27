@@ -235,7 +235,7 @@ export class ChefInternal {
           recipe._currentVersion = undefined;
           try {
             const version = await recipe.versionCommand();
-            if (version) recipe._currentVersion = version;
+            if (version) recipe._currentVersion = version.trim();
           } catch {
             // versionCommand failed, leave _currentVersion undefined
           }

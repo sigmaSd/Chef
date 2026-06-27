@@ -567,3 +567,52 @@ Deno.test("versionCommand - takes priority over database version in checkUpdate"
     assertEquals(updateInfo.latestVersion, "2.0.0");
     assertEquals(updateInfo.needsUpdate, true);
   }));
+
+Deno.test("versionCommand - trailing whitespace is trimmed", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.addMany([{
+      name: "trim-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("2.0.0"),
+      versionCommand: () => Promise.resolve("2.0.0\n"),
+    }]);
+
+    await chef.testInit();
+    await chef.refreshRecipes();
+
+    const recipe = chef.recipes.find((r) => r.name === "trim-app")!;
+    assertEquals(recipe._currentVersion, "2.0.0");
+
+    const updateInfo = await chef.checkUpdate("trim-app");
+    assertEquals(updateInfo.needsUpdate, false);
+  }));
+
+Deno.test("versionCommand - chef list shows version from versionCommand", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.addMany([{
+      name: "list-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("3.0.0"),
+      versionCommand: () => Promise.resolve("2.0.0"),
+    }]);
+
+    await chef.testInit();
+    await chef.refreshRecipes();
+
+    assertEquals(chef.isInstalled("list-app"), true);
+    assertEquals(chef.getVersion("list-app"), "2.0.0");
+
+    let listOutput = "";
+    const originalLog = console.log;
+    console.log = (msg: string) => {
+      listOutput += msg + "\n";
+    };
+
+    await chef.start(["list"]);
+
+    console.log = originalLog;
+    assertEquals(listOutput.includes("2.0.0"), true);
+    assertEquals(listOutput.includes("list-app"), true);
+  }));
