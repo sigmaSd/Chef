@@ -616,3 +616,53 @@ Deno.test("versionCommand - chef list shows version from versionCommand", async 
     assertEquals(listOutput.includes("2.0.0"), true);
     assertEquals(listOutput.includes("list-app"), true);
   }));
+
+Deno.test("update - refreshRecipes is not called twice", async () =>
+  await withTempDir(async (dir: string) => {
+    const version = "1.0.0";
+    const exeCodePath = path.join(dir, `exe-${version}.js`);
+    Deno.writeTextFileSync(
+      exeCodePath,
+      `Deno.writeTextFileSync("./hello", "hello written")`,
+    );
+    await new Deno.Command("deno", {
+      args: ["compile", "--no-check", "--allow-write=.", exeCodePath],
+    }).spawn()
+      .status;
+    const exePath = Deno.build.os === "windows"
+      ? (exeCodePath.replace(".js", ".exe"))
+      : exeCodePath.replace(".js", "");
+
+    const versionPath = path.join(dir, "version");
+    Deno.writeTextFileSync(versionPath, version);
+
+    const chef = new TestChef();
+
+    chef.addMany([{
+      name: "hello",
+      download: async ({ latestVersion }) => {
+        const exe = `exe-${latestVersion}`;
+        await Deno.copyFile(exePath, exe);
+        await Deno.rename(exe, "exe");
+        return { exe: "exe" };
+      },
+      version: () => Deno.readTextFile(versionPath),
+    }]);
+
+    await chef.testInit();
+
+    // Install first so update finds an existing binary
+    await chef.start(["update"]);
+
+    // Count refreshRecipes calls during a named update
+    let refreshCount = 0;
+    const originalRefresh = chef.refreshRecipes;
+    chef.refreshRecipes = async (signal) => {
+      refreshCount++;
+      await originalRefresh(signal);
+    };
+
+    await chef.start(["update", "hello"]);
+
+    assertEquals(refreshCount, 1);
+  }));
