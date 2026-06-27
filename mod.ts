@@ -244,9 +244,6 @@ if (import.meta.main) {
   const libUrl = import.meta.url;
   const utilsUrl = new URL("./src/utils.ts", libUrl).toString();
 
-  console.error(`CHEF_DEBUG: libUrl = ${libUrl}`);
-  console.error(`CHEF_DEBUG: isLocal = ${libUrl.startsWith("file://")}`);
-
   const defaultChefPath = await ensureDefaultChefFile(libUrl, utilsUrl);
 
   const args = ["run", "-A"];
