@@ -727,6 +727,7 @@ export class ChefInternal {
         await this.binaryRunner.list();
       },
       update: async (options) => {
+        await this.refreshRecipes();
         if (options.only || (options.binary && options.binary.length > 0)) {
           const binaries = options.only ? [options.only] : options.binary ?? [];
           for (const name of binaries) {
