@@ -293,4 +293,32 @@ chef.addMany(
   ],
 );
 
+chef.add({
+  name: "llama.cpp",
+  download: async ({ latestVersion }) => {
+    const archiveName = `llama-${latestVersion}-bin-ubuntu-x64.tar.gz`;
+    await $.request(
+      `https://github.com/ggml-org/llama.cpp/releases/download/${latestVersion}/${archiveName}`,
+    ).showProgress().pipeToPath();
+    await $`tar -xzf ${archiveName}`;
+    // Archive extracts into llama-{version}/
+    return {
+      dir: {
+        path: `llama-${latestVersion}`,
+        exes: [
+          "llama-cli",
+          "llama-server",
+          "llama-bench",
+          "llama-perplexity",
+          "llama-tokenize",
+          "llama-imatrix",
+          "llama-quantize",
+          "llama-completion",
+        ],
+      },
+    };
+  },
+  version: () => utils.getLatestGithubRelease("ggml-org/llama.cpp"),
+});
+
 await chef.start(import.meta.url);

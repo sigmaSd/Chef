@@ -169,7 +169,7 @@ Deno.test("test chef extern", async () =>
       );
 
       // check if installed
-      assertEquals(await chef.isInstalled("extern-app"), true);
+      assertEquals(chef.isInstalled("extern-app"), true);
 
       // run it (should execute the mock)
       await chef.testInit();
@@ -693,4 +693,228 @@ Deno.test("update - unknown binary is silently skipped", async () =>
 
     console.log = originalLog;
     assertEquals(logOutput.includes("not found"), false);
+  }));
+
+Deno.test("exes install creates symlinks for each sub-binary", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "bin-a"), "binary a content");
+    Deno.writeTextFileSync(path.join(exeDir, "bin-b"), "binary b content");
+
+    const chef = new TestChef();
+
+    chef.add({
+      name: "multibin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(
+          path.join(exeDir, "bin-a"),
+          "./extracted/bin-a",
+        );
+        await Deno.copyFile(
+          path.join(exeDir, "bin-b"),
+          "./extracted/bin-b",
+        );
+        return {
+          dir: { path: "./extracted", exes: ["bin-a", "bin-b"] },
+        } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+
+    // Extracted directory exists with both binaries
+    const extractedDir = path.join(chef.binPath, "multibin-dir");
+    Deno.statSync(path.join(extractedDir, "bin-a"));
+    Deno.statSync(path.join(extractedDir, "bin-b"));
+
+    // Primary symlink exists (first exe) at {binPath}/{name}
+    const primarySymlink = path.join(chef.binPath, "multibin" + exeExtension);
+    assertEquals(Deno.lstatSync(primarySymlink).isSymlink, true);
+
+    // Sub-binary symlinks exist at {binPath}/{name}-{exe}
+    const symlinkA = path.join(chef.binPath, "multibin-bin-a" + exeExtension);
+    const symlinkB = path.join(chef.binPath, "multibin-bin-b" + exeExtension);
+    assertEquals(Deno.lstatSync(symlinkA).isSymlink, true);
+    assertEquals(Deno.lstatSync(symlinkB).isSymlink, true);
+
+    // DB has subBinaries
+    const db = JSON.parse(Deno.readTextFileSync(chef.dbPath));
+    assertEquals(db.multibin.subBinaries, ["bin-a", "bin-b"]);
+  }));
+
+Deno.test("run namespaced sub-binary", async () =>
+  await withTempDir(async (dir: string) => {
+    // Compile two small executables
+    const exeACode = path.join(dir, "exe-a.js");
+    Deno.writeTextFileSync(
+      exeACode,
+      `Deno.writeTextFileSync("./ran-a", "ran a")`,
+    );
+    const exeBCode = path.join(dir, "exe-b.js");
+    Deno.writeTextFileSync(
+      exeBCode,
+      `Deno.writeTextFileSync("./ran-b", "ran b")`,
+    );
+    await new Deno.Command("deno", {
+      args: ["compile", "--no-check", "--allow-write=.", exeACode],
+    }).spawn().status;
+    await new Deno.Command("deno", {
+      args: ["compile", "--no-check", "--allow-write=.", exeBCode],
+    }).spawn().status;
+    const exeA = Deno.build.os === "windows"
+      ? exeACode.replace(".js", ".exe")
+      : exeACode.replace(".js", "");
+    const exeB = Deno.build.os === "windows"
+      ? exeBCode.replace(".js", ".exe")
+      : exeBCode.replace(".js", "");
+
+    const chef = new TestChef();
+
+    chef.add({
+      name: "multibin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(exeA, "./extracted/bin-a");
+        // Make sure bin-a is executable (compile already does this on linux)
+        try {
+          await Deno.chmod("./extracted/bin-a", 0o755);
+          // deno-lint-ignore no-empty
+        } catch {}
+        await Deno.copyFile(exeB, "./extracted/bin-b");
+        try {
+          await Deno.chmod("./extracted/bin-b", 0o755);
+          // deno-lint-ignore no-empty
+        } catch {}
+        return {
+          dir: { path: "./extracted", exes: ["bin-a", "bin-b"] },
+        } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    // Run sub-binary via namespaced name
+    await chef.start(["run", "multibin/bin-a"]);
+
+    // Assert it ran
+    assertEquals(
+      Deno.readTextFileSync(path.join(dir, "ran-a")),
+      "ran a",
+    );
+  }));
+
+Deno.test("uninstall removes parent + all sub-binary artifacts", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "bin-a"), "binary a");
+    Deno.writeTextFileSync(path.join(exeDir, "bin-b"), "binary b");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "multibin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "bin-a"), "./extracted/bin-a");
+        await Deno.copyFile(path.join(exeDir, "bin-b"), "./extracted/bin-b");
+        return {
+          dir: { path: "./extracted", exes: ["bin-a", "bin-b"] },
+        } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    // Verify installed
+    assertEquals(chef.database.isInstalled("multibin"), true);
+
+    // Uninstall
+    await chef.start(["uninstall", "multibin"]);
+
+    // DB entry gone
+    assertEquals(chef.database.isInstalled("multibin"), false);
+
+    // Primary symlink gone
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const primaryPath = path.join(chef.binPath, "multibin" + exeExtension);
+    try {
+      Deno.statSync(primaryPath);
+      throw new Error("should not exist");
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
+
+    // Sub-binary symlinks gone
+    const symlinkA = path.join(chef.binPath, "multibin-bin-a" + exeExtension);
+    try {
+      Deno.statSync(symlinkA);
+      throw new Error("should not exist");
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
+
+    // Extracted directory gone
+    const extractedDir = path.join(chef.binPath, "multibin-dir");
+    try {
+      Deno.statSync(extractedDir);
+      throw new Error("should not exist");
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
+  }));
+
+Deno.test("backward compat: dir.exe still works unchanged", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "my-bin"), "binary content");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "singlebin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "my-bin"), "./extracted/my-bin");
+        return { dir: { path: "./extracted", exe: "my-bin" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const primarySymlink = path.join(chef.binPath, "singlebin" + exeExtension);
+    assertEquals(Deno.lstatSync(primarySymlink).isSymlink, true);
+
+    const extractedDir = path.join(chef.binPath, "extracted");
+    Deno.statSync(path.join(extractedDir, "my-bin"));
+
+    const db = JSON.parse(Deno.readTextFileSync(chef.dbPath));
+    assertEquals(db.singlebin.dir, "./extracted");
+    assertEquals(db.singlebin.subBinaries, undefined);
+  }));
+
+Deno.test("getVersions maps sub-binary name to parent recipe", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.add({
+      name: "multibin",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve("2.0.0"),
+    });
+
+    await chef.testInit();
+    const versions = await chef.getVersions("multibin/bin-a");
+    assertEquals(versions, ["2.0.0"]);
   }));

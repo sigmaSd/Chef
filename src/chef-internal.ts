@@ -267,12 +267,13 @@ export class ChefInternal {
       version?: string;
     } = {},
   ) => {
+    const { parentName } = BinaryRunner.parseSubName(name);
     await this.binaryUpdater.update({
       force: options.force,
-      binary: [name],
+      binary: [parentName],
       signal: options.signal,
       dryRun: options.dryRun,
-      only: name,
+      only: parentName,
       version: options.version,
     });
   };
@@ -284,7 +285,8 @@ export class ChefInternal {
     name: string,
     options: { page?: number; signal?: AbortSignal } = {},
   ): Promise<string[]> => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) return [];
 
     if (recipe.provider) {
@@ -326,7 +328,8 @@ export class ChefInternal {
    * Show changelog for a binary
    */
   changelog = async (name: string): Promise<void> => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) {
       console.error(`App "${name}" not found.`);
       return;
@@ -597,7 +600,8 @@ export class ChefInternal {
     const binPath = await this.binaryRunner.getBinaryPath(name);
     if (!binPath) return;
 
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     let finalArgs = recipe?.cmdArgs ? [...recipe.cmdArgs] : [];
     finalArgs = finalArgs.concat(args);
 
@@ -636,35 +640,38 @@ export class ChefInternal {
    * Check if a binary is installed
    */
   isInstalled = (name: string) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (recipe?._currentVersion && recipe._currentVersion !== "-") {
       return true;
     }
     if (recipe?.provider) {
       return false;
     }
-    return this.database.isInstalled(name);
+    return this.database.isInstalled(parentName);
   };
 
   /**
    * Get the installed version of a binary
    */
   getVersion = (name: string) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (recipe?._currentVersion) {
       return recipe._currentVersion;
     }
     if (recipe?.provider) {
       return undefined;
     }
-    return this.database.getVersion(name);
+    return this.database.getVersion(parentName);
   };
 
   /**
    * Check if a binary needs updating
    */
   checkUpdate = async (name: string) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) return { needsUpdate: false };
 
     if (recipe.provider) {
@@ -712,8 +719,9 @@ export class ChefInternal {
 
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
-        const isNative = this.recipes.some((r) => r.name === name);
-        if (name && !isNative && !this.database.isInstalled(name)) {
+        const { parentName } = BinaryRunner.parseSubName(name);
+        const isNative = this.recipes.some((r) => r.name === parentName);
+        if (name && !isNative && !this.database.isInstalled(parentName)) {
           await this.refreshRecipes();
         }
 
@@ -748,6 +756,12 @@ export class ChefInternal {
           await this.uninstall(name);
         }
       },
+      link: async (name: string) => {
+        await this.link(name);
+      },
+      unlink: async (name: string) => {
+        await this.unlink(name);
+      },
       edit: () => {
         return this.edit();
       },
@@ -772,12 +786,6 @@ export class ChefInternal {
       },
       removeDesktop: (name: string) => {
         this.desktopManager.remove(name);
-      },
-      link: async (name: string) => {
-        await this.link(name);
-      },
-      unlink: async (name: string) => {
-        await this.unlink(name);
       },
       providerAdd: (name, command) => {
         this.addProvider(name, command);
@@ -822,50 +830,67 @@ export class ChefInternal {
     name: string,
     options: { signal?: AbortSignal } = {},
   ) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName } = BinaryRunner.parseSubName(name);
+    const targetName = parentName;
+
+    const recipe = this.recipes.find((r) => r.name === targetName);
     if (recipe?.provider) {
-      console.log(`🗑️ Uninstalling "${name}" (via ${recipe.provider})...`);
+      console.log(
+        `🗑️ Uninstalling "${targetName}" (via ${recipe.provider})...`,
+      );
       try {
         const msg = await this.providers.callProvider(
           recipe.provider,
           "remove",
-          {
-            name: name,
-          },
+          { name: targetName },
           options.signal,
         ) as { success: boolean };
 
         if (msg.success) {
-          console.log(`✅ Successfully uninstalled "${name}"`);
+          console.log(`✅ Successfully uninstalled "${targetName}"`);
           await this.refreshRecipes(options.signal);
         } else {
-          console.error(`❌ Failed to uninstall "${name}"`);
+          console.error(`❌ Failed to uninstall "${targetName}"`);
         }
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") throw e;
-        console.error(`Failed to uninstall ${name}:`, e);
+        console.error(`Failed to uninstall ${targetName}:`, e);
       }
       return;
     }
 
-    const entry = this.database.getEntry(name);
+    const entry = this.database.getEntry(targetName);
     if (!entry) {
       console.error(`Binary "${name}" is not installed.`);
       return;
     }
 
-    console.log(`🗑️ Uninstalling "${name}"...`);
+    console.log(`🗑️ Uninstalling "${targetName}"...`);
 
     // Remove desktop file
-    this.desktopManager.remove(name, { silent: true });
+    this.desktopManager.remove(targetName, { silent: true });
 
     // Remove symlink from exports
     await this.unlink(name, { silent: true });
 
     if (!entry.extern) {
-      // Remove binary file
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-      const binaryPath = path.join(this.binPath, name + exeExtension);
+
+      // Remove sub-binary symlinks first
+      if (entry.subBinaries) {
+        for (const sub of entry.subBinaries) {
+          try {
+            await Deno.remove(
+              path.join(this.binPath, `${targetName}-${sub}${exeExtension}`),
+            );
+          } catch {
+            // Ignore
+          }
+        }
+      }
+
+      // Remove primary binary file
+      const binaryPath = path.join(this.binPath, targetName + exeExtension);
       try {
         await Deno.remove(binaryPath);
       } catch {
@@ -884,9 +909,9 @@ export class ChefInternal {
     }
 
     // Remove from database
-    this.database.removeBinary(name);
+    this.database.removeBinary(targetName);
 
-    console.log(`✅ Successfully uninstalled "${name}"`);
+    console.log(`✅ Successfully uninstalled "${targetName}"`);
   };
 
   /**
@@ -928,27 +953,40 @@ export class ChefInternal {
    * Create a symlink to a binary in the exports directory
    */
   link = async (name: string) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName, subName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) {
-      console.error(`Recipe "${name}" not found`);
+      console.error(`Recipe "${parentName}" not found`);
       return;
     }
 
     const db = this.database;
-    if (!db.isInstalled(name)) {
+    if (!db.isInstalled(parentName)) {
       console.error(
-        `Binary "${name}" is not installed. Run 'chef update' first.`,
+        `Binary "${parentName}" is not installed. Run 'chef update' first.`,
       );
       return;
     }
 
-    // Ensure exports directory exists
+    const entry = db.getEntry(parentName);
+    if (!subName && entry?.subBinaries?.length) {
+      console.error(
+        `"${parentName}" has multiple binaries. Pick one:\n`,
+      );
+      for (const sub of entry.subBinaries) {
+        console.log(`  chef link ${parentName}/${sub}`);
+      }
+      return;
+    }
+
     await Deno.mkdir(this.exportsPath, { recursive: true });
 
-    // Find the binary path
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const binaryPath = path.join(this.binPath, name + exeExtension);
-    const linkPath = path.join(this.exportsPath, name + exeExtension);
+    const linkName = subName ? `${parentName}-${subName}` : name;
+    const binaryPath = subName
+      ? path.join(this.binPath, `${parentName}-${subName}${exeExtension}`)
+      : path.join(this.binPath, name + exeExtension);
+    const linkPath = path.join(this.exportsPath, linkName + exeExtension);
 
     try {
       try {
@@ -959,12 +997,12 @@ export class ChefInternal {
 
       await Deno.symlink(binaryPath, linkPath);
 
-      console.log(`✅ Created symlink for "${name}"`);
+      console.log(`✅ Created symlink for "${linkName}"`);
       console.log(`📂 Exports directory: ${this.exportsPath}`);
       console.log(`🔗 Symlink created: ${linkPath} -> ${binaryPath}`);
       console.log();
       console.log(
-        `💡 To use "${name}" from anywhere, add exports to your PATH:`,
+        `💡 To use "${linkName}" from anywhere, add exports to your PATH:`,
       );
       console.log(`   export PATH="${this.exportsPath}:$PATH"`);
       console.log();
@@ -979,20 +1017,35 @@ export class ChefInternal {
    * Remove a symlink from the exports directory
    */
   unlink = async (name: string, options: { silent?: boolean } = {}) => {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName, subName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) {
-      if (!options.silent) console.error(`Recipe "${name}" not found`);
+      if (!options.silent) console.error(`Recipe "${parentName}" not found`);
+      return;
+    }
+
+    const entry = this.database.getEntry(parentName);
+    if (!subName && entry?.subBinaries?.length) {
+      if (!options.silent) {
+        console.error(
+          `"${parentName}" has multiple binaries. Pick one:\n`,
+        );
+        for (const sub of entry.subBinaries) {
+          console.log(`  chef unlink ${parentName}/${sub}`);
+        }
+      }
       return;
     }
 
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const linkPath = path.join(this.exportsPath, name + exeExtension);
+    const linkName = subName ? `${parentName}-${subName}` : name;
+    const linkPath = path.join(this.exportsPath, linkName + exeExtension);
 
     try {
       const stat = await Deno.lstat(linkPath);
       if (!stat.isSymlink) {
         if (!options.silent) {
-          console.error(`"${name}" exists but is not a symlink`);
+          console.error(`"${linkName}" exists but is not a symlink`);
         }
         return;
       }
@@ -1000,13 +1053,13 @@ export class ChefInternal {
       await Deno.remove(linkPath);
 
       if (!options.silent) {
-        console.log(`✅ Removed symlink for "${name}"`);
+        console.log(`✅ Removed symlink for "${linkName}"`);
         console.log(`📂 From: ${this.exportsPath}`);
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         if (!options.silent) {
-          console.error(`Symlink for "${name}" does not exist`);
+          console.error(`Symlink for "${linkName}" does not exist`);
         }
       } else {
         if (!options.silent) {

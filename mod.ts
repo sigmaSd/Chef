@@ -81,6 +81,15 @@ export type App = {
     path: string;
     /** The path to the executable relative to the directory */
     exe: string;
+  } | {
+    /** The path to the directory */
+    path: string;
+    /**
+     * Multiple executables in the directory.
+     * The first entry is the primary binary (run via bare `chef run <name>`).
+     * Each sub-binary gets a `{name}-{exe}` symlink.
+     */
+    exes: string[];
   };
 } | {
   /**

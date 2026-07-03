@@ -1,10 +1,11 @@
 import * as path from "@std/path";
 import { pooledMap } from "@std/async/pool";
 import type { Recipe } from "../mod.ts";
-import type { ChefDatabase } from "./database.ts";
+import type { ChefDatabase, DbEntry } from "./database.ts";
 import { commandExists } from "./internal_utils.ts";
 import { expect } from "./utils.ts";
 import {
+  BoxChars,
   printTable,
   sectionHeader,
   spacer,
@@ -35,6 +36,16 @@ export class BinaryRunner {
   }
 
   /**
+   * Split a namespaced name like "parent/sub" into { parentName, subName }.
+   * Returns parentName only if there's no slash.
+   */
+  static parseSubName(name: string): { parentName: string; subName?: string } {
+    const idx = name.indexOf("/");
+    if (idx === -1) return { parentName: name };
+    return { parentName: name.slice(0, idx), subName: name.slice(idx + 1) };
+  }
+
+  /**
    * Run a binary with the provided arguments
    */
   async run(name: string, binArgs: string[]) {
@@ -43,11 +54,16 @@ export class BinaryRunner {
       return;
     }
 
-    const recipe = this.recipes.find((recipe) => recipe.name === name);
+    const { parentName, subName } = BinaryRunner.parseSubName(name);
     const db = this.database.read();
-    const entry = db[name];
+    const entry = db[parentName];
 
-    if (!recipe && !entry) {
+    // For sub-binaries, the recipe is matched by parent name
+    const recipeKey = subName ? parentName : name;
+    const recipe = this.recipes.find((r) => r.name === recipeKey);
+    const dbEntry = entry as DbEntry | undefined;
+
+    if (!recipe && !dbEntry) {
       statusMessage("error", `Unknown binary: ${name}`);
       spacer();
       console.log(
@@ -60,19 +76,36 @@ export class BinaryRunner {
 
     let binPath: string;
     if (recipe?.provider) {
-      // For provider binaries, assume they are in PATH
       binPath = name;
+    } else if (!dbEntry) {
+      statusMessage("error", `Binary "${name}" is not installed.`);
+      return;
+    } else if (dbEntry.extern) {
+      binPath = dbEntry.extern;
+    } else if (!subName && dbEntry.subBinaries?.length) {
+      spacer();
+      console.log(
+        `%c${parentName} has multiple binaries:`,
+        `color: ${UIColors.info}; font-weight: bold`,
+      );
+      for (const sub of dbEntry.subBinaries) {
+        console.log(
+          `%c  ${Symbols.arrow} ${parentName}/${sub}`,
+          `color: ${UIColors.bright}`,
+        );
+      }
+      spacer();
+      console.log(
+        `%c${Symbols.info} Run one with: chef run ${parentName}/<binary>`,
+        `color: ${UIColors.info}`,
+      );
+      spacer();
+      return;
     } else {
-      if (!entry) {
-        statusMessage("error", `Binary "${name}" is not installed.`);
-        return;
-      }
-      if (entry.extern) {
-        binPath = entry.extern;
-      } else {
-        const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-        binPath = path.join(this.binPath, name + exeExtension);
-      }
+      const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+      binPath = subName
+        ? path.join(this.binPath, `${parentName}-${subName}${exeExtension}`)
+        : path.join(this.binPath, name + exeExtension);
     }
 
     let finalArgs = recipe?.cmdArgs ? recipe.cmdArgs : [];
@@ -192,14 +225,12 @@ export class BinaryRunner {
         let color: string = UIColors.muted;
 
         if (recipe.provider) {
-          // Provider recipe
           installedVersion = recipe._currentVersion &&
               recipe._currentVersion !== "-"
             ? recipe._currentVersion
             : "-";
           latestVersion = recipe._latestVersion || "-";
         } else {
-          // Native recipe
           installedVersion = recipe._currentVersion ||
             this.database.getVersion(recipe.name) || "-";
           latestVersion = recipe._latestVersion || "-";
@@ -210,7 +241,6 @@ export class BinaryRunner {
           status = "Ready";
           color = UIColors.success;
 
-          // Check for update if we have both versions
           if (
             latestVersion !== "-" && latestVersion !== "" &&
             installedVersion !== latestVersion
@@ -227,6 +257,20 @@ export class BinaryRunner {
           status,
         ]);
         rowColors.push(color);
+
+        // Show sub-binaries indented under parent
+        const entry = this.database.getEntry(recipe.name);
+        if (entry?.subBinaries && entry.subBinaries.length > 0) {
+          for (const sub of entry.subBinaries) {
+            rows.push([
+              `  ${BoxChars.teeRight} ${sub}`,
+              installedVersion,
+              latestVersion,
+              status,
+            ]);
+            rowColors.push(color);
+          }
+        }
       }
 
       printTable(headers, rows, rowColors);
@@ -244,25 +288,27 @@ export class BinaryRunner {
    * Check if a binary is installed and executable
    */
   async isInstalled(name: string): Promise<boolean> {
-    const recipe = this.recipes.find((r) => r.name === name);
+    const { parentName, subName } = BinaryRunner.parseSubName(name);
+    const recipe = this.recipes.find((r) => r.name === parentName);
     if (recipe?.provider) {
       return await commandExists(name);
     }
 
-    const entry = this.database.getEntry(name);
-    if (!entry) {
-      return false;
+    const entry = this.database.getEntry(parentName);
+    if (!entry) return false;
+
+    if (subName) {
+      return Array.isArray(entry.subBinaries) &&
+        entry.subBinaries.includes(subName);
     }
 
-    if (entry.extern) {
-      return await commandExists(entry.extern);
-    }
+    if (entry.extern) return await commandExists(entry.extern);
 
     try {
       const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
       const binPath = path.join(this.binPath, name + exeExtension);
       const stat = await Deno.stat(binPath);
-      return stat.isFile;
+      return stat.isFile || stat.isSymlink;
     } catch {
       return false;
     }
@@ -272,22 +318,20 @@ export class BinaryRunner {
    * Get the path to an installed binary
    */
   async getBinaryPath(name: string): Promise<string | null> {
-    if (!await this.isInstalled(name)) {
-      return null;
-    }
+    const { parentName, subName } = BinaryRunner.parseSubName(name);
 
-    const recipe = this.recipes.find((r) => r.name === name);
-    if (recipe?.provider) {
-      return name;
-    }
+    if (!await this.isInstalled(name)) return null;
 
-    const entry = this.database.getEntry(name);
-    if (entry?.extern) {
-      return entry.extern;
-    }
+    const recipe = this.recipes.find((r) => r.name === parentName);
+    if (recipe?.provider) return name;
+
+    const entry = this.database.getEntry(parentName);
+    if (entry?.extern) return entry.extern;
 
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    return path.join(this.binPath, name + exeExtension);
+    return subName
+      ? path.join(this.binPath, `${parentName}-${subName}${exeExtension}`)
+      : path.join(this.binPath, name + exeExtension);
   }
 
   /**

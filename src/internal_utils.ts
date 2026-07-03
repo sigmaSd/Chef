@@ -124,7 +124,7 @@ export async function copyDirRecursively(from: string, to: string) {
     const newTo = path.join(to, entry.name);
     if (entry.isDirectory) {
       await copyDirRecursively(newFrom, newTo);
-    } else if (entry.isFile) {
+    } else {
       await Deno.copyFile(newFrom, newTo);
     }
   }

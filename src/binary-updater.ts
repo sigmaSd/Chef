@@ -312,6 +312,7 @@ export class BinaryUpdater {
           dir: installInfo.destDir,
           extern: installInfo.extern,
           desktopId: recipe.desktopFile?.id,
+          subBinaries: installInfo.subBinaries,
         });
         statusMessage(
           "success",
@@ -381,7 +382,12 @@ export class BinaryUpdater {
     latestVersion: string,
     signal?: AbortSignal,
     force?: boolean,
-  ): Promise<{ binaryPath: string; destDir?: string; extern?: string }> {
+  ): Promise<{
+    binaryPath: string;
+    destDir?: string;
+    extern?: string;
+    subBinaries?: string[];
+  }> {
     return await runInTempDir(async () => {
       setSignal(signal);
       const tempBin = await recipe.download({ latestVersion, signal, force })
@@ -402,35 +408,83 @@ export class BinaryUpdater {
         }
       }
 
+      // Clean up old sub-binary symlinks
+      if (oldEntry?.subBinaries) {
+        for (const sub of oldEntry.subBinaries) {
+          try {
+            await Deno.remove(
+              path.join(this.binPath, `${recipe.name}-${sub}${exeExtension}`),
+            );
+          } catch {
+            // Ignore
+          }
+        }
+      }
+
       if ("extern" in tempBin) {
         return { binaryPath: "", extern: tempBin.extern };
       } else if ("dir" in tempBin) {
-        const destDirName = tempBin.dir.path === "."
-          ? `${recipe.name}-dir`
-          : tempBin.dir.path;
-        const destDir = path.join(this.binPath, destDirName);
+        const dir = tempBin.dir;
 
-        // Remove old directory and symlink if they exist (additional cleanup)
-        try {
-          await Deno.remove(destDir, { recursive: true });
-        } catch {
-          // Ignore
-        }
-        try {
-          await Deno.remove(binaryPath);
-        } catch {
-          // Ignore
-        }
+        if ("exes" in dir) {
+          // Multi-binary mode: store extracted dir in a dedicated subdirectory
+          const destDirName = `${recipe.name}-dir`;
+          const destDir = path.join(this.binPath, destDirName);
 
-        await copyDirRecursively(
-          tempBin.dir.path,
-          destDir,
-        );
-        await Deno.symlink(
-          path.join(destDir, tempBin.dir.exe),
-          binaryPath,
-        );
-        return { binaryPath, destDir: destDirName };
+          // Remove old primary symlink
+          try {
+            await Deno.remove(binaryPath);
+          } catch {
+            // Ignore
+          }
+
+          await copyDirRecursively(dir.path, destDir);
+
+          // Primary symlink (first exe) at {binPath}/{recipeName}
+          await Deno.symlink(
+            path.join(destDir, dir.exes[0]),
+            binaryPath,
+          );
+
+          // Sub-binary symlinks at {binPath}/{recipeName}-{exe}
+          for (const exe of dir.exes) {
+            const subLink = path.join(
+              this.binPath,
+              `${recipe.name}-${exe}${exeExtension}`,
+            );
+            await Deno.symlink(path.join(destDir, exe), subLink);
+          }
+
+          return {
+            binaryPath,
+            destDir: destDirName,
+            subBinaries: dir.exes,
+          };
+        } else {
+          // Single-binary dir mode
+          const destDirName = dir.path === "."
+            ? `${recipe.name}-dir`
+            : dir.path;
+          const destDir = path.join(this.binPath, destDirName);
+
+          try {
+            await Deno.remove(destDir, { recursive: true });
+          } catch {
+            // Ignore
+          }
+          try {
+            await Deno.remove(binaryPath);
+          } catch {
+            // Ignore
+          }
+
+          await copyDirRecursively(dir.path, destDir);
+          await Deno.symlink(
+            path.join(destDir, dir.exe),
+            binaryPath,
+          );
+          return { binaryPath, destDir: destDirName };
+        }
       } else {
         // Remove old binary if it exists to prevent permission errors
         try {

@@ -7,6 +7,7 @@ export interface DbEntry {
   dir?: string;
   extern?: string;
   desktopId?: string;
+  subBinaries?: string[];
 }
 
 export interface ProviderEntry {
@@ -67,6 +68,9 @@ export class ChefDatabase {
             extern: typeof entry.extern === "string" ? entry.extern : undefined,
             desktopId: typeof entry.desktopId === "string"
               ? entry.desktopId
+              : undefined,
+            subBinaries: Array.isArray(entry.subBinaries)
+              ? entry.subBinaries as string[]
               : undefined,
           };
         }

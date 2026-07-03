@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { getVersionFromUrl } from "../src/internal_utils.ts";
+import {
+  copyDirRecursively,
+  getVersionFromUrl,
+} from "../src/internal_utils.ts";
+import * as path from "@std/path";
 
 Deno.test("getVersionFromUrl should extract version from JSR URL", () => {
   assertEquals(getVersionFromUrl("jsr:@sigmasd/chef@0.41.0/mod.ts"), "0.41.0");
@@ -90,5 +94,47 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
       Deno.env.delete("XDG_CACHE_HOME");
     }
     await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("copyDirRecursively copies symlinks", async () => {
+  const src = await Deno.makeTempDir();
+  const dst = await Deno.makeTempDir();
+  try {
+    const content = "lib content";
+    // Regular file
+    Deno.writeTextFileSync(path.join(src, "libfoo.so.1.0.0"), content);
+    // Symlink to file
+    await Deno.symlink("libfoo.so.1.0.0", path.join(src, "libfoo.so.0"));
+    // Chain of symlinks
+    await Deno.symlink("libfoo.so.0", path.join(src, "libfoo.so"));
+
+    await copyDirRecursively(src, path.join(dst, "out"));
+
+    const outDir = path.join(dst, "out");
+    // Regular file copied
+    const stat1 = Deno.statSync(path.join(outDir, "libfoo.so.1.0.0"));
+    assertEquals(stat1.isFile, true);
+
+    // Symlink resolved to regular file with correct content
+    const stat0 = Deno.lstatSync(path.join(outDir, "libfoo.so.0"));
+    assertEquals(stat0.isFile, true);
+    assertEquals(stat0.isSymlink, false);
+    assertEquals(
+      Deno.readTextFileSync(path.join(outDir, "libfoo.so.0")),
+      content,
+    );
+
+    // Chained symlink also resolved
+    const statLink = Deno.lstatSync(path.join(outDir, "libfoo.so"));
+    assertEquals(statLink.isFile, true);
+    assertEquals(statLink.isSymlink, false);
+    assertEquals(
+      Deno.readTextFileSync(path.join(outDir, "libfoo.so")),
+      content,
+    );
+  } finally {
+    await Deno.remove(src, { recursive: true });
+    await Deno.remove(dst, { recursive: true });
   }
 });
