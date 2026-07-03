@@ -13,11 +13,10 @@ const chef = new Chef();
 chef.add({
   name: "myapp",                            // required
   download: async ({ latestVersion }) => {  // required, returns App
-    // download + extract in CWD (Chef runs in a temp dir)
     await $.request(`https://...`).showProgress().pipeToPath();
-    await $`tar -xzf ...`;
-    return { exe: "./myapp" };
-    // or: return { dir: { path: "./dir/", exe: "./bin" } };
+    // download, extract/handle, locate binary, return it
+    return { exe: "./binary" };
+    // or: return { dir: { path: "./dir/", exe: "./binary" } };
     // or: return { extern: "command" };
   },
   version: () => getLatestGithubRelease("owner/repo"),      // latest available
@@ -25,32 +24,42 @@ chef.add({
   description: "Does X",                                     // shown in GUI
   desktopFile: { name: "MyApp", categories: "Development;", iconPath: "URL" },
   changelog: ({ latestVersion }) => `https://.../${latestVersion}`,
-  cmdArgs: ["--flag"],   // prepended to user args on `chef run`
+  cmdArgs: ["--flag"],
   cmdEnv: { KEY: "val" },
 });
 ```
 
-## Common Patterns
+## Workflow — Discover Then Write
 
-| Pattern | Snippet |
-|---------|---------|
-| **tar.gz → single binary** | `$.request(URL).pipeToPath()` → `$`tar -xzf ...`` → `{ exe: "binary" }` |
-| **Strip `v` prefix** | `latestVersion.slice(1)` when GitHub tag is `v1.2.3` but URL wants `1.2.3` |
-| **AppImage** | Download → `$`chmod +x AppImage`` → `{ exe: "./AppImage" }` |
-| **Directory install** | Extract → `{ dir: { path: "./extracted/", exe: "./binary" } }` |
-| **NPM package** | `$`npm install pkg`` → `{ dir: { path: ".", exe: "./node_modules/.bin/pkg" } }`, use `getLatestNpmVersion` |
-| **Cross-platform** | `Deno.build.os` / `Deno.build.arch` to select correct asset |
-| **Desktop file** | Add `desktopFile: { name, categories, iconPath, terminal }` for GUI apps |
+**Pass 1: Discover.** Download the real release asset and inspect it in a temp directory:
+- Run curl/wget to download the asset the user points to
+- Inspect the file: use `tar -tzf` for archives, `file` to detect type, `ls -R` to see extracted structure
+- Check if the binary extracts directly into CWD or into a subdirectory
+- Note the exact filename(s) and paths
+
+**Pass 2: Write.** Craft the recipe based on the actual structure you observed:
+- If the binary ends up at CWD → `{ exe: "./binary" }`
+- If extraction creates a containing directory → `{ dir: { path: "./dir/", exe: "./binary" } }`
+- If the asset itself is the binary (AppImage, statically linked binary) → `chmod +x` then `{ exe }`
+- If the asset needs special handling (npm, `.deb`, custom install script) → handle accordingly
+
+## Tips
+
+- `$` is Chef's cross-platform shell wrapper (from `@david/dax`). Use template strings: <code>$`command`</code>
+- Chef runs `download()` in a temp directory, so you can freely write files
+- `.showProgress()` on requests shows a progress bar in the GUI
+- Use `Deno.build.os` / `Deno.build.arch` when the release provides platform-specific assets
 
 ## Instructions
 
-1. **Read existing file** — understand its structure and conventions.
-2. **Add the recipe** — use `chef.add()` inside the `chef.addMany([...])` array or add a new `chef.add()` call.
-3. **Do NOT add comments** to the recipe code.
-4. **Verify**:
-   - Download URL is constructed correctly with template literals
-   - Version tag format matches what GitHub/NPM provides
-   - Extraction paths match what the archive produces
-   - Binaries are `chmod +x`'d if not from a standard extraction
-   - Desktop file is included for GUI applications
-   - `versions()` is included when a version picker is useful
+1. **Read the existing file** to understand its conventions.
+2. **Find the real release URL** (GitHub releases, NPM, etc.) and download it to inspect.
+3. **Write the recipe** based on your inspection — no guessing.
+4. **Do NOT add comments** to the recipe code.
+5. **Verify:**
+   - Did I actually download and inspect the asset before writing?
+   - Does the download URL use `latestVersion` (or the observed tag format)?
+   - Does the extraction/handling match what I observed?
+   - Is the `{ exe }` / `{ dir }` return value correct based on real inspection?
+   - Desktop file included for GUI apps?
+   - `versions()` included when a version picker is useful?
