@@ -105,9 +105,9 @@ Deno.test("copyDirRecursively copies symlinks", async () => {
     // Regular file
     Deno.writeTextFileSync(path.join(src, "libfoo.so.1.0.0"), content);
     // Symlink to file
-    await Deno.symlink("libfoo.so.1.0.0", path.join(src, "libfoo.so.0"));
+    await Deno.symlink("libfoo.so.1.0.0", path.join(src, "libfoo.so.0"), { type: "file" });
     // Chain of symlinks
-    await Deno.symlink("libfoo.so.0", path.join(src, "libfoo.so"));
+    await Deno.symlink("libfoo.so.0", path.join(src, "libfoo.so"), { type: "file" });
 
     await copyDirRecursively(src, path.join(dst, "out"));
 
