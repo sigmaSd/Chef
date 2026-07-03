@@ -918,3 +918,98 @@ Deno.test("getVersions maps sub-binary name to parent recipe", async () =>
     const versions = await chef.getVersions("multibin/bin-a");
     assertEquals(versions, ["2.0.0"]);
   }));
+
+Deno.test("link --rename renames export symlink (simple binary)", async () =>
+  await withTempDir(async (dir: string) => {
+    const exePath = path.join(dir, "myexe");
+    Deno.writeTextFileSync(exePath, "content");
+    if (Deno.build.os !== "windows") Deno.chmodSync(exePath, 0o755);
+
+    const chef = new TestChef();
+    chef.add({
+      name: "hello",
+      download: async () => {
+        await Deno.copyFile(exePath, "./hello");
+        return { exe: "./hello" } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    await chef.start(["link", "hello", "--rename", "my-hello"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const linkPath = path.join(
+      chef.paths.exportsPath,
+      "my-hello" + exeExtension,
+    );
+    const stat = Deno.lstatSync(linkPath);
+    assertEquals(stat.isSymlink, true);
+  }));
+
+Deno.test("link sub-binary --rename renames export symlink", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "bin-a"), "binary a");
+    Deno.writeTextFileSync(path.join(exeDir, "bin-b"), "binary b");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "multibin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "bin-a"), "./extracted/bin-a");
+        await Deno.copyFile(path.join(exeDir, "bin-b"), "./extracted/bin-b");
+        return {
+          dir: { path: "./extracted", exes: ["bin-a", "bin-b"] },
+        } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    await chef.start(["link", "multibin/bin-a", "--rename", "run-a"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const linkPath = path.join(chef.paths.exportsPath, "run-a" + exeExtension);
+    assertEquals(Deno.lstatSync(linkPath).isSymlink, true);
+  }));
+
+Deno.test("uninstall cleans up sub-binary export symlinks", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "bin-a"), "binary a");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "multibin",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "bin-a"), "./extracted/bin-a");
+        return { dir: { path: "./extracted", exes: ["bin-a"] } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    await chef.start(["link", "multibin/bin-a", "--rename", "run-a"]);
+
+    await chef.start(["uninstall", "multibin"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const linkPath = path.join(chef.paths.exportsPath, "run-a" + exeExtension);
+    try {
+      Deno.lstatSync(linkPath);
+      throw new Error("symlink should be removed");
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
+    }
+  }));

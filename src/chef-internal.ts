@@ -756,8 +756,8 @@ export class ChefInternal {
           await this.uninstall(name);
         }
       },
-      link: async (name: string) => {
-        await this.link(name);
+      link: async (name: string, options?: { rename?: string }) => {
+        await this.link(name, options);
       },
       unlink: async (name: string) => {
         await this.unlink(name);
@@ -870,7 +870,20 @@ export class ChefInternal {
     // Remove desktop file
     this.desktopManager.remove(targetName, { silent: true });
 
-    // Remove symlink from exports
+    // Remove all tracked export symlinks
+    if (entry.exportLinks?.length) {
+      for (const linkName of entry.exportLinks) {
+        const exeExt = Deno.build.os === "windows" ? ".exe" : "";
+        const linkPath = path.join(this.exportsPath, linkName + exeExt);
+        try {
+          await Deno.remove(linkPath);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    // Remove parent export symlink
     await this.unlink(name, { silent: true });
 
     if (!entry.extern) {
@@ -952,7 +965,7 @@ export class ChefInternal {
   /**
    * Create a symlink to a binary in the exports directory
    */
-  link = async (name: string) => {
+  link = async (name: string, options?: { rename?: string }) => {
     const { parentName, subName } = BinaryRunner.parseSubName(name);
     const recipe = this.recipes.find((r) => r.name === parentName);
     if (!recipe) {
@@ -982,7 +995,8 @@ export class ChefInternal {
     await Deno.mkdir(this.exportsPath, { recursive: true });
 
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const linkName = subName ? `${parentName}-${subName}` : name;
+    const baseName = subName ?? name;
+    const linkName = options?.rename ?? baseName;
     const binaryPath = subName
       ? path.join(this.binPath, `${parentName}-${subName}${exeExtension}`)
       : path.join(this.binPath, name + exeExtension);
@@ -996,6 +1010,16 @@ export class ChefInternal {
       }
 
       await Deno.symlink(binaryPath, linkPath);
+
+      // Track in DB
+      const entry2 = db.getEntry(parentName);
+      if (entry2) {
+        const links = entry2.exportLinks ?? [];
+        if (!links.includes(linkName)) {
+          links.push(linkName);
+          db.setEntry(parentName, { ...entry2, exportLinks: links });
+        }
+      }
 
       console.log(`✅ Created symlink for "${linkName}"`);
       console.log(`📂 Exports directory: ${this.exportsPath}`);
@@ -1038,7 +1062,7 @@ export class ChefInternal {
     }
 
     const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
-    const linkName = subName ? `${parentName}-${subName}` : name;
+    const linkName = subName ?? name;
     const linkPath = path.join(this.exportsPath, linkName + exeExtension);
 
     try {
@@ -1051,6 +1075,13 @@ export class ChefInternal {
       }
 
       await Deno.remove(linkPath);
+
+      // Remove from DB tracking
+      const entry2 = this.database.getEntry(parentName);
+      if (entry2?.exportLinks?.includes(linkName)) {
+        const links = entry2.exportLinks.filter((l) => l !== linkName);
+        this.database.setEntry(parentName, { ...entry2, exportLinks: links });
+      }
 
       if (!options.silent) {
         console.log(`✅ Removed symlink for "${linkName}"`);

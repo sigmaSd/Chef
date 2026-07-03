@@ -89,6 +89,9 @@ export class LinkCommand {
     type: "string",
   })
   name!: string;
+
+  @opt({ description: "custom name for the export symlink", type: "string" })
+  rename?: string;
 }
 
 @command
@@ -183,7 +186,7 @@ export interface CommandHandlers {
     icon?: string;
   }) => Promise<void>;
   removeDesktop?: (name: string) => void;
-  link?: (name: string) => Promise<void>;
+  link?: (name: string, options?: { rename?: string }) => Promise<void>;
   unlink?: (name: string) => Promise<void>;
   providerAdd?: (name: string, command: string) => void;
   providerRemove?: (name: string) => void;
@@ -300,7 +303,9 @@ export async function parseAndExecute(
       handlers.removeDesktop(parsedArgs["desktop-file"].remove.name!);
     }
   } else if (parsedArgs.link && handlers.link) {
-    await handlers.link(parsedArgs.link.name!);
+    await handlers.link(parsedArgs.link.name!, {
+      rename: parsedArgs.link.rename,
+    });
   } else if (parsedArgs.unlink && handlers.unlink) {
     await handlers.unlink(parsedArgs.unlink.name!);
   } else if (parsedArgs.provider) {
