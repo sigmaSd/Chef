@@ -340,6 +340,31 @@ export class ProviderManager {
             (performance.now() - tStart).toFixed(1)
           }ms`,
         );
+
+        // Race a graceful exit against a 50ms grace window. On most
+        // platforms the provider exits quickly after EOF on stdin; on
+        // Windows we may need a forced kill to release the directory
+        // cwd handle held by the subprocess.
+        const exitedGracefully = await Promise.race([
+          session.process.status.then(() => true),
+          new Promise<boolean>((resolve) =>
+            setTimeout(() => resolve(false), 50)
+          ),
+        ]);
+        if (!exitedGracefully) {
+          debugTime(`hard-killing provider ${name} (grace window expired)`);
+          try {
+            session.process.kill();
+          } catch {
+            // Already dead.
+          }
+          try {
+            await session.process.status;
+          } catch {
+            // Ignore.
+          }
+        }
+        debugTime(`provider subprocess reaped: ${name}`);
       }),
     );
     this.#sessions.clear();

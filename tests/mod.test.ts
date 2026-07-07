@@ -1146,3 +1146,34 @@ Deno.test(
       );
     }),
 );
+
+Deno.test(
+  "cleanup - waits for provider subprocess to exit",
+  async () =>
+    await withTempDir(async () => {
+      const fixturePath = path.join(
+        path.dirname(path.fromFileUrl(import.meta.url)),
+        "fixtures/fake-provider.ts",
+      );
+
+      const chef = new TestChef();
+      await chef.testInit();
+      chef.addProvider(
+        "reap-test",
+        `deno run -A ${fixturePath} --name reap-test --app reap-app --delay 0`,
+      );
+
+      await chef.refreshRecipes();
+
+      const t0 = performance.now();
+      await chef.providers.cleanup();
+      const elapsed = performance.now() - t0;
+
+      assert(
+        elapsed < 500,
+        `cleanup took ${
+          elapsed.toFixed(0)
+        }ms; expected < 500ms (provider subprocess must be fully reaped)`,
+      );
+    }),
+);
