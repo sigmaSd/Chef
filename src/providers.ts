@@ -1,4 +1,5 @@
 import { TextLineStream } from "@std/streams/text-line-stream";
+import { debugTime } from "./internal_utils.ts";
 import { expect } from "./utils.ts";
 import type { Recipe } from "../mod.ts";
 import type { ChefDatabase } from "./database.ts";
@@ -63,14 +64,20 @@ export class ProviderManager {
 
       const process = command.spawn();
 
+      debugTime(`spawned provider process ${name}`);
+
       // Check if process is still alive after a short delay
       void (async () => {
         try {
           const status = await process.status;
+          debugTime(
+            `provider process exited ${name} (success=${status.success})`,
+          );
           if (!status.success) {
             this.#sessions.delete(name);
           }
         } catch {
+          debugTime(`provider process status threw ${name}`);
           this.#sessions.delete(name);
         }
       })();
@@ -100,6 +107,8 @@ export class ProviderManager {
           }
         } catch {
           // Ignore
+        } finally {
+          debugTime(`stderr listener drained ${name}`);
         }
       })();
 
@@ -131,6 +140,7 @@ export class ProviderManager {
         } catch (e) {
           console.error(`Provider session "${name}" reader error:`, e);
         } finally {
+          debugTime(`stdout listener drained ${name}`);
           this.#sessions.delete(name);
           for (const resolve of pendingRequests.values()) {
             resolve({ success: false, error: "Provider session closed" });
@@ -215,103 +225,124 @@ export class ProviderManager {
     signal?: AbortSignal,
   ): Promise<Recipe[]> {
     const providers = this.getProviders();
-    const providerRecipes: Recipe[] = [];
-
-    for (const provider of providers) {
-      try {
-        interface ProviderApp {
-          name: string;
-          group?: string;
-          version: string;
-          latestVersion: string;
-          description?: string;
-          hasVersions?: boolean;
-        }
-
-        const msg = await this.callProvider(
-          provider.name,
-          "list",
-          {},
-          signal,
-        ) as ProviderResponse;
-
-        if (msg.success === false) {
-          console.error(
-            `Failed to fetch recipes from provider "${provider.name}": ${
-              msg.error || "Unknown error"
-            }`,
-          );
-          continue;
-        }
-
-        if (msg.type !== "list") {
-          console.error(`Unexpected response type from provider: ${msg.type}`);
-          continue;
-        }
-
-        const apps: ProviderApp[] = msg.data as ProviderApp[];
-
-        for (const app of apps) {
-          const currentVersion = app.version ?? "-";
-          const latestVersion = app.latestVersion ?? "-";
-
-          const recipe: Recipe = {
-            name: app.name,
-            provider: provider.name,
-            description: app.description,
-            _dynamic: true,
-            _group: app.group,
-            version: () => Promise.resolve(latestVersion),
-            download: async ({ latestVersion, signal, force }) => {
-              const msg = await this.callProvider(provider.name, "update", {
-                name: app.name,
-                version: latestVersion,
-                force,
-              }, signal) as ProviderResponse;
-
-              if (!msg.success) {
-                throw new Error(
-                  `Update failed for ${app.name}: ${
-                    msg.error || "Unknown error"
-                  }`,
-                );
-              }
-              return { extern: app.name };
-            },
-            _currentVersion: currentVersion,
-            _latestVersion: latestVersion,
-          };
-
-          if (app.hasVersions) {
-            recipe.versions = (options) =>
-              getVersionsFn(app.name, { page: options?.page });
+    const results = await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          interface ProviderApp {
+            name: string;
+            group?: string;
+            version: string;
+            latestVersion: string;
+            description?: string;
+            hasVersions?: boolean;
           }
 
-          providerRecipes.push(recipe);
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          throw error;
-        }
-        console.error(
-          `Failed to fetch recipes from provider "${provider.name}":`,
-          error,
-        );
-      }
-    }
+          const msg = await this.callProvider(
+            provider.name,
+            "list",
+            {},
+            signal,
+          ) as ProviderResponse;
 
-    return providerRecipes;
+          if (msg.success === false) {
+            console.error(
+              `Failed to fetch recipes from provider "${provider.name}": ${
+                msg.error || "Unknown error"
+              }`,
+            );
+            return [];
+          }
+
+          if (msg.type !== "list") {
+            console.error(
+              `Unexpected response type from provider: ${msg.type}`,
+            );
+            return [];
+          }
+
+          const apps: ProviderApp[] = msg.data as ProviderApp[];
+          const recipes: Recipe[] = [];
+
+          for (const app of apps) {
+            const currentVersion = app.version ?? "-";
+            const latestVersion = app.latestVersion ?? "-";
+
+            const recipe: Recipe = {
+              name: app.name,
+              provider: provider.name,
+              description: app.description,
+              _dynamic: true,
+              _group: app.group,
+              version: () => Promise.resolve(latestVersion),
+              download: async ({ latestVersion, signal, force }) => {
+                const msg = await this.callProvider(
+                  provider.name,
+                  "update",
+                  {
+                    name: app.name,
+                    version: latestVersion,
+                    force,
+                  },
+                  signal,
+                ) as ProviderResponse;
+
+                if (!msg.success) {
+                  throw new Error(
+                    `Update failed for ${app.name}: ${
+                      msg.error || "Unknown error"
+                    }`,
+                  );
+                }
+                return { extern: app.name };
+              },
+              _currentVersion: currentVersion,
+              _latestVersion: latestVersion,
+            };
+
+            if (app.hasVersions) {
+              recipe.versions = (options) =>
+                getVersionsFn(app.name, { page: options?.page });
+            }
+
+            recipes.push(recipe);
+          }
+          return recipes;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            throw error;
+          }
+          console.error(
+            `Failed to fetch recipes from provider "${provider.name}":`,
+            error,
+          );
+          return [];
+        }
+      }),
+    );
+    return results.flat();
   }
 
   async cleanup() {
-    for (const [name, session] of this.#sessions) {
-      try {
-        await session.writer.close();
-        await session.process.status;
-      } catch (e) {
-        console.error(`Error closing provider session "${name}":`, e);
-      }
-    }
+    debugTime(
+      `cleanup() start with ${this.#sessions.size} session(s)`,
+    );
+    await Promise.all(
+      [...this.#sessions.entries()].map(async ([name, session]) => {
+        debugTime(`closing writer for provider ${name}`);
+        const tStart = performance.now();
+        try {
+          await session.writer.close();
+        } catch {
+          // Writer may already be closed if the provider died.
+        }
+        debugTime(
+          `writer closed for provider ${name} in ${
+            (performance.now() - tStart).toFixed(1)
+          }ms`,
+        );
+      }),
+    );
     this.#sessions.clear();
+    debugTime("cleanup() done");
   }
 }

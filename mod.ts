@@ -232,6 +232,9 @@ export class Chef {
       Deno.exit(1);
     } finally {
       await this.#chefInternal.cleanup();
+      const m = await import("./src/internal_utils.ts");
+      m.debugTime("Chef.start returning (all awaits done)");
+      Deno.exit(0);
     }
   };
 }

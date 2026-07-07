@@ -1013,3 +1013,136 @@ Deno.test("uninstall cleans up sub-binary export symlinks", async () =>
       if (!(e instanceof Deno.errors.NotFound)) throw e;
     }
   }));
+
+Deno.test(
+  "refreshRecipes - providers are queried in parallel",
+  async () =>
+    await withTempDir(async () => {
+      const fixturePath = path.join(
+        path.dirname(path.fromFileUrl(import.meta.url)),
+        "fixtures/fake-provider.ts",
+      );
+      const delay = 250;
+
+      const chef = new TestChef();
+      chef.addMany([{
+        name: "native-app",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+      }]);
+
+      await chef.testInit();
+      chef.addProvider(
+        "slow-a",
+        `deno run -A ${fixturePath} --name slow-a --app app-a --delay ${delay}`,
+      );
+      chef.addProvider(
+        "slow-b",
+        `deno run -A ${fixturePath} --name slow-b --app app-b --delay ${delay}`,
+      );
+      chef.addProvider(
+        "slow-c",
+        `deno run -A ${fixturePath} --name slow-c --app app-c --delay ${delay}`,
+      );
+
+      try {
+        const start = performance.now();
+        await chef.refreshRecipes();
+        const elapsed = performance.now() - start;
+
+        const providerRecipes = chef.recipes.filter((r) => r.provider);
+        assertEquals(providerRecipes.length, 3);
+        for (const name of ["app-a", "app-b", "app-c"]) {
+          assert(
+            providerRecipes.some((r) => r.name === name),
+            `missing provider recipe ${name}`,
+          );
+        }
+
+        const sequentialLowerBound = delay * 3 - 50;
+        assert(
+          elapsed < sequentialLowerBound,
+          `refreshRecipes took ${
+            elapsed.toFixed(0)
+          }ms (>= ${sequentialLowerBound}ms) – providers were queried sequentially`,
+        );
+      } finally {
+        await chef.providers.cleanup();
+      }
+    }),
+);
+
+Deno.test(
+  "refreshRecipes - one failing provider does not block the others",
+  async () =>
+    await withTempDir(async () => {
+      const fixturePath = path.join(
+        path.dirname(path.fromFileUrl(import.meta.url)),
+        "fixtures/fake-provider.ts",
+      );
+
+      const chef = new TestChef();
+      await chef.testInit();
+
+      chef.addProvider(
+        "good",
+        `deno run -A ${fixturePath} --name good --app good-app --delay 50`,
+      );
+      chef.addProvider("bad", "deno run -A /nonexistent/script.ts");
+
+      try {
+        await chef.refreshRecipes();
+
+        const providerRecipes = chef.recipes.filter((r) => r.provider);
+        assertEquals(providerRecipes.length, 1);
+        assertEquals(providerRecipes[0].name, "good-app");
+      } finally {
+        await chef.providers.cleanup();
+      }
+    }),
+);
+
+Deno.test(
+  "list - early progress log prints before providers finish",
+  async () =>
+    await withTempDir(async () => {
+      const fixturePath = path.join(
+        path.dirname(path.fromFileUrl(import.meta.url)),
+        "fixtures/fake-provider.ts",
+      );
+
+      const chef = new TestChef();
+      chef.addMany([{
+        name: "list-native",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+      }]);
+
+      await chef.testInit();
+      chef.addProvider(
+        "slow-log",
+        `deno run -A ${fixturePath} --name slow-log --app slow-app --delay 300`,
+      );
+
+      const lines: string[] = [];
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => {
+        for (const a of args) lines.push(String(a));
+      };
+
+      try {
+        await chef.start(["list"]);
+      } finally {
+        console.log = originalLog;
+        await chef.providers.cleanup();
+      }
+
+      const joined = lines.join("\n");
+      assert(
+        joined.includes("📡 Querying"),
+        `expected early progress log '📡 Querying', got: ${
+          joined.slice(0, 400)
+        }`,
+      );
+    }),
+);

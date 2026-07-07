@@ -1,5 +1,5 @@
 import * as path from "@std/path";
-import { getChefBasePath } from "./internal_utils.ts";
+import { debugTime, getChefBasePath } from "./internal_utils.ts";
 import type { Recipe } from "../mod.ts";
 import { ChefDatabase } from "./database.ts";
 import { DesktopFileManager } from "./desktop.ts";
@@ -10,6 +10,7 @@ import denoJson from "../deno.json" with { type: "json" };
 import { ChefPaths } from "./paths.ts";
 import { SettingsManager } from "./settings.ts";
 import { ProviderManager } from "./providers.ts";
+import { pooledMap } from "@std/async/pool";
 
 /**
  * Main internal coordinator class for Chef
@@ -193,10 +194,25 @@ export class ChefInternal {
       const nativeRecipes = this.recipes.filter((r) =>
         !(r.provider && r._dynamic)
       );
-      const providerRecipes = await this.providers.getProviderRecipes(
-        (name, opts) => this.getVersions(name, opts),
-        signal,
-      );
+      const registeredProviders = this.providers.getProviders();
+      if (registeredProviders.length > 0) {
+        console.log(
+          `📡 Querying ${registeredProviders.length} provider(s)…`,
+        );
+      }
+      if (nativeRecipes.length > 4) {
+        console.log(
+          `🔎 Checking versions for ${nativeRecipes.length} native recipes…`,
+        );
+      }
+
+      const [providerRecipes] = await Promise.all([
+        this.providers.getProviderRecipes(
+          (name, opts) => this.getVersions(name, opts),
+          signal,
+        ),
+        this.#fetchLatestVersions(nativeRecipes, signal),
+      ]);
 
       // Name de-duplication: Native recipes always keep their name.
       // Provider recipes are prefixed if they collide with native or previous provider recipes.
@@ -229,17 +245,19 @@ export class ChefInternal {
       );
       this.recipes.sort((a, b) => a.name.localeCompare(b.name));
 
-      // Run versionCommand for all recipes to detect current installed versions
-      for (const recipe of this.recipes) {
-        if (recipe.versionCommand) {
-          recipe._currentVersion = undefined;
-          try {
-            const version = await recipe.versionCommand();
-            if (version) recipe._currentVersion = version.trim();
-          } catch {
-            // versionCommand failed, leave _currentVersion undefined
-          }
+      // Run versionCommand for all recipes in parallel to detect current installed versions
+      const vcResults = pooledMap(8, this.recipes, async (recipe) => {
+        if (!recipe.versionCommand) return;
+        recipe._currentVersion = undefined;
+        try {
+          const version = await recipe.versionCommand();
+          if (version) recipe._currentVersion = version.trim();
+        } catch {
+          // versionCommand failed, leave _currentVersion undefined
         }
+      });
+      for await (const _ of vcResults) {
+        // Just consume the stream so all versionCommand calls finish.
       }
 
       if (providerRecipes.length > 0) {
@@ -252,6 +270,33 @@ export class ChefInternal {
         return;
       }
       throw e;
+    }
+  };
+
+  /**
+   * Concurrently fetch latest versions for the given native recipes.
+   * Sets `recipe._latestVersion` on each recipe. Failures are swallowed.
+   */
+  #fetchLatestVersions = async (
+    recipes: Recipe[],
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const results = pooledMap(8, recipes, async (recipe) => {
+      if (signal?.aborted) return;
+      if (recipe._latestVersion) return;
+      try {
+        let latest = await recipe.version?.();
+        if (!latest && recipe.versions) {
+          const all = await recipe.versions({ page: 1 });
+          latest = all[0];
+        }
+        recipe._latestVersion = latest;
+      } catch {
+        // Ignore errors
+      }
+    });
+    for await (const _ of results) {
+      // Just consume the stream
     }
   };
 
@@ -732,7 +777,9 @@ export class ChefInternal {
       },
       list: async () => {
         await this.refreshRecipes();
+        debugTime("before binaryRunner.list()");
         await this.binaryRunner.list();
+        debugTime("after binaryRunner.list() returned");
       },
       update: async (options) => {
         await this.refreshRecipes();
@@ -812,6 +859,7 @@ export class ChefInternal {
     };
 
     await parseAndExecute(args, handlers);
+    debugTime("parseAndExecute resolved");
   };
 
   /**
@@ -819,7 +867,9 @@ export class ChefInternal {
    */
   cleanup = async () => {
     if (this.#providers) {
+      debugTime("ChefInternal.cleanup() start");
       await this.#providers.cleanup();
+      debugTime("ChefInternal.cleanup() end");
     }
   };
 

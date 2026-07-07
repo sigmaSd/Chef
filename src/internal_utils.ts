@@ -2,6 +2,16 @@ import * as infer from "@sigmasd/infer";
 import * as path from "@std/path";
 import { expect } from "./utils.ts";
 
+const DEBUG_TIMING = Deno.env.get("CHEF_DEBUG_TIMING") === "1";
+let debugAnchor = 0;
+export function debugTime(label: string) {
+  if (!DEBUG_TIMING) return;
+  if (!debugAnchor) debugAnchor = performance.now();
+  console.error(
+    `[debug t=${(performance.now() - debugAnchor).toFixed(1)}ms] ${label}`,
+  );
+}
+
 export function getChefBasePath() {
   return path.join(
     cacheDir() ?? expect("cache dir not found"),

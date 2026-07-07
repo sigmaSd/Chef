@@ -1,5 +1,4 @@
 import * as path from "@std/path";
-import { pooledMap } from "@std/async/pool";
 import type { Recipe } from "../mod.ts";
 import type { ChefDatabase, DbEntry } from "./database.ts";
 import { commandExists } from "./internal_utils.ts";
@@ -162,36 +161,11 @@ export class BinaryRunner {
   /**
    * List all installed and available binaries with improved formatting
    */
-  async list() {
+  list() {
     const allRecipes = this.recipes;
     if (allRecipes.length === 0) {
       statusMessage("info", "No binaries installed or available");
       return;
-    }
-
-    // Fetch latest versions for native recipes in parallel
-    const nativeRecipes = allRecipes.filter((r) => !r.provider);
-    if (nativeRecipes.length > 0) {
-      statusMessage(
-        "info",
-        `Checking versions for ${nativeRecipes.length} native recipes...`,
-      );
-      const results = pooledMap(5, nativeRecipes, async (recipe) => {
-        try {
-          let latest = await recipe.version?.();
-          if (!latest && recipe.versions) {
-            const all = await recipe.versions({ page: 1 });
-            latest = all[0];
-          }
-          recipe._latestVersion = latest;
-        } catch {
-          // Ignore errors
-        }
-      });
-      for await (const _ of results) {
-        // Just consume the stream
-      }
-      spacer();
     }
 
     const recipesByProvider: Record<string, Recipe[]> = {};
