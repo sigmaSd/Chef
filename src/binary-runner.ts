@@ -5,7 +5,6 @@ import type { ChefDatabase, DbEntry } from "./database.ts";
 import { commandExists } from "./internal_utils.ts";
 import { expect } from "./utils.ts";
 import {
-  BoxChars,
   printTable,
   sectionHeader,
   spacer,
@@ -257,20 +256,6 @@ export class BinaryRunner {
           status,
         ]);
         rowColors.push(color);
-
-        // Show sub-binaries indented under parent
-        const entry = this.database.getEntry(recipe.name);
-        if (entry?.subBinaries && entry.subBinaries.length > 0) {
-          for (const sub of entry.subBinaries) {
-            rows.push([
-              `  ${BoxChars.teeRight} ${sub}`,
-              installedVersion,
-              latestVersion,
-              status,
-            ]);
-            rowColors.push(color);
-          }
-        }
       }
 
       printTable(headers, rows, rowColors);
