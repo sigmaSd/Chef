@@ -342,11 +342,17 @@ chef.add({
     await $`rm -f ${debName} debian-binary control.tar.gz data.tar.*`;
     await Deno.chmod("./usr/lib/claude-desktop/claude-desktop", 0o555);
     await Deno.chmod("./usr/lib/claude-desktop/chrome-sandbox", 0o555);
+    await Deno.mkdir("./usr/share/icons/hicolor/scalable/apps", {
+      recursive: true,
+    });
+    await $.request(
+      "https://upload.wikimedia.org/wikipedia/commons/b/b0/Claude_AI_symbol.svg",
+    ).pipeToPath("./usr/share/icons/hicolor/scalable/apps/claude-desktop.svg");
     return {
       dir: {
         path: ".",
         exe: "./usr/lib/claude-desktop/claude-desktop",
-        icon: "./usr/share/icons/hicolor/256x256/apps/claude-desktop.png",
+        icon: "./usr/share/icons/hicolor/scalable/apps/claude-desktop.svg",
       },
     };
   },
@@ -360,6 +366,7 @@ chef.add({
   },
   desktopFile: {
     name: "Claude",
+    id: "com.anthropic.Claude",
     comment: "Desktop application for Claude.ai",
     categories: "Network;",
   },
