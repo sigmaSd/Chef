@@ -81,6 +81,11 @@ export type App = {
     path: string;
     /** The path to the executable relative to the directory */
     exe: string;
+    /**
+     * Path to an icon file relative to the directory.
+     * Mutually exclusive with desktopFile.icon and desktopFile.iconPath.
+     */
+    icon?: string;
   } | {
     /** The path to the directory */
     path: string;
@@ -90,6 +95,11 @@ export type App = {
      * Each sub-binary gets a `{name}-{exe}` symlink.
      */
     exes: string[];
+    /**
+     * Path to an icon file relative to the directory.
+     * Mutually exclusive with desktopFile.icon and desktopFile.iconPath.
+     */
+    icon?: string;
   };
 } | {
   /**

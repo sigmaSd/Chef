@@ -162,6 +162,11 @@ export class ChefInternal {
     if (this.recipes.some((r) => r.name === recipe.name)) {
       throw new Error(`Recipe with name "${recipe.name}" already exists.`);
     }
+    if (recipe.desktopFile?.icon && recipe.desktopFile?.iconPath) {
+      throw new Error(
+        `Recipe "${recipe.name}" has both desktopFile.icon and desktopFile.iconPath — use only one icon source`,
+      );
+    }
     this.recipes.push(recipe);
   };
 

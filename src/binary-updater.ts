@@ -296,7 +296,7 @@ export class BinaryUpdater {
               `%c  ${Symbols.desktop} Creating desktop entry...`,
               `color: ${UIColors.muted}`,
             );
-            await this.desktopManager.create(info.name, {});
+            await this.desktopManager.create(info.name, { icon: installInfo.icon });
           } catch (e) {
             statusMessage(
               "warning",
@@ -387,6 +387,7 @@ export class BinaryUpdater {
     destDir?: string;
     extern?: string;
     subBinaries?: string[];
+    icon?: string;
   }> {
     return await runInTempDir(async () => {
       setSignal(signal);
@@ -431,6 +432,13 @@ export class BinaryUpdater {
           const destDirName = `${recipe.name}-dir`;
           const destDir = path.join(this.binPath, destDirName);
 
+          // Validate icon source exclusivity
+          if (dir.icon && (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)) {
+            throw new Error(
+              `Recipe "${recipe.name}" has desktopFile.icon/iconPath AND dir.icon — use only one icon source`,
+            );
+          }
+
           // Remove old primary symlink
           try {
             await Deno.remove(binaryPath);
@@ -455,10 +463,13 @@ export class BinaryUpdater {
             await Deno.symlink(path.join(destDir, exe), subLink);
           }
 
+          const icon = dir.icon ? path.join(destDir, dir.icon) : undefined;
+
           return {
             binaryPath,
             destDir: destDirName,
             subBinaries: dir.exes,
+            icon,
           };
         } else {
           // Single-binary dir mode
@@ -466,6 +477,13 @@ export class BinaryUpdater {
             ? `${recipe.name}-dir`
             : dir.path;
           const destDir = path.join(this.binPath, destDirName);
+
+          // Validate icon source exclusivity
+          if (dir.icon && (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)) {
+            throw new Error(
+              `Recipe "${recipe.name}" has desktopFile.icon/iconPath AND dir.icon — use only one icon source`,
+            );
+          }
 
           try {
             await Deno.remove(destDir, { recursive: true });
@@ -483,7 +501,9 @@ export class BinaryUpdater {
             path.join(destDir, dir.exe),
             binaryPath,
           );
-          return { binaryPath, destDir: destDirName };
+
+          const icon = dir.icon ? path.join(destDir, dir.icon) : undefined;
+          return { binaryPath, destDir: destDirName, icon };
         }
       } else {
         // Remove old binary if it exists to prevent permission errors

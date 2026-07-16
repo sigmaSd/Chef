@@ -321,4 +321,47 @@ chef.add({
   version: () => utils.getLatestGithubRelease("ggml-org/llama.cpp"),
 });
 
+chef.add({
+  name: "claude-desktop",
+  download: async ({ latestVersion }) => {
+    const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
+    const debName = `claude-desktop_${latestVersion}_${arch}.deb`;
+    await $.request(
+      `https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/${debName}`,
+    ).showProgress().pipeToPath();
+    await $`ar x ${debName}`;
+    if (await Deno.stat("data.tar.zst").then(() => true).catch(() => false)) {
+      await $`tar -I zstd -xf data.tar.zst`;
+    } else if (await Deno.stat("data.tar.xz").then(() => true).catch(() => false)) {
+      await $`tar -xJf data.tar.xz`;
+    } else {
+      await $`tar -xzf data.tar.gz`;
+    }
+    await $`rm -f ${debName} debian-binary control.tar.gz data.tar.*`;
+    await Deno.chmod("./usr/lib/claude-desktop/claude-desktop", 0o555);
+    await Deno.chmod("./usr/lib/claude-desktop/chrome-sandbox", 0o555);
+    return {
+      dir: {
+        path: ".",
+        exe: "./usr/lib/claude-desktop/claude-desktop",
+        icon: "./usr/share/icons/hicolor/256x256/apps/claude-desktop.png",
+      },
+    };
+  },
+  version: async () => {
+    const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
+    const text = await $.request(
+      `https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-${arch}/Packages`,
+    ).text();
+    const m = [...text.matchAll(/^Version: (.+)$/gm)];
+    return m.at(-1)?.[1] ?? "";
+  },
+  desktopFile: {
+    name: "Claude",
+    comment: "Desktop application for Claude.ai",
+    categories: "Network;",
+  },
+  description: "Desktop application for Claude.ai",
+});
+
 await chef.start(import.meta.url);

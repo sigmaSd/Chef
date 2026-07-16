@@ -1,5 +1,5 @@
 import * as path from "@std/path";
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { App } from "../mod.ts";
 import { expect } from "../src/utils.ts";
 import { ChefInternal } from "../src/lib.ts";
@@ -905,6 +905,34 @@ Deno.test("backward compat: dir.exe still works unchanged", async () =>
     assertEquals(db.singlebin.subBinaries, undefined);
   }));
 
+Deno.test("dir.path \".\" creates {name}-dir directory", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "fake-extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "my-bin"), "binary content");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "dotdir",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "my-bin"), "./extracted/my-bin");
+        return { dir: { path: ".", exe: "./extracted/my-bin" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    // When path is ".", dest dir must be {name}-dir, not dumped at binPath root
+    const dotdirDir = path.join(chef.binPath, "dotdir-dir");
+    Deno.statSync(path.join(dotdirDir, "extracted", "my-bin"));
+
+    const db = JSON.parse(Deno.readTextFileSync(chef.dbPath));
+    assertEquals(db.dotdir.dir, "dotdir-dir");
+  }));
+
 Deno.test("getVersions maps sub-binary name to parent recipe", async () =>
   await withTempDir(async () => {
     const chef = new TestChef();
@@ -1177,3 +1205,201 @@ Deno.test(
       );
     }),
 );
+
+Deno.test("add - rejects desktopFile.icon + iconPath conflict", () => {
+  const chef = new TestChef();
+  assertThrows(
+    () => {
+      chef.add({
+        name: "conflict-icon",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+        desktopFile: {
+          icon: "my-icon",
+          iconPath: "/path/to/icon.png",
+        },
+      });
+    },
+    Error,
+    "use only one icon source",
+  );
+});
+
+Deno.test("dir.icon - propagates through downloadAndInstallBinary (single exe)", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "my-bin"), "binary content");
+    Deno.writeTextFileSync(path.join(exeDir, "icon.png"), "fake png");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "icon-app",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "my-bin"), "./extracted/my-bin");
+        await Deno.copyFile(path.join(exeDir, "icon.png"), "./extracted/icon.png");
+        return { dir: { path: "./extracted", exe: "my-bin", icon: "./icon.png" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+    const primarySymlink = path.join(chef.binPath, "icon-app" + exeExtension);
+    assertEquals(Deno.lstatSync(primarySymlink).isSymlink, true);
+
+    // Icon should be in the extracted directory
+    const extractedDir = path.join(chef.binPath, "extracted");
+    Deno.statSync(path.join(extractedDir, "icon.png"));
+  }));
+
+Deno.test("dir.icon - propagates through downloadAndInstallBinary (multi exe)", async () =>
+  await withTempDir(async (dir: string) => {
+    const exeDir = path.join(dir, "extracted");
+    Deno.mkdirSync(exeDir);
+    Deno.writeTextFileSync(path.join(exeDir, "bin-a"), "binary a");
+    Deno.writeTextFileSync(path.join(exeDir, "bin-b"), "binary b");
+    Deno.writeTextFileSync(path.join(exeDir, "icon.png"), "fake png");
+
+    const chef = new TestChef();
+    chef.add({
+      name: "icon-multi",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        await Deno.copyFile(path.join(exeDir, "bin-a"), "./extracted/bin-a");
+        await Deno.copyFile(path.join(exeDir, "bin-b"), "./extracted/bin-b");
+        await Deno.copyFile(path.join(exeDir, "icon.png"), "./extracted/icon.png");
+        return { dir: { path: "./extracted", exes: ["bin-a", "bin-b"], icon: "./icon.png" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+
+    await chef.testInit();
+    await chef.start(["update"]);
+
+    // Multi-binary uses {name}-dir for the dest directory
+    const multiDir = path.join(chef.binPath, "icon-multi-dir");
+    Deno.statSync(path.join(multiDir, "bin-a"));
+    Deno.statSync(path.join(multiDir, "bin-b"));
+    Deno.statSync(path.join(multiDir, "icon.png"));
+  }));
+
+Deno.test("dir.icon - conflicts with desktopFile.icon", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.add({
+      name: "conflict-dir-icon",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        Deno.writeTextFileSync("./extracted/icon.png", "fake");
+        return { dir: { path: "./extracted", exe: "bin", icon: "./icon.png" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+      desktopFile: { icon: "my-icon" },
+    });
+
+    await chef.testInit();
+    await assertRejects(
+      () => chef.start(["update", "conflict-dir-icon"]),
+      Error,
+      "use only one icon source",
+    );
+  }));
+
+Deno.test("dir.icon - conflicts with desktopFile.iconPath", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.add({
+      name: "conflict-dir-iconpath",
+      download: async () => {
+        Deno.mkdirSync("./extracted");
+        Deno.writeTextFileSync("./extracted/icon.png", "fake");
+        return { dir: { path: "./extracted", exe: "bin", icon: "./icon.png" } } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+      desktopFile: { iconPath: "/path/to/icon.png" },
+    });
+
+    await chef.testInit();
+    await assertRejects(
+      () => chef.start(["update", "conflict-dir-iconpath"]),
+      Error,
+      "use only one icon source",
+    );
+  }));
+
+Deno.test("desktop id - dir.icon is used when no desktopFile.icon/iconPath set", async () =>
+  await withTempDir(async (dir: string) => {
+    if (Deno.build.os !== "linux") return;
+
+    const fakeHome = path.join(dir, "fake-home");
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), { recursive: true });
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/icons/hicolor/scalable/apps"), { recursive: true });
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/icons/hicolor/512x512/apps"), { recursive: true });
+    const originalHome = Deno.env.get("HOME");
+    Deno.env.set("HOME", fakeHome);
+
+    try {
+      const iconPath = path.join(dir, "test-icon.svg");
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="red" width="512" height="512"/></svg>`;
+      Deno.writeTextFileSync(iconPath, svgContent);
+
+      const desktopId = "dev.test.DirIconApp";
+      const internalIconsPath = path.join(dir, "icons");
+      const dbPath = path.join(dir, "db.json");
+
+      const recipes: Recipe[] = [{
+        name: "diricon-app",
+        download: () => Promise.resolve({ exe: "test" } as App),
+        version: () => Promise.resolve("1.0.0"),
+        desktopFile: {
+          name: "Dir Icon App",
+          id: desktopId,
+        },
+      }];
+
+      const db = new ChefDatabase(dbPath, recipes);
+      db.setEntry("diricon-app", { version: "1.0.0", desktopId });
+
+      const desktopManager = new DesktopFileManager(
+        internalIconsPath,
+        "file:///fake/chef.ts",
+        recipes,
+        "io.github.sigmasd.chef.test",
+        "test",
+        db,
+      );
+
+      // Pass dir.icon via options.icon (resolved absolute path)
+      await desktopManager.create("diricon-app", { icon: `file://${iconPath}` });
+
+      // Verify icon was installed to system location
+      const systemIconPath = path.join(
+        fakeHome,
+        `.local/share/icons/hicolor/scalable/apps/${desktopId}.svg`,
+      );
+      Deno.statSync(systemIconPath);
+
+      // Verify desktop file uses iconId (bare icon-theme name)
+      const desktopPath = path.join(
+        fakeHome,
+        `.local/share/applications/${desktopId}.desktop`,
+      );
+      const desktopContent = Deno.readTextFileSync(desktopPath);
+      assert(
+        desktopContent.includes(`Icon=${desktopId}`),
+        `Desktop file should contain Icon=${desktopId}, got:\n${desktopContent}`,
+      );
+
+      desktopManager.remove("diricon-app", { silent: true });
+    } finally {
+      if (originalHome !== undefined) {
+        Deno.env.set("HOME", originalHome);
+      } else {
+        Deno.env.delete("HOME");
+      }
+    }
+  }));
