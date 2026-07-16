@@ -905,7 +905,7 @@ Deno.test("backward compat: dir.exe still works unchanged", async () =>
     assertEquals(db.singlebin.subBinaries, undefined);
   }));
 
-Deno.test("dir.path \".\" creates {name}-dir directory", async () =>
+Deno.test('dir.path "." creates {name}-dir directory', async () =>
   await withTempDir(async (dir: string) => {
     const exeDir = path.join(dir, "fake-extracted");
     Deno.mkdirSync(exeDir);
@@ -1238,8 +1238,13 @@ Deno.test("dir.icon - propagates through downloadAndInstallBinary (single exe)",
       download: async () => {
         Deno.mkdirSync("./extracted");
         await Deno.copyFile(path.join(exeDir, "my-bin"), "./extracted/my-bin");
-        await Deno.copyFile(path.join(exeDir, "icon.png"), "./extracted/icon.png");
-        return { dir: { path: "./extracted", exe: "my-bin", icon: "./icon.png" } } as App;
+        await Deno.copyFile(
+          path.join(exeDir, "icon.png"),
+          "./extracted/icon.png",
+        );
+        return {
+          dir: { path: "./extracted", exe: "my-bin", icon: "./icon.png" },
+        } as App;
       },
       version: () => Promise.resolve("1.0.0"),
     });
@@ -1271,8 +1276,17 @@ Deno.test("dir.icon - propagates through downloadAndInstallBinary (multi exe)", 
         Deno.mkdirSync("./extracted");
         await Deno.copyFile(path.join(exeDir, "bin-a"), "./extracted/bin-a");
         await Deno.copyFile(path.join(exeDir, "bin-b"), "./extracted/bin-b");
-        await Deno.copyFile(path.join(exeDir, "icon.png"), "./extracted/icon.png");
-        return { dir: { path: "./extracted", exes: ["bin-a", "bin-b"], icon: "./icon.png" } } as App;
+        await Deno.copyFile(
+          path.join(exeDir, "icon.png"),
+          "./extracted/icon.png",
+        );
+        return {
+          dir: {
+            path: "./extracted",
+            exes: ["bin-a", "bin-b"],
+            icon: "./icon.png",
+          },
+        } as App;
       },
       version: () => Promise.resolve("1.0.0"),
     });
@@ -1292,10 +1306,13 @@ Deno.test("dir.icon - conflicts with desktopFile.icon", async () =>
     const chef = new TestChef();
     chef.add({
       name: "conflict-dir-icon",
+      // deno-lint-ignore require-await
       download: async () => {
         Deno.mkdirSync("./extracted");
         Deno.writeTextFileSync("./extracted/icon.png", "fake");
-        return { dir: { path: "./extracted", exe: "bin", icon: "./icon.png" } } as App;
+        return {
+          dir: { path: "./extracted", exe: "bin", icon: "./icon.png" },
+        } as App;
       },
       version: () => Promise.resolve("1.0.0"),
       desktopFile: { icon: "my-icon" },
@@ -1314,10 +1331,13 @@ Deno.test("dir.icon - conflicts with desktopFile.iconPath", async () =>
     const chef = new TestChef();
     chef.add({
       name: "conflict-dir-iconpath",
+      // deno-lint-ignore require-await
       download: async () => {
         Deno.mkdirSync("./extracted");
         Deno.writeTextFileSync("./extracted/icon.png", "fake");
-        return { dir: { path: "./extracted", exe: "bin", icon: "./icon.png" } } as App;
+        return {
+          dir: { path: "./extracted", exe: "bin", icon: "./icon.png" },
+        } as App;
       },
       version: () => Promise.resolve("1.0.0"),
       desktopFile: { iconPath: "/path/to/icon.png" },
@@ -1336,15 +1356,24 @@ Deno.test("desktop id - dir.icon is used when no desktopFile.icon/iconPath set",
     if (Deno.build.os !== "linux") return;
 
     const fakeHome = path.join(dir, "fake-home");
-    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), { recursive: true });
-    Deno.mkdirSync(path.join(fakeHome, ".local/share/icons/hicolor/scalable/apps"), { recursive: true });
-    Deno.mkdirSync(path.join(fakeHome, ".local/share/icons/hicolor/512x512/apps"), { recursive: true });
+    Deno.mkdirSync(path.join(fakeHome, ".local/share/applications"), {
+      recursive: true,
+    });
+    Deno.mkdirSync(
+      path.join(fakeHome, ".local/share/icons/hicolor/scalable/apps"),
+      { recursive: true },
+    );
+    Deno.mkdirSync(
+      path.join(fakeHome, ".local/share/icons/hicolor/512x512/apps"),
+      { recursive: true },
+    );
     const originalHome = Deno.env.get("HOME");
     Deno.env.set("HOME", fakeHome);
 
     try {
       const iconPath = path.join(dir, "test-icon.svg");
-      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="red" width="512" height="512"/></svg>`;
+      const svgContent =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="red" width="512" height="512"/></svg>`;
       Deno.writeTextFileSync(iconPath, svgContent);
 
       const desktopId = "dev.test.DirIconApp";
@@ -1374,7 +1403,9 @@ Deno.test("desktop id - dir.icon is used when no desktopFile.icon/iconPath set",
       );
 
       // Pass dir.icon via options.icon (resolved absolute path)
-      await desktopManager.create("diricon-app", { icon: `file://${iconPath}` });
+      await desktopManager.create("diricon-app", {
+        icon: `file://${iconPath}`,
+      });
 
       // Verify icon was installed to system location
       const systemIconPath = path.join(

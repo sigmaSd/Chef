@@ -296,7 +296,9 @@ export class BinaryUpdater {
               `%c  ${Symbols.desktop} Creating desktop entry...`,
               `color: ${UIColors.muted}`,
             );
-            await this.desktopManager.create(info.name, { icon: installInfo.icon });
+            await this.desktopManager.create(info.name, {
+              icon: installInfo.icon,
+            });
           } catch (e) {
             statusMessage(
               "warning",
@@ -433,7 +435,10 @@ export class BinaryUpdater {
           const destDir = path.join(this.binPath, destDirName);
 
           // Validate icon source exclusivity
-          if (dir.icon && (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)) {
+          if (
+            dir.icon &&
+            (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)
+          ) {
             throw new Error(
               `Recipe "${recipe.name}" has desktopFile.icon/iconPath AND dir.icon — use only one icon source`,
             );
@@ -479,7 +484,10 @@ export class BinaryUpdater {
           const destDir = path.join(this.binPath, destDirName);
 
           // Validate icon source exclusivity
-          if (dir.icon && (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)) {
+          if (
+            dir.icon &&
+            (recipe.desktopFile?.icon || recipe.desktopFile?.iconPath)
+          ) {
             throw new Error(
               `Recipe "${recipe.name}" has desktopFile.icon/iconPath AND dir.icon — use only one icon source`,
             );

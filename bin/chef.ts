@@ -332,7 +332,9 @@ chef.add({
     await $`ar x ${debName}`;
     if (await Deno.stat("data.tar.zst").then(() => true).catch(() => false)) {
       await $`tar -I zstd -xf data.tar.zst`;
-    } else if (await Deno.stat("data.tar.xz").then(() => true).catch(() => false)) {
+    } else if (
+      await Deno.stat("data.tar.xz").then(() => true).catch(() => false)
+    ) {
       await $`tar -xJf data.tar.xz`;
     } else {
       await $`tar -xzf data.tar.gz`;

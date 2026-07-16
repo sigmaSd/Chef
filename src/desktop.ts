@@ -47,7 +47,8 @@ export class DesktopFileManager {
 
     const desktopId = recipe.desktopFile?.id;
     const iconId = desktopId;
-    let finalIcon = options.icon ?? recipe.desktopFile?.icon ?? recipe.desktopFile?.iconPath;
+    let finalIcon = options.icon ?? recipe.desktopFile?.icon ??
+      recipe.desktopFile?.iconPath;
 
     if (iconId) {
       const iconSource = options.icon ?? recipe.desktopFile?.icon ??
