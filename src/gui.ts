@@ -1544,6 +1544,11 @@ function createRecipeRow(
         );
       } else {
         console.error(e);
+        btn.setLabel("Failed");
+        statusLabel.setText(
+          `Error: ${e instanceof Error ? e.message : e}`,
+        );
+        statusLabel.addCssClass("error");
         globalStatusLabel.setText(
           `Error: ${e instanceof Error ? e.message : e}`,
         );

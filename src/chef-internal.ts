@@ -739,7 +739,7 @@ export class ChefInternal {
     const currentVersion = recipe._currentVersion ??
       this.database.getVersion(recipe.name);
     try {
-      let latestVersion = await recipe.version?.();
+      let latestVersion = recipe._latestVersion ?? await recipe.version?.();
 
       if (!latestVersion && recipe.versions) {
         const all = await recipe.versions({ page: 1 });
