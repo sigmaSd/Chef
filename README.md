@@ -121,6 +121,21 @@ deno run -A lsp.ts update
 deno run -A work.ts list
 ```
 
+## Agent Skill: Adding Recipes
+
+An [Agent Skills](https://agentskills.io) skill that teaches coding agents
+(opencode, Claude Code, etc.) how to add recipes to Chef — download and inspect
+the real release asset, then write the recipe based on what was observed.
+
+Install it globally (symlinked into `~/.config/opencode/skills/`):
+
+```bash
+dx skills add sigmaSd/Chef -g -a opencode
+```
+
+`dx` is the Deno alternative to npx (`deno x`). Update later with
+`dx skills update`. Restart opencode after installing so it picks up the skill.
+
 ## External Providers
 
 Chef supports external providers, which allow you to integrate other package

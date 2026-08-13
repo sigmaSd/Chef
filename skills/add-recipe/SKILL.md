@@ -1,3 +1,8 @@
+---
+name: add-recipe
+description: Add a new recipe to Chef (personal package manager). Use when the user wants to add a new binary, app, or package recipe to Chef, e.g. "add X to chef", "create a chef recipe for X", or asks to write a download recipe for an app.
+---
+
 # Chef Recipe Skill
 
 You are helping add a recipe to Chef (personal package manager). The user's
