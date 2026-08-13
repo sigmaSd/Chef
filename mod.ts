@@ -275,7 +275,7 @@ if (import.meta.main) {
     buildSubpathExports(denoJson.default),
   );
 
-  const args = ["run", "-A"];
+  const args = ["run", "-A", "--minimum-dependency-age=0"];
 
   // If running locally, pass the config file to the sub-process
   if (import.meta.url.startsWith("file://")) {
