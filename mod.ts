@@ -260,13 +260,20 @@ if (import.meta.main) {
     Deno.exit(1);
   }
 
-  const { ensureDefaultChefFile } = await import("./src/internal_utils.ts");
+  const { buildSubpathExports, ensureDefaultChefFile } = await import(
+    "./src/internal_utils.ts"
+  );
   const path = await import("@std/path");
 
   const libUrl = import.meta.url;
   const utilsUrl = new URL("./src/utils.ts", libUrl).toString();
 
-  const defaultChefPath = await ensureDefaultChefFile(libUrl, utilsUrl);
+  const denoJson = await import("./deno.json", { with: { type: "json" } });
+  const defaultChefPath = await ensureDefaultChefFile(
+    libUrl,
+    utilsUrl,
+    buildSubpathExports(denoJson.default),
+  );
 
   const args = ["run", "-A"];
 

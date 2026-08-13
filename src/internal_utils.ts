@@ -24,20 +24,59 @@ export function getVersionFromUrl(text: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
-export function jsrSpecifier(url: string): string | undefined {
+export function buildSubpathExports(
+  denoJson: unknown,
+): Record<string, string> {
+  const exports = (denoJson as { exports?: unknown } | undefined)?.exports;
+  if (typeof exports === "string") {
+    const target = exports.startsWith("./")
+      ? `/${exports.slice(2)}`
+      : `/${exports}`;
+    return target === "/mod.ts" ? { "/mod.ts": "" } : { [target]: "" };
+  }
+  if (typeof exports !== "object" || exports === null) return {};
+  const map: Record<string, string> = {};
+  for (
+    const [key, value] of Object.entries(exports as Record<string, unknown>)
+  ) {
+    let target: string;
+    if (typeof value === "string") {
+      target = value;
+    } else if (
+      typeof value === "object" && value !== null && "import" in value &&
+      typeof value.import === "string"
+    ) {
+      target = value.import;
+    } else {
+      continue;
+    }
+    const targetPath = target.startsWith("./")
+      ? `/${target.slice(2)}`
+      : `/${target}`;
+    const subpath = key === "." ? "" : `/${key.replace(/^\.\//, "")}`;
+    map[targetPath] = subpath;
+  }
+  return map;
+}
+
+export function jsrSpecifier(
+  url: string,
+  subpathExports?: Record<string, string>,
+): string | undefined {
   const match = url.match(
     /^https:\/\/jsr\.io\/(@[^/]+\/[^/]+)\/([^/]+)(\/.*)?$/,
   );
   if (!match) return undefined;
   const [, pkg, version, rest = ""] = match;
   if (!/^[0-9]+\.[0-9]+\.[0-9]+/.test(version)) return undefined;
-  const path = rest === "/mod.ts" ? "" : rest;
+  const path = rest === "/mod.ts" ? "" : subpathExports?.[rest] ?? rest;
   return `jsr:${pkg}@${version}${path}`;
 }
 
 export async function ensureDefaultChefFile(
   libUrl: string,
   utilsUrl: string,
+  subpathExports?: Record<string, string>,
 ): Promise<string> {
   const basePath = getChefBasePath();
   const isLocal = libUrl.startsWith("file://");
@@ -64,13 +103,23 @@ export async function ensureDefaultChefFile(
           )
         ) {
           const escaped = fileVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const newContent = content.replace(
+          let newContent = content.replace(
             new RegExp(
               `(?:https://jsr\\.io/)?@sigmasd/chef[@/]${escaped}`,
               "g",
             ),
             `jsr:@sigmasd/chef@${runningVersion}`,
           );
+          for (
+            const [target, subpath] of Object.entries(
+              subpathExports ?? {},
+            )
+          ) {
+            newContent = newContent.replaceAll(
+              `jsr:@sigmasd/chef@${runningVersion}${target}`,
+              `jsr:@sigmasd/chef@${runningVersion}${subpath}`,
+            );
+          }
           if (newContent !== content) {
             await Deno.writeTextFile(defaultChefPath, newContent);
             statusMessage(
@@ -89,8 +138,10 @@ export async function ensureDefaultChefFile(
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) {
       const template = `
-import { Chef, $ } from "${jsrSpecifier(libUrl) ?? libUrl}";
-import { getLatestGithubRelease } from "${jsrSpecifier(utilsUrl) ?? utilsUrl}";
+import { Chef, $ } from "${jsrSpecifier(libUrl, subpathExports) ?? libUrl}";
+import { getLatestGithubRelease } from "${
+        jsrSpecifier(utilsUrl, subpathExports) ?? utilsUrl
+      }";
 
 const chef = new Chef();
 

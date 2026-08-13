@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  buildSubpathExports,
   copyDirRecursively,
   getVersionFromUrl,
   jsrSpecifier,
@@ -39,6 +40,60 @@ Deno.test("jsrSpecifier should return undefined for non-jsr.io URLs", () => {
     undefined,
   );
   assertEquals(jsrSpecifier("https://jsr.io/@sigmasd/chef/mod.ts"), undefined);
+});
+
+Deno.test("jsrSpecifier should map subpaths via the exports map", () => {
+  const subpathExports = {
+    "/mod.ts": "",
+    "/src/utils.ts": "/utils",
+    "/src/sdk.ts": "/sdk",
+  };
+  assertEquals(
+    jsrSpecifier(
+      "https://jsr.io/@sigmasd/chef/0.94.0/src/utils.ts",
+      subpathExports,
+    ),
+    "jsr:@sigmasd/chef@0.94.0/utils",
+  );
+  assertEquals(
+    jsrSpecifier(
+      "https://jsr.io/@sigmasd/chef/0.94.0/src/sdk.ts",
+      subpathExports,
+    ),
+    "jsr:@sigmasd/chef@0.94.0/sdk",
+  );
+  assertEquals(
+    jsrSpecifier(
+      "https://jsr.io/@sigmasd/chef/0.94.0/src/unknown.ts",
+      subpathExports,
+    ),
+    "jsr:@sigmasd/chef@0.94.0/src/unknown.ts",
+  );
+});
+
+Deno.test("buildSubpathExports should build reverse map from deno.json", () => {
+  assertEquals(
+    buildSubpathExports({
+      exports: {
+        ".": "./mod.ts",
+        "./utils": "./src/utils.ts",
+        "./sdk": "./src/sdk.ts",
+      },
+    }),
+    {
+      "/mod.ts": "",
+      "/src/utils.ts": "/utils",
+      "/src/sdk.ts": "/sdk",
+    },
+  );
+  assertEquals(
+    buildSubpathExports({
+      exports: "./mod.ts",
+    }),
+    { "/mod.ts": "" },
+  );
+  assertEquals(buildSubpathExports({}), {});
+  assertEquals(buildSubpathExports(undefined), {});
 });
 
 Deno.test("getVersionFromUrl should extract version from import statement", () => {
@@ -81,6 +136,11 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
     const newVersion = "0.41.0";
     const libUrl = `https://jsr.io/@sigmasd/chef/${newVersion}/mod.ts`;
     const utilsUrl = `https://jsr.io/@sigmasd/chef/${newVersion}/src/utils.ts`;
+    const subpathExports = {
+      "/mod.ts": "",
+      "/src/utils.ts": "/utils",
+      "/src/sdk.ts": "/sdk",
+    };
 
     // Use the full URL form (matching what the template actually generates)
     const oldLibUrl = libUrl.replace(newVersion, oldVersion);
@@ -95,21 +155,26 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
 
     await Deno.writeTextFile(chefFile, content);
 
-    await ensureDefaultChefFile(libUrl, utilsUrl);
+    await ensureDefaultChefFile(libUrl, utilsUrl, subpathExports);
 
     const newContent = await Deno.readTextFile(chefFile);
     assertEquals(newContent.includes(`jsr:@sigmasd/chef@${newVersion}`), true);
+    assertEquals(
+      newContent.includes(`jsr:@sigmasd/chef@${newVersion}/utils`),
+      true,
+    );
+    assertEquals(newContent.includes("/src/utils.ts"), false);
     assertEquals(newContent.includes(`@sigmasd/chef@${oldVersion}`), false);
     assertEquals(newContent.includes(`@sigmasd/chef/${oldVersion}`), false);
 
     // Test no update if version is same
-    await ensureDefaultChefFile(libUrl, utilsUrl);
+    await ensureDefaultChefFile(libUrl, utilsUrl, subpathExports);
     const sameContent = await Deno.readTextFile(chefFile);
     assertEquals(sameContent, newContent);
 
     // Test no update if version is older
     const olderLibUrl = `https://jsr.io/@sigmasd/chef/0.39.0/mod.ts`;
-    await ensureDefaultChefFile(olderLibUrl, utilsUrl);
+    await ensureDefaultChefFile(olderLibUrl, utilsUrl, subpathExports);
     const stillNewContent = await Deno.readTextFile(chefFile);
     assertEquals(stillNewContent, newContent);
   } finally {
@@ -133,8 +198,17 @@ Deno.test("ensureDefaultChefFile should create file with pinned jsr specifiers",
     );
     const libUrl = "https://jsr.io/@sigmasd/chef/0.94.0/mod.ts";
     const utilsUrl = "https://jsr.io/@sigmasd/chef/0.94.0/src/utils.ts";
+    const subpathExports = {
+      "/mod.ts": "",
+      "/src/utils.ts": "/utils",
+      "/src/sdk.ts": "/sdk",
+    };
 
-    const chefFile = await ensureDefaultChefFile(libUrl, utilsUrl);
+    const chefFile = await ensureDefaultChefFile(
+      libUrl,
+      utilsUrl,
+      subpathExports,
+    );
     const content = await Deno.readTextFile(chefFile);
 
     assertEquals(
@@ -142,9 +216,10 @@ Deno.test("ensureDefaultChefFile should create file with pinned jsr specifiers",
       true,
     );
     assertEquals(
-      content.includes('from "jsr:@sigmasd/chef@0.94.0/src/utils.ts";'),
+      content.includes('from "jsr:@sigmasd/chef@0.94.0/utils";'),
       true,
     );
+    assertEquals(content.includes("/src/utils.ts"), false);
     assertEquals(content.includes("https://jsr.io/"), false);
   } finally {
     if (originalXdg) {
