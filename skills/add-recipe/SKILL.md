@@ -10,12 +10,16 @@ recipe file is at **`~/.cache/chef/chefjsrdefault/chefjsrdefault.ts`**.
 
 ## Recipe Interface (only `name` + `download` required)
 
+Imports in the recipe file are pinned jsr specifiers (e.g.
+`jsr:@sigmasd/chef@0.94.0`) matching the installed Chef version — keep the
+existing pins, don't change them:
+
 ```ts
-import { $, Chef } from "jsr:@sigmasd/chef";
+import { $, Chef } from "jsr:@sigmasd/chef@0.94.0";
 import {
   getGithubReleases,
   getLatestGithubRelease,
-} from "jsr:@sigmasd/chef/utils";
+} from "jsr:@sigmasd/chef@0.94.0/utils";
 
 const chef = new Chef();
 

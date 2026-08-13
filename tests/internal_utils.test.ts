@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   copyDirRecursively,
   getVersionFromUrl,
+  jsrSpecifier,
 } from "../src/internal_utils.ts";
 import * as path from "@std/path";
 
@@ -15,6 +16,29 @@ Deno.test("getVersionFromUrl should extract version from JSR URL", () => {
     getVersionFromUrl("https://jsr.io/@sigmasd/chef/0.45.0/mod.ts"),
     "0.45.0",
   );
+});
+
+Deno.test("jsrSpecifier should convert jsr.io URLs to pinned jsr specifiers", () => {
+  assertEquals(
+    jsrSpecifier("https://jsr.io/@sigmasd/chef/0.94.0/mod.ts"),
+    "jsr:@sigmasd/chef@0.94.0",
+  );
+  assertEquals(
+    jsrSpecifier("https://jsr.io/@sigmasd/chef/0.94.0/src/utils.ts"),
+    "jsr:@sigmasd/chef@0.94.0/src/utils.ts",
+  );
+  assertEquals(
+    jsrSpecifier("https://jsr.io/@sigmasd/chef/0.41.0-alpha.1/mod.ts"),
+    "jsr:@sigmasd/chef@0.41.0-alpha.1",
+  );
+});
+
+Deno.test("jsrSpecifier should return undefined for non-jsr.io URLs", () => {
+  assertEquals(
+    jsrSpecifier("file:///home/mrcool/dev/deno/Chef/mod.ts"),
+    undefined,
+  );
+  assertEquals(jsrSpecifier("https://jsr.io/@sigmasd/chef/mod.ts"), undefined);
 });
 
 Deno.test("getVersionFromUrl should extract version from import statement", () => {
@@ -74,7 +98,8 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
     await ensureDefaultChefFile(libUrl, utilsUrl);
 
     const newContent = await Deno.readTextFile(chefFile);
-    assertEquals(newContent.includes(`@sigmasd/chef/${newVersion}`), true);
+    assertEquals(newContent.includes(`jsr:@sigmasd/chef@${newVersion}`), true);
+    assertEquals(newContent.includes(`@sigmasd/chef@${oldVersion}`), false);
     assertEquals(newContent.includes(`@sigmasd/chef/${oldVersion}`), false);
 
     // Test no update if version is same
@@ -87,6 +112,40 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
     await ensureDefaultChefFile(olderLibUrl, utilsUrl);
     const stillNewContent = await Deno.readTextFile(chefFile);
     assertEquals(stillNewContent, newContent);
+  } finally {
+    if (originalXdg) {
+      Deno.env.set("XDG_CACHE_HOME", originalXdg);
+    } else {
+      Deno.env.delete("XDG_CACHE_HOME");
+    }
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("ensureDefaultChefFile should create file with pinned jsr specifiers", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const originalXdg = Deno.env.get("XDG_CACHE_HOME");
+  Deno.env.set("XDG_CACHE_HOME", tempDir);
+
+  try {
+    const { ensureDefaultChefFile } = await import(
+      "../src/internal_utils.ts"
+    );
+    const libUrl = "https://jsr.io/@sigmasd/chef/0.94.0/mod.ts";
+    const utilsUrl = "https://jsr.io/@sigmasd/chef/0.94.0/src/utils.ts";
+
+    const chefFile = await ensureDefaultChefFile(libUrl, utilsUrl);
+    const content = await Deno.readTextFile(chefFile);
+
+    assertEquals(
+      content.includes('from "jsr:@sigmasd/chef@0.94.0";'),
+      true,
+    );
+    assertEquals(
+      content.includes('from "jsr:@sigmasd/chef@0.94.0/src/utils.ts";'),
+      true,
+    );
+    assertEquals(content.includes("https://jsr.io/"), false);
   } finally {
     if (originalXdg) {
       Deno.env.set("XDG_CACHE_HOME", originalXdg);

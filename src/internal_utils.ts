@@ -24,6 +24,17 @@ export function getVersionFromUrl(text: string): string | undefined {
   return match ? match[1] : undefined;
 }
 
+export function jsrSpecifier(url: string): string | undefined {
+  const match = url.match(
+    /^https:\/\/jsr\.io\/(@[^/]+\/[^/]+)\/([^/]+)(\/.*)?$/,
+  );
+  if (!match) return undefined;
+  const [, pkg, version, rest = ""] = match;
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+/.test(version)) return undefined;
+  const path = rest === "/mod.ts" ? "" : rest;
+  return `jsr:${pkg}@${version}${path}`;
+}
+
 export async function ensureDefaultChefFile(
   libUrl: string,
   utilsUrl: string,
@@ -52,9 +63,13 @@ export async function ensureDefaultChefFile(
             semver.parse(fileVersion),
           )
         ) {
-          const newContent = content.replaceAll(
-            `@sigmasd/chef/${fileVersion}`,
-            `@sigmasd/chef/${runningVersion}`,
+          const escaped = fileVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const newContent = content.replace(
+            new RegExp(
+              `(?:https://jsr\\.io/)?@sigmasd/chef[@/]${escaped}`,
+              "g",
+            ),
+            `jsr:@sigmasd/chef@${runningVersion}`,
           );
           if (newContent !== content) {
             await Deno.writeTextFile(defaultChefPath, newContent);
@@ -74,8 +89,8 @@ export async function ensureDefaultChefFile(
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) {
       const template = `
-import { Chef, $ } from "${libUrl}";
-import { getLatestGithubRelease } from "${utilsUrl}";
+import { Chef, $ } from "${jsrSpecifier(libUrl) ?? libUrl}";
+import { getLatestGithubRelease } from "${jsrSpecifier(utilsUrl) ?? utilsUrl}";
 
 const chef = new Chef();
 
