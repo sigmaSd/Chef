@@ -105,7 +105,7 @@ export async function ensureDefaultChefFile(
           const escaped = fileVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
           let newContent = content.replace(
             new RegExp(
-              `(?:https://jsr\\.io/)?@sigmasd/chef[@/]${escaped}`,
+              `(jsr:)?(?:https://jsr\\.io/)?@sigmasd/chef[@/]${escaped}`,
               "g",
             ),
             `jsr:@sigmasd/chef@${runningVersion}`,

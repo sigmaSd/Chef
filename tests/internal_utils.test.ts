@@ -187,6 +187,59 @@ Deno.test("ensureDefaultChefFile should update version if newer", async () => {
   }
 });
 
+Deno.test("ensureDefaultChefFile should bump jsr-form file without doubling prefix", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const originalXdg = Deno.env.get("XDG_CACHE_HOME");
+  Deno.env.set("XDG_CACHE_HOME", tempDir);
+
+  try {
+    const { ensureDefaultChefFile, getChefBasePath } = await import(
+      "../src/internal_utils.ts"
+    );
+    const basePath = getChefBasePath();
+    const scriptDir = `${basePath}/chefjsrdefault`;
+    await Deno.mkdir(scriptDir, { recursive: true });
+
+    const chefFile = `${scriptDir}/chefjsrdefault.ts`;
+    const subpathExports = {
+      "/mod.ts": "",
+      "/src/utils.ts": "/utils",
+      "/src/sdk.ts": "/sdk",
+    };
+    const content = [
+      'import { $, Chef } from "jsr:@sigmasd/chef@0.95.0";',
+      'import { getLatestGithubRelease } from "jsr:@sigmasd/chef@0.95.0/utils";',
+      "",
+      "const chef = new Chef();",
+      "await chef.start(import.meta.url);",
+    ].join("\n");
+    await Deno.writeTextFile(chefFile, content);
+
+    const libUrl = "https://jsr.io/@sigmasd/chef/0.95.1/mod.ts";
+    const utilsUrl = "https://jsr.io/@sigmasd/chef/0.95.1/src/utils.ts";
+    await ensureDefaultChefFile(libUrl, utilsUrl, subpathExports);
+
+    const newContent = await Deno.readTextFile(chefFile);
+    assertEquals(
+      newContent.includes('from "jsr:@sigmasd/chef@0.95.1";'),
+      true,
+    );
+    assertEquals(
+      newContent.includes('from "jsr:@sigmasd/chef@0.95.1/utils";'),
+      true,
+    );
+    assertEquals(newContent.includes("jsr:jsr:"), false);
+    assertEquals(newContent.includes("0.95.0"), false);
+  } finally {
+    if (originalXdg) {
+      Deno.env.set("XDG_CACHE_HOME", originalXdg);
+    } else {
+      Deno.env.delete("XDG_CACHE_HOME");
+    }
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("ensureDefaultChefFile should create file with pinned jsr specifiers", async () => {
   const tempDir = await Deno.makeTempDir();
   const originalXdg = Deno.env.get("XDG_CACHE_HOME");
