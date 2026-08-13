@@ -171,7 +171,7 @@ export class DesktopFileManager {
     const desktopPath = path.join(desktopDir, `${this.appId}.desktop`);
     const content = `[Desktop Entry]
 Name=${displayName}
-Exec=deno run ${this.getConfigArg()}-A ${this.chefPath} gui
+Exec=deno run ${this.getConfigArg()}-A --minimum-dependency-age=0 ${this.chefPath} gui
 Type=Application
 Terminal=false
 Comment=Personal Package Manager
@@ -321,7 +321,7 @@ Icon=${iconValue}`;
   ): string {
     let exec = recipe.provider
       ? `${recipe.name}`
-      : `deno run ${this.getConfigArg()}-A ${this.chefPath} run ${recipe.name}`;
+      : `deno run ${this.getConfigArg()}-A --minimum-dependency-age=0 ${this.chefPath} run ${recipe.name}`;
 
     const envVars = recipe.desktopFile?.env;
     if (envVars && Object.keys(envVars).length > 0) {

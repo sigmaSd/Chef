@@ -324,6 +324,10 @@ Deno.test("desktop id - install and uninstall with system icon", async () =>
         desktopContent.includes(`Icon=${desktopId}`),
         `Desktop file should contain Icon=${desktopId}`,
       );
+      assert(
+        desktopContent.includes("--minimum-dependency-age=0"),
+        `Desktop file should run deno with --minimum-dependency-age=0`,
+      );
 
       // Uninstall
       desktopManager.remove("testapp", { silent: true });
