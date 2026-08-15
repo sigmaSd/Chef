@@ -217,6 +217,8 @@ export function cacheDir(): string | null {
       break;
     }
     case "darwin": {
+      const xdg = Deno.env.get("XDG_CACHE_HOME");
+      if (xdg) return xdg;
       const home = Deno.env.get("HOME");
       if (home) return `${home}/Library/Caches`;
       break;
