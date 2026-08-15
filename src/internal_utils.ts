@@ -223,8 +223,11 @@ export function cacheDir(): string | null {
       if (home) return `${home}/Library/Caches`;
       break;
     }
-    case "windows":
+    case "windows": {
+      const xdg = Deno.env.get("XDG_CACHE_HOME");
+      if (xdg) return xdg;
       return Deno.env.get("LOCALAPPDATA") ?? null;
+    }
   }
   return null;
 }
