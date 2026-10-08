@@ -1234,7 +1234,9 @@ function createRecipeRow(
           updateBtn.addCssClass("success");
           updateBtn.setLabel("Update");
           updateBtn.setVisible(true);
-          reinstallBtn.setVisible(false);
+          // Forcing allows versions too new for deno's minimum dependency age
+          reinstallBtn.setLabel("Force Update");
+          reinstallBtn.setVisible(true);
         } else if (
           hasLatest && info.currentVersion &&
           info.currentVersion === info.latestVersion
@@ -1242,11 +1244,13 @@ function createRecipeRow(
           updateAvailableLabel.setText("  ");
           updateBtn.removeCssClass("success");
           updateBtn.setVisible(false);
+          reinstallBtn.setLabel("Reinstall");
           reinstallBtn.setVisible(true);
         } else if (hasLatest) {
           updateAvailableLabel.setText("  ");
           updateBtn.removeCssClass("success");
           updateBtn.setVisible(false);
+          reinstallBtn.setLabel("Reinstall");
           reinstallBtn.setVisible(true);
         } else {
           updateAvailableLabel.setText("  ");
