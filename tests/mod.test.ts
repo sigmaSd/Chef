@@ -193,6 +193,29 @@ Deno.test("test chef extern", async () =>
     }
   }));
 
+Deno.test("update refreshes cached current version", async () =>
+  await withTempDir(async () => {
+    const chef = new TestChef();
+    chef.addMany([{
+      name: "provider-app",
+      provider: "fake",
+      // deno-lint-ignore require-await
+      download: async () => ({ extern: "deno" }),
+      version: () => Promise.resolve("2.0.0"),
+      // Like provider recipes, the installed version is cached on the recipe
+      _currentVersion: "1.0.0",
+      _latestVersion: "2.0.0",
+    }]);
+    await chef.testInit();
+
+    assertEquals((await chef.checkUpdate("provider-app")).needsUpdate, true);
+    await chef.installOrUpdate("provider-app");
+
+    const info = await chef.checkUpdate("provider-app");
+    assertEquals(info.currentVersion, "2.0.0");
+    assertEquals(info.needsUpdate, false);
+  }));
+
 Deno.test("changelog - app not found", async () =>
   await withTempDir(async () => {
     const chef = new TestChef();
