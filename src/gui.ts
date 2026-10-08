@@ -57,6 +57,7 @@ export async function startGui(chef: ChefInternal) {
 
   app.onActivate(() => {
     if (window) {
+      app.withdrawNotification("chef-background");
       window.present();
       return;
     }
@@ -957,6 +958,12 @@ export async function startGui(chef: ChefInternal) {
     window.onCloseRequest(() => {
       if (chef.getStayInBackground()) {
         window?.hide();
+        // Clicking the notification activates the app, which shows the window again
+        const notification = new Notification(
+          "Chef is running in the background",
+        );
+        notification.setBody("Click to open Chef.");
+        app.sendNotification("chef-background", notification);
         return true; // Signal that we handled it, preventing destruction
       }
       if (logProcess) {
