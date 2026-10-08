@@ -170,18 +170,25 @@ await chef.start(import.meta.url);
   return defaultChefPath;
 }
 
-export async function runInTempDir<T>(fn: () => Promise<T>) {
-  const currentDir = Deno.cwd();
-  const tempDir = await Deno.makeTempDir();
-  Deno.chdir(tempDir);
-  let ret: T;
-  try {
-    ret = await fn();
-  } finally {
-    Deno.chdir(currentDir);
-    await Deno.remove(tempDir, { recursive: true });
-  }
-  return ret;
+// The cwd is process-global and recipes rely on it (relative downloads, `exe` paths),
+// so concurrent calls (e.g. two updates started from the GUI) must run one at a time
+let tempDirQueue: Promise<unknown> = Promise.resolve();
+
+export function runInTempDir<T>(fn: () => Promise<T>): Promise<T> {
+  const run = async () => {
+    const currentDir = Deno.cwd();
+    const tempDir = await Deno.makeTempDir();
+    Deno.chdir(tempDir);
+    try {
+      return await fn();
+    } finally {
+      Deno.chdir(currentDir);
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  };
+  const result = tempDirQueue.then(run);
+  tempDirQueue = result.catch(() => {});
+  return result;
 }
 
 // deno-lint-ignore no-namespace

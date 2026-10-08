@@ -4,6 +4,7 @@ import {
   copyDirRecursively,
   getVersionFromUrl,
   jsrSpecifier,
+  runInTempDir,
 } from "../src/internal_utils.ts";
 import * as path from "@std/path";
 
@@ -328,4 +329,20 @@ Deno.test("copyDirRecursively copies symlinks", async () => {
     await Deno.remove(src, { recursive: true });
     await Deno.remove(dst, { recursive: true });
   }
+});
+
+Deno.test("runInTempDir runs concurrent calls in their own directory", async () => {
+  const originalCwd = Deno.cwd();
+  const job = (name: string) =>
+    runInTempDir(async () => {
+      const dir = Deno.cwd();
+      await Deno.writeTextFile(name, name);
+      // Let the other job get scheduled while this one is still running
+      await new Promise((r) => setTimeout(r, 20));
+      assertEquals(Deno.cwd(), dir);
+      return await Deno.readTextFile(name);
+    });
+
+  assertEquals(await Promise.all([job("a"), job("b")]), ["a", "b"]);
+  assertEquals(Deno.cwd(), originalCwd);
 });
