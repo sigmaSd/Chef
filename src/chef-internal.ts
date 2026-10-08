@@ -194,18 +194,36 @@ export class ChefInternal {
   /**
    * Fetch recipes from all registered providers and add them to internal list
    */
-  refreshRecipes = async (signal?: AbortSignal) => {
+  refreshRecipes = async (
+    signal?: AbortSignal,
+    options: { only?: string[] } = {},
+  ) => {
     try {
       const nativeRecipes = this.recipes.filter((r) =>
         !(r.provider && r._dynamic)
       );
+
+      // Fast path: only native recipes were requested, so skip providers
+      // and only refresh the requested recipes.
+      if (options.only && options.only.length > 0) {
+        const targets = options.only.map((name) =>
+          nativeRecipes.find((r) => r.name === name)
+        );
+        if (targets.every((r) => r !== undefined)) {
+          await this.#fetchLatestVersions(targets, signal);
+          await this.#fetchCurrentVersions(targets);
+          return;
+        }
+      }
+
+      const quiet = !!options.only?.length;
       const registeredProviders = this.providers.getProviders();
-      if (registeredProviders.length > 0) {
+      if (!quiet && registeredProviders.length > 0) {
         console.log(
           `📡 Querying ${registeredProviders.length} provider(s)…`,
         );
       }
-      if (nativeRecipes.length > 4) {
+      if (!quiet && nativeRecipes.length > 4) {
         console.log(
           `🔎 Checking versions for ${nativeRecipes.length} native recipes…`,
         );
@@ -235,9 +253,11 @@ export class ChefInternal {
             recipe.name = `${basePrefixedName}-${counter}`;
             counter++;
           }
-          console.warn(
-            `⚠️ Name collision: renamed provider app "${originalName}" to "${recipe.name}"`,
-          );
+          if (!quiet) {
+            console.warn(
+              `⚠️ Name collision: renamed provider app "${originalName}" to "${recipe.name}"`,
+            );
+          }
         }
         seenNames.add(recipe.name);
       }
@@ -250,22 +270,9 @@ export class ChefInternal {
       );
       this.recipes.sort((a, b) => a.name.localeCompare(b.name));
 
-      // Run versionCommand for all recipes in parallel to detect current installed versions
-      const vcResults = pooledMap(8, this.recipes, async (recipe) => {
-        if (!recipe.versionCommand) return;
-        recipe._currentVersion = undefined;
-        try {
-          const version = await recipe.versionCommand();
-          if (version) recipe._currentVersion = version.trim();
-        } catch {
-          // versionCommand failed, leave _currentVersion undefined
-        }
-      });
-      for await (const _ of vcResults) {
-        // Just consume the stream so all versionCommand calls finish.
-      }
+      await this.#fetchCurrentVersions(this.recipes);
 
-      if (providerRecipes.length > 0) {
+      if (!quiet && providerRecipes.length > 0) {
         console.log(
           `📡 Refreshed recipes: found ${providerRecipes.length} from providers`,
         );
@@ -275,6 +282,25 @@ export class ChefInternal {
         return;
       }
       throw e;
+    }
+  };
+
+  /**
+   * Run versionCommand for the given recipes in parallel to detect current installed versions
+   */
+  #fetchCurrentVersions = async (recipes: Recipe[]): Promise<void> => {
+    const vcResults = pooledMap(8, recipes, async (recipe) => {
+      if (!recipe.versionCommand) return;
+      recipe._currentVersion = undefined;
+      try {
+        const version = await recipe.versionCommand();
+        if (version) recipe._currentVersion = version.trim();
+      } catch {
+        // versionCommand failed, leave _currentVersion undefined
+      }
+    });
+    for await (const _ of vcResults) {
+      // Just consume the stream so all versionCommand calls finish.
     }
   };
 
@@ -787,9 +813,11 @@ export class ChefInternal {
         debugTime("after binaryRunner.list() returned");
       },
       update: async (options) => {
-        await this.refreshRecipes();
-        if (options.only || (options.binary && options.binary.length > 0)) {
-          const binaries = options.only ? [options.only] : options.binary ?? [];
+        const binaries = options.only ? [options.only] : options.binary ?? [];
+        await this.refreshRecipes(undefined, {
+          only: binaries.map((b) => BinaryRunner.parseSubName(b).parentName),
+        });
+        if (binaries.length > 0) {
           for (const name of binaries) {
             await this.installOrUpdate(name, {
               force: options.force,

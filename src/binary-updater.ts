@@ -68,8 +68,11 @@ export class BinaryUpdater {
       return;
     }
 
+    // A single targeted update gets compact output instead of headers and tables
+    const compact = targetBinaries.size === 1;
+
     // Show header and current status
-    sectionHeader("Checking for Updates");
+    if (!compact) sectionHeader("Checking for Updates");
 
     ensureDirSync(this.binPath);
     const currentDb = this.database.read() ?? expect("failed to read database");
@@ -79,11 +82,13 @@ export class BinaryUpdater {
       targetBinaries.size === 0 || targetBinaries.has(recipe.name)
     );
 
-    console.log(
-      `%c🔄 Checking ${recipesToCheck.length} binaries in parallel...`,
-      `color: ${UIColors.primary}`,
-    );
-    spacer();
+    if (!compact) {
+      console.log(
+        `%c🔄 Checking ${recipesToCheck.length} binaries in parallel...`,
+        `color: ${UIColors.primary}`,
+      );
+      spacer();
+    }
 
     const updateInfo = [];
 
@@ -178,10 +183,33 @@ export class BinaryUpdater {
       updateInfo.push(result);
     }
 
-    spacer();
+    if (compact) {
+      const [info] = updateInfo;
+      if (info.status === "up-to-date") {
+        statusMessage(
+          "success",
+          `${info.name} is up to date (${info.currentVersion})`,
+        );
+      } else if (info.status === "error" || info.status === "skipped") {
+        statusMessage(
+          info.status === "error" ? "error" : "info",
+          `${info.name}: ${info.reason}`,
+        );
+      } else if (options.dryRun) {
+        statusMessage(
+          "info",
+          `Would update ${info.name}: ${
+            info.currentVersion || "Not installed"
+          } → ${info.latestVersion || "Unknown"}`,
+        );
+      }
+      if (info.status !== "needs-update" || options.dryRun) return;
+    } else {
+      spacer();
+    }
 
     // Show update summary table
-    if (updateInfo.length > 0) {
+    if (!compact && updateInfo.length > 0) {
       sectionHeader("Update Summary");
 
       const headers = ["Binary", "Current", "Latest", "Status"];
@@ -337,6 +365,7 @@ export class BinaryUpdater {
     }
 
     // Final summary
+    if (compact) return;
     spacer();
     boxText(
       `Update Complete!\n\nUpdated: ${updated}\n${
