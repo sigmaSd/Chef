@@ -422,6 +422,16 @@ export class BinaryUpdater {
     subBinaries?: string[];
     icon?: string;
   }> {
+    // Provider apps are installed by the provider itself and don't use the cwd or
+    // the global dax signal, so they can skip the (serialized) temp dir and run in parallel
+    if (recipe.provider && recipe._dynamic) {
+      const tempBin = await recipe.download({ latestVersion, signal, force });
+      if (!("extern" in tempBin)) {
+        throw new Error(`Provider app ${recipe.name} must install as extern`);
+      }
+      return { binaryPath: "", extern: tempBin.extern };
+    }
+
     return await runInTempDir(async () => {
       setSignal(signal);
       const tempBin = await recipe.download({ latestVersion, signal, force })
