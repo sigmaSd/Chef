@@ -87,4 +87,19 @@ export class SettingsManager {
       notify.toString(),
     );
   }
+
+  getSeenUpdates(): string[] {
+    try {
+      const parsed = JSON.parse(
+        this.#database.getSetting("seenUpdates") ?? "[]",
+      );
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  setSeenUpdates(keys: string[]) {
+    this.#database.setSetting("seenUpdates", JSON.stringify(keys));
+  }
 }

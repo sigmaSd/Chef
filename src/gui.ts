@@ -581,6 +581,7 @@ export async function startGui(chef: ChefInternal) {
       expanderRow: ExpanderRow;
       isInstalled: boolean;
       hasUpdate: boolean;
+      latestVersion?: string;
       isBusy: boolean;
       updateStatus: () => Promise<void>;
       updateStatusPromise: Promise<void>;
@@ -690,7 +691,7 @@ export async function startGui(chef: ChefInternal) {
             },
             applyFilters,
             recipeRows,
-            (isInstalled, hasUpdate) => {
+            (isInstalled, hasUpdate, latestVersion) => {
               const rowObj = recipeRows.find((r) =>
                 r.name === recipe.name &&
                 r.provider === (recipe.provider || "Chef apps")
@@ -698,6 +699,7 @@ export async function startGui(chef: ChefInternal) {
               if (rowObj) {
                 rowObj.isInstalled = isInstalled;
                 rowObj.hasUpdate = hasUpdate;
+                rowObj.latestVersion = latestVersion;
                 applyFilters();
               }
             },
@@ -979,21 +981,33 @@ export async function startGui(chef: ChefInternal) {
         console.log("Automatic update check...");
         await onRefresh();
 
+        const updates = recipeRows.filter((r) => r.isInstalled && r.hasUpdate);
+        const updateKey = (r: typeof updates[number]) =>
+          `${r.provider}/${r.name}@${r.latestVersion ?? ""}`;
+        const seen = new Set(chef.getSeenUpdates());
+        const newUpdates = updates.filter((r) => !seen.has(updateKey(r)));
+
         if (
           chef.getBackgroundUpdateNotification() &&
-          window && !window.getVisible()
+          window && !window.getVisible() && newUpdates.length > 0
         ) {
-          const updates = recipeRows.filter((r) =>
-            r.isInstalled && r.hasUpdate
+          const notification = new Notification("Chef Updates Available");
+          notification.setBody(
+            newUpdates.length === 1
+              ? `New update available: ${newUpdates[0].name}${
+                newUpdates[0].latestVersion
+                  ? ` ${newUpdates[0].latestVersion}`
+                  : ""
+              }`
+              : `${newUpdates.length} new updates available: ${
+                newUpdates.map((r) => r.name).join(", ")
+              }`,
           );
-          if (updates.length > 0) {
-            const notification = new Notification("Chef Updates Available");
-            notification.setBody(
-              `${updates.length} updates are available for your apps.`,
-            );
-            app.sendNotification("chef-updates", notification);
-          }
+          app.sendNotification("chef-updates", notification);
         }
+
+        // Remember only currently pending updates so the list stays small
+        chef.setSeenUpdates(updates.map(updateKey));
       }
     }, 60 * 60 * 1000);
 
@@ -1038,7 +1052,11 @@ function createRecipeRow(
     expanderRow: ExpanderRow;
     isBusy: boolean;
   }[],
-  onStatusChanged: (isInstalled: boolean, hasUpdate: boolean) => void,
+  onStatusChanged: (
+    isInstalled: boolean,
+    hasUpdate: boolean,
+    latestVersion?: string,
+  ) => void,
   globalStatusLabel: Label,
 ): {
   row: ListBoxRow;
@@ -1200,7 +1218,7 @@ function createRecipeRow(
 
       const installed = chef.isInstalled(recipe.name);
       const hasUpdate = !!(installed && info.needsUpdate);
-      onStatusChanged(installed, hasUpdate);
+      onStatusChanged(installed, hasUpdate, info.latestVersion);
 
       if (installed) {
         const hasLatest = info.latestVersion && info.latestVersion !== "-";
