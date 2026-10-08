@@ -344,6 +344,8 @@ export class BinaryUpdater {
           desktopId: recipe.desktopFile?.id,
           subBinaries: installInfo.subBinaries,
         });
+        // Cached current version (from providers or versionCommand) is now stale
+        recipe._currentVersion = latestVersion;
         statusMessage(
           "success",
           `${info.name} ${latestVersion} installed successfully`,
