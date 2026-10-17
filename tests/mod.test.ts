@@ -1498,6 +1498,29 @@ Deno.test("checkUpdate - uses _latestVersion when available (cached)", async () 
     assertEquals(versionCallCount, 0, "should still not call recipe.version()");
   }));
 
+Deno.test("refreshRecipes - picks up a newer latest version on later refreshes", async () =>
+  await withTempDir(async () => {
+    let latest = "1.0.0";
+
+    const chef = new TestChef();
+    chef.add({
+      name: "moving-app",
+      download: () => Promise.resolve({ exe: "test" } as App),
+      version: () => Promise.resolve(latest),
+    });
+
+    await chef.testInit();
+    const recipe = chef.recipes.find((r) => r.name === "moving-app")!;
+
+    await chef.refreshRecipes();
+    assertEquals(recipe._latestVersion, "1.0.0");
+
+    // A new release appears while Chef keeps running
+    latest = "2.0.0";
+    await chef.refreshRecipes();
+    assertEquals(recipe._latestVersion, "2.0.0");
+  }));
+
 Deno.test("checkUpdate - falls back to recipe.version() when _latestVersion is unset", async () =>
   await withTempDir(async () => {
     let versionCallCount = 0;
@@ -1554,12 +1577,13 @@ Deno.test("checkUpdate - consistent with BinaryUpdater.update version target", a
 
     await chef.testInit();
 
-    // Set _latestVersion to "2.0.0" — simulates what refreshRecipes does
-    // while recipe.version() would return "1.0.0" (the file content)
+    // Latest version is "2.0.0" — refreshRecipes re-fetches it on every
+    // refresh, so recipe.version() and the cache must agree
+    Deno.writeTextFileSync(versionFile, "2.0.0");
     const recipe = chef.recipes.find((r) => r.name === "consistency-app")!;
     recipe._latestVersion = "2.0.0";
 
-    // checkUpdate sees "2.0.0" from cache (not the file)
+    // checkUpdate sees "2.0.0" from cache
     const info = await chef.checkUpdate("consistency-app");
     assertEquals(
       info.latestVersion,

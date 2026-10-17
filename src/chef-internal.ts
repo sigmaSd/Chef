@@ -314,14 +314,14 @@ export class ChefInternal {
   ): Promise<void> => {
     const results = pooledMap(8, recipes, async (recipe) => {
       if (signal?.aborted) return;
-      if (recipe._latestVersion) return;
       try {
         let latest = await recipe.version?.();
         if (!latest && recipe.versions) {
           const all = await recipe.versions({ page: 1 });
           latest = all[0];
         }
-        recipe._latestVersion = latest;
+        // Keep the previous value if the lookup yielded nothing
+        if (latest) recipe._latestVersion = latest;
       } catch {
         // Ignore errors
       }
