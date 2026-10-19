@@ -953,13 +953,20 @@ export class ChefInternal {
     // Remove desktop file
     this.desktopManager.remove(targetName, { silent: true });
 
-    // Remove all tracked export symlinks
+    // Remove all tracked export symlinks that still point into this instance
     if (entry.exportLinks?.length) {
       for (const linkName of entry.exportLinks) {
         const exeExt = Deno.build.os === "windows" ? ".exe" : "";
         const linkPath = path.join(this.exportsPath, linkName + exeExt);
         try {
-          await Deno.remove(linkPath);
+          const owner = await this.#exportOwner(linkPath);
+          if (owner.kind === "ours") {
+            await Deno.remove(linkPath);
+          } else if (owner.kind === "foreign") {
+            console.log(
+              `ℹ️ Keeping export "${linkName}": it now points to ${owner.target}`,
+            );
+          }
         } catch {
           // Ignore
         }
@@ -1090,11 +1097,19 @@ export class ChefInternal {
     const linkPath = path.join(this.exportsPath, linkName + exeExtension);
 
     try {
-      try {
-        await Deno.remove(linkPath);
-      } catch {
-        // Ignore
+      const existing = await this.#exportOwner(linkPath);
+      if (existing.kind === "file") {
+        console.error(
+          `"${linkPath}" exists and is not a symlink, refusing to replace it`,
+        );
+        return;
       }
+      if (existing.kind === "foreign") {
+        console.warn(
+          `⚠️ "${linkName}" pointed to ${existing.target}, which is not managed by this Chef instance (${this.scriptName}). Replacing it.`,
+        );
+      }
+      if (existing.kind !== "missing") await Deno.remove(linkPath);
 
       await Deno.symlink(binaryPath, linkPath);
 
@@ -1153,22 +1168,29 @@ export class ChefInternal {
     const linkPath = path.join(this.exportsPath, linkName + exeExtension);
 
     try {
-      const stat = await Deno.lstat(linkPath);
-      if (!stat.isSymlink) {
+      const owner = await this.#exportOwner(linkPath);
+      if (owner.kind === "missing") {
+        throw new Deno.errors.NotFound(linkPath);
+      }
+      if (owner.kind === "file") {
         if (!options.silent) {
           console.error(`"${linkName}" exists but is not a symlink`);
         }
         return;
       }
+      if (owner.kind === "foreign") {
+        // The export was taken over elsewhere; stop tracking it, but leave it
+        this.#untrackExportLink(parentName, linkName);
+        if (!options.silent) {
+          console.error(
+            `"${linkName}" points to ${owner.target}, which is not managed by this Chef instance (${this.scriptName}). Not removing it.`,
+          );
+        }
+        return;
+      }
 
       await Deno.remove(linkPath);
-
-      // Remove from DB tracking
-      const entry2 = this.database.getEntry(parentName);
-      if (entry2?.exportLinks?.includes(linkName)) {
-        const links = entry2.exportLinks.filter((l) => l !== linkName);
-        this.database.setEntry(parentName, { ...entry2, exportLinks: links });
-      }
+      this.#untrackExportLink(parentName, linkName);
 
       if (!options.silent) {
         console.log(`✅ Removed symlink for "${linkName}"`);
@@ -1186,4 +1208,38 @@ export class ChefInternal {
       }
     }
   };
+
+  #untrackExportLink(parentName: string, linkName: string) {
+    const entry = this.database.getEntry(parentName);
+    if (entry?.exportLinks?.includes(linkName)) {
+      const links = entry.exportLinks.filter((l) => l !== linkName);
+      this.database.setEntry(parentName, { ...entry, exportLinks: links });
+    }
+  }
+
+  /**
+   * Classify an exports-directory entry. The exports directory is shared by
+   * every Chef instance, so a link may point into another instance's bin dir.
+   */
+  async #exportOwner(linkPath: string): Promise<
+    | { kind: "missing" }
+    | { kind: "file" }
+    | { kind: "ours" | "foreign"; target: string }
+  > {
+    let stat: Deno.FileInfo;
+    try {
+      stat = await Deno.lstat(linkPath);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return { kind: "missing" };
+      throw error;
+    }
+    if (!stat.isSymlink) return { kind: "file" };
+
+    const target = path.resolve(
+      path.dirname(linkPath),
+      await Deno.readLink(linkPath),
+    );
+    const ours = path.dirname(target) === path.resolve(this.binPath);
+    return { kind: ours ? "ours" : "foreign", target };
+  }
 }

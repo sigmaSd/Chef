@@ -19,10 +19,10 @@ class TestChef extends ChefInternal {
       : "default";
   }
 
-  async testInit() {
+  async testInit(shared?: { basePath: string; scriptName: string }) {
     const paths = new ChefPaths(
-      this.getScriptName(),
-      this.testBasePath,
+      shared?.scriptName ?? this.getScriptName(),
+      shared?.basePath ?? this.testBasePath,
     );
     await this.init({ paths });
   }
@@ -1067,6 +1067,81 @@ Deno.test("uninstall cleans up sub-binary export symlinks", async () =>
     } catch (e) {
       if (!(e instanceof Deno.errors.NotFound)) throw e;
     }
+  }));
+
+/** Two Chef instances (different scripts) sharing one exports directory. */
+async function twoInstancesWithHello(dir: string) {
+  const exePath = path.join(dir, "myexe");
+  Deno.writeTextFileSync(exePath, "content");
+  if (Deno.build.os !== "windows") Deno.chmodSync(exePath, 0o755);
+
+  const basePath = path.join(dir, "chef-base");
+  const make = async (scriptName: string) => {
+    const chef = new TestChef();
+    chef.add({
+      name: "hello",
+      download: async () => {
+        await Deno.copyFile(exePath, "./hello");
+        return { exe: "./hello" } as App;
+      },
+      version: () => Promise.resolve("1.0.0"),
+    });
+    await chef.testInit({ basePath, scriptName });
+    await chef.start(["update"]);
+    return chef;
+  };
+  const exeExtension = Deno.build.os === "windows" ? ".exe" : "";
+  const oldChef = await make("old-chef");
+  const newChef = await make("new-chef");
+  const linkPath = path.join(newChef.paths.exportsPath, "hello" + exeExtension);
+  return { oldChef, newChef, linkPath, exeExtension };
+}
+
+Deno.test("link takes over an export owned by another instance; uninstalling the old owner keeps it", async () =>
+  await withTempDir(async (dir: string) => {
+    const { oldChef, newChef, linkPath, exeExtension } =
+      await twoInstancesWithHello(dir);
+
+    await oldChef.start(["link", "hello"]);
+    await newChef.start(["link", "hello"]);
+    assertEquals(
+      Deno.readLinkSync(linkPath),
+      path.join(newChef.binPath, "hello" + exeExtension),
+    );
+
+    await oldChef.start(["uninstall", "hello"]);
+    assertEquals(
+      Deno.readLinkSync(linkPath),
+      path.join(newChef.binPath, "hello" + exeExtension),
+    );
+  }));
+
+Deno.test("unlink leaves an export owned by another instance alone", async () =>
+  await withTempDir(async (dir: string) => {
+    const { oldChef, newChef, linkPath, exeExtension } =
+      await twoInstancesWithHello(dir);
+
+    await oldChef.start(["link", "hello"]);
+    await newChef.start(["link", "hello"]);
+    await oldChef.start(["unlink", "hello"]);
+
+    assertEquals(
+      Deno.readLinkSync(linkPath),
+      path.join(newChef.binPath, "hello" + exeExtension),
+    );
+    assertEquals(oldChef.database.getEntry("hello")?.exportLinks, []);
+  }));
+
+Deno.test("link refuses to replace a regular file in exports", async () =>
+  await withTempDir(async (dir: string) => {
+    const { newChef, linkPath } = await twoInstancesWithHello(dir);
+
+    Deno.mkdirSync(path.dirname(linkPath), { recursive: true });
+    Deno.writeTextFileSync(linkPath, "user file");
+    await newChef.start(["link", "hello"]);
+
+    assertEquals(Deno.lstatSync(linkPath).isSymlink, false);
+    assertEquals(Deno.readTextFileSync(linkPath), "user file");
   }));
 
 Deno.test(
