@@ -1046,6 +1046,8 @@ export class ChefInternal {
     this.settings.setBackgroundUpdateNotification(notify);
   getSeenUpdates = () => this.settings.getSeenUpdates();
   setSeenUpdates = (keys: string[]) => this.settings.setSeenUpdates(keys);
+  getMutedUpdates = () => this.settings.getMutedUpdates();
+  setMutedUpdates = (keys: string[]) => this.settings.setMutedUpdates(keys);
 
   /**
    * Create a symlink to a binary in the exports directory

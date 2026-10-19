@@ -102,4 +102,20 @@ export class SettingsManager {
   setSeenUpdates(keys: string[]) {
     this.#database.setSetting("seenUpdates", JSON.stringify(keys));
   }
+
+  /** `provider/name` keys of recipes excluded from background update notifications */
+  getMutedUpdates(): string[] {
+    try {
+      const parsed = JSON.parse(
+        this.#database.getSetting("mutedUpdates") ?? "[]",
+      );
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  setMutedUpdates(keys: string[]) {
+    this.#database.setSetting("mutedUpdates", JSON.stringify(keys));
+  }
 }

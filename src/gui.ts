@@ -992,7 +992,10 @@ export async function startGui(chef: ChefInternal) {
         const updateKey = (r: typeof updates[number]) =>
           `${r.provider}/${r.name}@${r.latestVersion ?? ""}`;
         const seen = new Set(chef.getSeenUpdates());
-        const newUpdates = updates.filter((r) => !seen.has(updateKey(r)));
+        const muted = new Set(chef.getMutedUpdates());
+        const newUpdates = updates.filter((r) =>
+          !seen.has(updateKey(r)) && !muted.has(`${r.provider}/${r.name}`)
+        );
 
         if (
           chef.getBackgroundUpdateNotification() &&
@@ -1116,6 +1119,8 @@ function createRecipeRow(
     expect("missing running_counter_label");
   const updateAvailableLabel = builder.get("update_available_label", Label) ??
     expect("missing update_available_label");
+  const muteBtn = builder.get("mute_btn", ToggleButton) ??
+    expect("missing mute_btn");
   const statusBox = builder.get("status_box", Box) ??
     expect("missing status_box");
   const actionBox = builder.get("action_box", Box) ??
@@ -1440,6 +1445,7 @@ function createRecipeRow(
     const isRunning = runningCount > 0;
 
     installBtn.setVisible(!installed);
+    muteBtn.setVisible(installed);
     runBtn.setVisible(installed);
     runInTerminalBtn.setVisible(installed);
     killBtn.setVisible(isRunning);
@@ -1627,6 +1633,33 @@ function createRecipeRow(
 
   killBtn.onClick(() => {
     chef.killAll(recipe.name);
+  });
+
+  const muteKey = `${recipe.provider || "Chef apps"}/${recipe.name}`;
+  const updateMuteIcon = () => {
+    const muted = muteBtn.getActive();
+    muteBtn.setIconName(
+      muted
+        ? "notifications-disabled-symbolic"
+        : "preferences-system-notifications-symbolic",
+    );
+    muteBtn.setTooltipText(
+      muted
+        ? "Background update notifications muted"
+        : "Mute background update notifications",
+    );
+    // Only draw attention to muted rows
+    if (muted) muteBtn.removeCssClass("dim-label");
+    else muteBtn.addCssClass("dim-label");
+  };
+  muteBtn.setActive(chef.getMutedUpdates().includes(muteKey));
+  updateMuteIcon();
+  muteBtn.onToggled(() => {
+    const muted = new Set(chef.getMutedUpdates());
+    if (muteBtn.getActive()) muted.add(muteKey);
+    else muted.delete(muteKey);
+    chef.setMutedUpdates([...muted]);
+    updateMuteIcon();
   });
 
   changelogBtn.onClick(() => {

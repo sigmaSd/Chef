@@ -123,6 +123,18 @@ ListBoxRow recipe_row {
                     "warning",
                 ]
             }
+
+            ToggleButton mute_btn {
+                icon-name: "preferences-system-notifications-symbolic";
+                tooltip-text: "Mute background update notifications";
+                valign: center;
+                visible: false;
+
+                styles [
+                    "flat",
+                    "dim-label",
+                ]
+            }
         }
 
         Box action_box {
