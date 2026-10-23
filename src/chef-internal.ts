@@ -338,6 +338,7 @@ export class ChefInternal {
     name: string,
     options: {
       force?: boolean;
+      allowNewVersions?: boolean;
       signal?: AbortSignal;
       dryRun?: boolean;
       version?: string;
@@ -346,6 +347,7 @@ export class ChefInternal {
     const { parentName } = BinaryRunner.parseSubName(name);
     await this.binaryUpdater.update({
       force: options.force,
+      allowNewVersions: options.allowNewVersions,
       binary: [parentName],
       signal: options.signal,
       dryRun: options.dryRun,
@@ -657,7 +659,12 @@ export class ChefInternal {
    * Update all binaries
    */
   updateAll = async (
-    options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
+    options: {
+      force?: boolean;
+      allowNewVersions?: boolean;
+      signal?: AbortSignal;
+      dryRun?: boolean;
+    } = {},
   ) => {
     await this.binaryUpdater.update(options);
   };

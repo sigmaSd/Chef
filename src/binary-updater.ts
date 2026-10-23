@@ -35,6 +35,8 @@ export class BinaryUpdater {
   async update(
     options: {
       force?: boolean;
+      /** Pass force to the download (lets providers bypass deno's minimum dependency age) without reinstalling up-to-date binaries */
+      allowNewVersions?: boolean;
       skip?: string;
       only?: string;
       version?: string;
@@ -306,7 +308,7 @@ export class BinaryUpdater {
           recipe,
           latestVersion,
           options.signal,
-          options.force,
+          options.force || options.allowNewVersions,
         );
 
         if (recipe.postInstall && !installInfo.extern) {

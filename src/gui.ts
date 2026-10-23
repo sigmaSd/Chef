@@ -888,11 +888,15 @@ export async function startGui(chef: ChefInternal) {
           for (const r of toUpdate) {
             if (abortController.signal.aborted) break;
             await chef.installOrUpdate(r.name, {
+              allowNewVersions: true,
               signal: abortController.signal,
             });
           }
         } else {
-          await chef.updateAll({ signal: abortController.signal });
+          await chef.updateAll({
+            allowNewVersions: true,
+            signal: abortController.signal,
+          });
         }
         await refreshList(false, abortController.signal);
       } catch (e) {
@@ -1481,6 +1485,7 @@ function createRecipeRow(
     rowAbortController = new AbortController();
     try {
       await chef.installOrUpdate(recipe.name, {
+        allowNewVersions: true,
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
@@ -1565,8 +1570,11 @@ function createRecipeRow(
     cancelBtn.setVisible(true);
     rowAbortController = new AbortController();
     try {
+      // The user already saw the new version and chose it, so let providers
+      // install it even if it's newer than deno's minimum dependency age
       await chef.installOrUpdate(recipe.name, {
         force,
+        allowNewVersions: true,
         signal: rowAbortController.signal,
       });
       globalStatusLabel.removeCssClass("error");
