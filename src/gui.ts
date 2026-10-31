@@ -591,6 +591,7 @@ export async function startGui(chef: ChefInternal) {
       updateStatusLabel: (text: string) => void;
       setGrouped: () => void;
       update: () => Promise<void>;
+      installVersion: (version: string) => Promise<void>;
       name: string;
       provider: string;
       group?: string;
@@ -718,6 +719,7 @@ export async function startGui(chef: ChefInternal) {
               chef,
               group,
               recipe.provider || "Chef apps",
+              !!recipe.versions,
               {
                 nameGroup,
                 versionGroup,
@@ -737,6 +739,7 @@ export async function startGui(chef: ChefInternal) {
             updateStatusLabel,
             setGrouped,
             update,
+            installVersion,
             updateStatus,
             updateStatusPromise,
             cleanup,
@@ -773,6 +776,7 @@ export async function startGui(chef: ChefInternal) {
             updateStatusLabel,
             setGrouped,
             update,
+            installVersion,
             updateStatus,
             name: recipe.name,
             provider: recipe.provider || "Chef apps",
@@ -1164,6 +1168,7 @@ function createRecipeRow(
   updateStatusLabel: (text: string) => void;
   setGrouped: () => void;
   update: () => Promise<void>;
+  installVersion: (version: string) => Promise<void>;
   updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
   cleanup: () => void; // Add cleanup function to disconnect signals
@@ -1289,15 +1294,18 @@ function createRecipeRow(
 
   let rowAbortController: AbortController | null = null;
   const lifecycleAbortController = new AbortController();
-  let fetchedVersions: string[] = [];
-  let currentPage = 1;
-  let isFetching = false;
 
   // Binaries of a package are updated from their group row (see createGroupRow)
   let isGrouped = false;
   const setGrouped = () => {
     isGrouped = true;
     updateBtn.setVisible(false);
+    // The group row shows the shared versions, the version picker and ✨
+    versionLabel.setText("");
+    latestVersionLabel.setText("");
+    latestVersionLabel.setVisible(true);
+    latestVersionBtn.setVisible(false);
+    updateAvailableLabel.setText("  ");
     nameLabel.setMarkup(`<span alpha="50%">↳</span> ${recipe.name}`);
     // Left align so the arrows line up under the group name
     nameLabel.setXalign(0);
@@ -1311,7 +1319,9 @@ function createRecipeRow(
       if (lifecycleAbortController.signal.aborted) return;
       const hasVersions = !!recipe.versions;
 
-      if (info.latestVersion) {
+      if (isGrouped) {
+        // Shown on the group row instead
+      } else if (info.latestVersion) {
         if (hasVersions) {
           latestVersionBtn.setLabel(info.latestVersion);
           latestVersionBtn.removeCssClass("dim-label");
@@ -1336,7 +1346,7 @@ function createRecipeRow(
       if (installed) {
         const hasLatest = info.latestVersion && info.latestVersion !== "-";
         if (info.needsUpdate) {
-          updateAvailableLabel.setText("✨");
+          updateAvailableLabel.setText(isGrouped ? "  " : "✨");
           updateBtn.addCssClass("success");
           updateBtn.setLabel("Update");
           updateBtn.setVisible(!isGrouped);
@@ -1405,7 +1415,7 @@ function createRecipeRow(
     if (lifecycleAbortController.signal.aborted) return;
     statusLabel.setText(installed ? "Installed" : "Not Installed");
     const version = chef.getVersion(recipe.name);
-    versionLabel.setText(version || "-");
+    versionLabel.setText(isGrouped ? "" : version || "-");
 
     onStatusChanged(installed, false);
 
@@ -1426,84 +1436,11 @@ function createRecipeRow(
   };
   const updateStatusPromise = updateStatus();
 
-  const fetchVersions = async (page: number) => {
-    if (isFetching) return;
-    isFetching = true;
-    try {
-      const versions = await chef.getVersions(recipe.name, {
-        page,
-        signal: lifecycleAbortController.signal,
-      });
-      if (lifecycleAbortController.signal.aborted) return;
-      if (page === 1) {
-        fetchedVersions = versions;
-      } else {
-        fetchedVersions = [...fetchedVersions, ...versions];
-      }
-      loadMoreBtn.setVisible(versions.length === 30);
-      updateVersionsList();
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return;
-      console.error(`Failed to fetch versions for ${recipe.name}:`, e);
-    } finally {
-      isFetching = false;
-    }
-  };
-
-  const updateVersionsList = () => {
-    versionsList.removeAll();
-    const filter = versionsSearch.getText().toLowerCase();
-    const filtered = fetchedVersions.filter((v) =>
-      v.toLowerCase().includes(filter)
-    );
-
-    for (const v of filtered) {
-      const row = new ListBoxRow();
-      row.setData("version", v);
-      const label = new Label(v);
-      label.setMarginTop(5);
-      label.setMarginBottom(5);
-      row.setChild(label);
-      versionsList.append(row);
-    }
-
-    if (filter && !filtered.some((v) => v.toLowerCase() === filter)) {
-      const row = new ListBoxRow();
-      row.setData("version", filter);
-      const label = new Label();
-      label.setMarkup(`Install custom version: <b>${filter}</b>`);
-      label.setMarginTop(5);
-      label.setMarginBottom(5);
-      row.setChild(label);
-      versionsList.append(row);
-    }
-  };
-
-  versionsPopover.onNotify("visible", () => {
-    if (versionsPopover.getVisible() && fetchedVersions.length === 0) {
-      currentPage = 1;
-      void fetchVersions(currentPage);
-    }
-  });
-
-  versionsSearch.onChanged(() => {
-    updateVersionsList();
-  });
-
-  loadMoreBtn.onClick(() => {
-    currentPage++;
-    void fetchVersions(currentPage);
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  versionsList.onRowActivated(async (row) => {
+  const installVersion = async (version: string) => {
     const rowObj = getRowObj();
     if (rowObj?.isBusy) return;
-    const version = row.getData("version");
-    if (!version) return;
 
     if (rowObj) rowObj.isBusy = true;
-    versionsPopover.popdown();
     setGroupState(false, `Installing ${version}...`);
     statusLabel.removeCssClass("success");
     cancelBtn.setVisible(true);
@@ -1537,7 +1474,19 @@ function createRecipeRow(
       if (rowObj) rowObj.isBusy = false;
       void updateButtons();
     }
-  });
+  };
+
+  setupVersionPicker(
+    { versionsPopover, versionsSearch, versionsList, loadMoreBtn },
+    (page) =>
+      chef.getVersions(recipe.name, {
+        page,
+        signal: lifecycleAbortController.signal,
+      }),
+    (version) => void installVersion(version),
+    recipe.name,
+    lifecycleAbortController.signal,
+  );
 
   const updateButtons = () => {
     const rowObj = getRowObj();
@@ -1798,6 +1747,7 @@ function createRecipeRow(
     updateStatusLabel,
     setGrouped,
     update: () => onUpdateOrReinstall(false),
+    installVersion,
     updateStatus,
     updateStatusPromise,
     cleanup,
@@ -1807,12 +1757,108 @@ function createRecipeRow(
 }
 
 /**
+ * Wire a latest version popover to list, search and pick versions
+ */
+function setupVersionPicker(
+  widgets: {
+    versionsPopover: Popover;
+    versionsSearch: SearchEntry;
+    versionsList: ListBox;
+    loadMoreBtn: Button;
+  },
+  getVersions: (page: number) => Promise<string[]>,
+  onPick: (version: string) => void,
+  name: string,
+  signal: AbortSignal,
+) {
+  const { versionsPopover, versionsSearch, versionsList, loadMoreBtn } =
+    widgets;
+  let fetchedVersions: string[] = [];
+  let currentPage = 1;
+  let isFetching = false;
+
+  const fetchVersions = async (page: number) => {
+    if (isFetching) return;
+    isFetching = true;
+    try {
+      const versions = await getVersions(page);
+      if (signal.aborted) return;
+      if (page === 1) {
+        fetchedVersions = versions;
+      } else {
+        fetchedVersions = [...fetchedVersions, ...versions];
+      }
+      loadMoreBtn.setVisible(versions.length === 30);
+      updateVersionsList();
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      console.error(`Failed to fetch versions for ${name}:`, e);
+    } finally {
+      isFetching = false;
+    }
+  };
+
+  const updateVersionsList = () => {
+    versionsList.removeAll();
+    const filter = versionsSearch.getText().toLowerCase();
+    const filtered = fetchedVersions.filter((v) =>
+      v.toLowerCase().includes(filter)
+    );
+
+    for (const v of filtered) {
+      const row = new ListBoxRow();
+      row.setData("version", v);
+      const label = new Label(v);
+      label.setMarginTop(5);
+      label.setMarginBottom(5);
+      row.setChild(label);
+      versionsList.append(row);
+    }
+
+    if (filter && !filtered.some((v) => v.toLowerCase() === filter)) {
+      const row = new ListBoxRow();
+      row.setData("version", filter);
+      const label = new Label();
+      label.setMarkup(`Install custom version: <b>${filter}</b>`);
+      label.setMarginTop(5);
+      label.setMarginBottom(5);
+      row.setChild(label);
+      versionsList.append(row);
+    }
+  };
+
+  versionsPopover.onNotify("visible", () => {
+    if (versionsPopover.getVisible() && fetchedVersions.length === 0) {
+      currentPage = 1;
+      void fetchVersions(currentPage);
+    }
+  });
+
+  versionsSearch.onChanged(() => {
+    updateVersionsList();
+  });
+
+  loadMoreBtn.onClick(() => {
+    currentPage++;
+    void fetchVersions(currentPage);
+  });
+
+  versionsList.onRowActivated((row) => {
+    const version = row.getData("version");
+    if (!version) return;
+    versionsPopover.popdown();
+    onPick(version);
+  });
+}
+
+/**
  * Header row for the binaries of one package, owning their shared Update button
  */
 function createGroupRow(
   chef: ChefInternal,
   group: string,
   provider: string,
+  hasVersions: boolean,
   groups: {
     nameGroup: SizeGroup;
     versionGroup: SizeGroup;
@@ -1839,6 +1885,20 @@ function createGroupRow(
   );
   const latestVersionLabel = builder.get("latest_version_label", Label) ??
     expect("missing latest_version_label");
+  const latestVersionBtn = builder.get("latest_version_btn", MenuButton) ??
+    expect("missing latest_version_btn");
+  const versionsPopover = builder.get("versions_popover", Popover) ?? expect(
+    "missing versions_popover",
+  );
+  const versionsSearch = builder.get("versions_search", SearchEntry) ?? expect(
+    "missing versions_search",
+  );
+  const versionsList = builder.get("versions_list", ListBox) ?? expect(
+    "missing versions_list",
+  );
+  const loadMoreBtn = builder.get("load_more_btn", Button) ?? expect(
+    "missing load_more_btn",
+  );
   const statusLabel = builder.get("status_label", Label) ?? expect(
     "missing status_label",
   );
@@ -1883,10 +1943,28 @@ function createGroupRow(
     latestVersion?: string;
     isBusy: boolean;
     update: () => Promise<void>;
+    installVersion: (version: string) => Promise<void>;
   };
   let members: Member[] = [];
   let sensitive = true;
   let updating = false;
+  const lifecycleAbortController = new AbortController();
+
+  // Installing any binary installs the whole package, so pick through one
+  setupVersionPicker(
+    { versionsPopover, versionsSearch, versionsList, loadMoreBtn },
+    (page) =>
+      chef.getVersions(members[0]?.name ?? expect("group has no binaries"), {
+        page,
+        signal: lifecycleAbortController.signal,
+      }),
+    (version) => {
+      const leader = members.find((m) => m.isInstalled) ?? members[0];
+      if (leader) void leader.installVersion(version);
+    },
+    group,
+    lifecycleAbortController.signal,
+  );
 
   const refresh = (newMembers: Member[]) => {
     members = newMembers;
@@ -1898,7 +1976,13 @@ function createGroupRow(
     );
     const latest = members.find((m) => m.latestVersion)?.latestVersion;
     latestVersionLabel.setText(latest ?? "Checking...");
-    if (latest) latestVersionLabel.removeCssClass("dim-label");
+    if (latest) {
+      latestVersionLabel.removeCssClass("dim-label");
+      latestVersionBtn.setLabel(latest);
+      latestVersionBtn.removeCssClass("dim-label");
+    }
+    latestVersionBtn.setVisible(hasVersions && !!latest);
+    latestVersionLabel.setVisible(!(hasVersions && latest));
     statusLabel.setText(`${members.length} binaries`);
 
     const hasUpdate = members.some((m) => m.isInstalled && m.hasUpdate);
@@ -1936,6 +2020,9 @@ function createGroupRow(
         sensitive && !updating && !members.some((m) => m.isBusy),
       );
     },
-    cleanup: () => builder.unref(),
+    cleanup: () => {
+      lifecycleAbortController.abort();
+      builder.unref();
+    },
   };
 }
