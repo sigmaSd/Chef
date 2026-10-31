@@ -516,9 +516,14 @@ export async function startGui(chef: ChefInternal) {
       const expanderVisibility = new Map<ExpanderRow, boolean>();
 
       let updateCount = 0;
+      const countedGroups = new Set<string>();
       for (const r of recipeRows) {
         if (r.isInstalled && r.hasUpdate) {
-          updateCount++;
+          const groupKey = r.group && `${r.provider}/${r.group}`;
+          if (!groupKey || !countedGroups.has(groupKey)) {
+            if (groupKey) countedGroups.add(groupKey);
+            updateCount++;
+          }
         }
 
         const matchesSearch = !filterText ||
@@ -535,6 +540,20 @@ export async function startGui(chef: ChefInternal) {
       // Set visibility of expanders based on their children
       for (const r of recipeRows) {
         r.expanderRow.setVisible(!!expanderVisibility.get(r.expanderRow));
+      }
+
+      // Rows of the same group are one package, so only the first visible
+      // row of each group gets an Update button
+      const groupsWithUpdateBtn = new Set<string>();
+      for (const r of recipeRows) {
+        if (!r.group) {
+          r.setShowsGroupUpdate(true);
+          continue;
+        }
+        const groupKey = `${r.provider}/${r.group}`;
+        const shows = r.row.getVisible() && !groupsWithUpdateBtn.has(groupKey);
+        if (shows) groupsWithUpdateBtn.add(groupKey);
+        r.setShowsGroupUpdate(shows);
       }
 
       updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
@@ -576,6 +595,7 @@ export async function startGui(chef: ChefInternal) {
       setSensitive: (sensitive: boolean) => void;
       updateRunningStatus: (running: boolean) => void;
       updateStatusLabel: (text: string) => void;
+      setShowsGroupUpdate: (shows: boolean) => void;
       name: string;
       provider: string;
       group?: string;
@@ -677,6 +697,7 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
+            setShowsGroupUpdate,
             updateStatus,
             updateStatusPromise,
             cleanup,
@@ -711,6 +732,7 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
+            setShowsGroupUpdate,
             updateStatus,
             name: recipe.name,
             provider: recipe.provider || "Chef apps",
@@ -885,8 +907,14 @@ export async function startGui(chef: ChefInternal) {
           const toUpdate = recipeRows.filter((r) =>
             r.row.getVisible() && r.isInstalled && r.hasUpdate
           );
+          const updatedGroups = new Set<string>();
           for (const r of toUpdate) {
             if (abortController.signal.aborted) break;
+            if (r.group) {
+              const groupKey = `${r.provider}/${r.group}`;
+              if (updatedGroups.has(groupKey)) continue;
+              updatedGroups.add(groupKey);
+            }
             await chef.installOrUpdate(r.name, {
               allowNewVersions: true,
               signal: abortController.signal,
@@ -997,9 +1025,19 @@ export async function startGui(chef: ChefInternal) {
           `${r.provider}/${r.name}@${r.latestVersion ?? ""}`;
         const seen = new Set(chef.getSeenUpdates());
         const muted = new Set(chef.getMutedUpdates());
-        const newUpdates = updates.filter((r) =>
-          !seen.has(updateKey(r)) && !muted.has(`${r.provider}/${r.name}`)
-        );
+        // Rows of the same group are one package, so notify about it once
+        const notifiedGroups = new Set<string>();
+        const newUpdates = updates.filter((r) => {
+          if (seen.has(updateKey(r)) || muted.has(`${r.provider}/${r.name}`)) {
+            return false;
+          }
+          if (!r.group) return true;
+          const groupKey = `${r.provider}/${r.group}`;
+          if (notifiedGroups.has(groupKey)) return false;
+          notifiedGroups.add(groupKey);
+          return true;
+        });
+        const displayName = (r: typeof updates[number]) => r.group ?? r.name;
 
         if (
           chef.getBackgroundUpdateNotification() &&
@@ -1008,13 +1046,13 @@ export async function startGui(chef: ChefInternal) {
           const notification = new Notification("Chef Updates Available");
           notification.setBody(
             newUpdates.length === 1
-              ? `New update available: ${newUpdates[0].name}${
+              ? `New update available: ${displayName(newUpdates[0])}${
                 newUpdates[0].latestVersion
                   ? ` ${newUpdates[0].latestVersion}`
                   : ""
               }`
               : `${newUpdates.length} new updates available: ${
-                newUpdates.map((r) => r.name).join(", ")
+                newUpdates.map(displayName).join(", ")
               }`,
           );
           app.sendNotification("chef-updates", notification);
@@ -1077,6 +1115,7 @@ function createRecipeRow(
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
   updateStatusLabel: (text: string) => void;
+  setShowsGroupUpdate: (shows: boolean) => void;
   updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
   cleanup: () => void; // Add cleanup function to disconnect signals
@@ -1206,6 +1245,14 @@ function createRecipeRow(
   let currentPage = 1;
   let isFetching = false;
 
+  // Whether this row owns the Update button of its group (see applyFilters)
+  let showsGroupUpdate = true;
+  let needsUpdate = false;
+  const setShowsGroupUpdate = (shows: boolean) => {
+    showsGroupUpdate = shows;
+    if (needsUpdate && runningCount === 0) updateBtn.setVisible(shows);
+  };
+
   const checkUpdate = async () => {
     const rowObj = getRowObj();
     if (rowObj?.isBusy) return;
@@ -1238,11 +1285,12 @@ function createRecipeRow(
 
       if (installed) {
         const hasLatest = info.latestVersion && info.latestVersion !== "-";
+        needsUpdate = !!info.needsUpdate;
         if (info.needsUpdate) {
           updateAvailableLabel.setText("✨");
           updateBtn.addCssClass("success");
           updateBtn.setLabel("Update");
-          updateBtn.setVisible(true);
+          updateBtn.setVisible(showsGroupUpdate);
           // Forcing allows versions too new for deno's minimum dependency age
           reinstallBtn.setLabel("Force Update");
           reinstallBtn.setVisible(true);
@@ -1323,6 +1371,7 @@ function createRecipeRow(
       updateBtn.removeCssClass("success");
       updateBtn.setVisible(false);
       reinstallBtn.setVisible(false);
+      needsUpdate = false;
     }
     // Always check for latest version regardless of installation status
     await checkUpdate();
@@ -1699,6 +1748,7 @@ function createRecipeRow(
     setSensitive,
     updateRunningStatus,
     updateStatusLabel,
+    setShowsGroupUpdate,
     updateStatus,
     updateStatusPromise,
     cleanup,
