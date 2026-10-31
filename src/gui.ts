@@ -542,18 +542,12 @@ export async function startGui(chef: ChefInternal) {
         r.expanderRow.setVisible(!!expanderVisibility.get(r.expanderRow));
       }
 
-      // Rows of the same group are one package, so only the first visible
-      // row of each group gets an Update button
-      const groupsWithUpdateBtn = new Set<string>();
-      for (const r of recipeRows) {
-        if (!r.group) {
-          r.setShowsGroupUpdate(true);
-          continue;
-        }
-        const groupKey = `${r.provider}/${r.group}`;
-        const shows = r.row.getVisible() && !groupsWithUpdateBtn.has(groupKey);
-        if (shows) groupsWithUpdateBtn.add(groupKey);
-        r.setShowsGroupUpdate(shows);
+      for (const g of groupRows) {
+        g.refresh(
+          recipeRows.filter((r) =>
+            r.provider === g.provider && r.group === g.group
+          ),
+        );
       }
 
       updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
@@ -595,7 +589,8 @@ export async function startGui(chef: ChefInternal) {
       setSensitive: (sensitive: boolean) => void;
       updateRunningStatus: (running: boolean) => void;
       updateStatusLabel: (text: string) => void;
-      setShowsGroupUpdate: (shows: boolean) => void;
+      setGrouped: () => void;
+      update: () => Promise<void>;
       name: string;
       provider: string;
       group?: string;
@@ -608,6 +603,7 @@ export async function startGui(chef: ChefInternal) {
       updateStatusPromise: Promise<void>;
       cleanup?: () => void;
     }[] = [];
+    const groupRows: ReturnType<typeof createGroupRow>[] = [];
 
     searchEntry.onChanged(applyFilters);
 
@@ -657,6 +653,8 @@ export async function startGui(chef: ChefInternal) {
       listBox.append(headerRow);
 
       recipeRows.length = 0;
+      for (const g of groupRows) g.cleanup();
+      groupRows.length = 0;
 
       const allRecipes = chef.recipes;
       statusLabel.setText("Idle");
@@ -686,18 +684,59 @@ export async function startGui(chef: ChefInternal) {
         expander.setExpanded(true);
         listBox.append(expander);
 
-        // Sort recipes within each provider alphabetically
+        // Binaries of the same package get a shared header row, groups of
+        // one are shown as plain rows
+        const groupSizes = new Map<string, number>();
+        for (const recipe of recipesByProvider[provider]) {
+          if (!recipe._group) continue;
+          groupSizes.set(
+            recipe._group,
+            (groupSizes.get(recipe._group) ?? 0) + 1,
+          );
+        }
+        const sharedGroup = (recipe: Recipe) =>
+          recipe._group && (groupSizes.get(recipe._group) ?? 0) > 1
+            ? recipe._group
+            : undefined;
+
+        // Sort recipes within each provider alphabetically, keeping the
+        // binaries of a package together under its name
         const providerRecipes = recipesByProvider[provider].sort((a, b) =>
+          (sharedGroup(a) ?? a.name).localeCompare(sharedGroup(b) ?? b.name) ||
           a.name.localeCompare(b.name)
         );
 
         for (const recipe of providerRecipes) {
+          const group = sharedGroup(recipe);
+          if (
+            group && !groupRows.some((g) =>
+              g.group === group &&
+              g.provider === (recipe.provider || "Chef apps")
+            )
+          ) {
+            const groupRow = createGroupRow(
+              chef,
+              group,
+              recipe.provider || "Chef apps",
+              {
+                nameGroup,
+                versionGroup,
+                latestVersionGroup,
+                statusGroup,
+                actionsGroup,
+              },
+              applyFilters,
+            );
+            groupRows.push(groupRow);
+            expander.addRow(groupRow.row);
+          }
           const {
             row,
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
-            setShowsGroupUpdate,
+            setGrouped,
+            update,
             updateStatus,
             updateStatusPromise,
             cleanup,
@@ -732,7 +771,8 @@ export async function startGui(chef: ChefInternal) {
             setSensitive,
             updateRunningStatus,
             updateStatusLabel,
-            setShowsGroupUpdate,
+            setGrouped,
+            update,
             updateStatus,
             name: recipe.name,
             provider: recipe.provider || "Chef apps",
@@ -745,6 +785,7 @@ export async function startGui(chef: ChefInternal) {
             cleanup,
           });
           setSensitive(!chef.isBusy);
+          if (group) setGrouped();
           expander.addRow(row);
         }
       }
@@ -789,6 +830,7 @@ export async function startGui(chef: ChefInternal) {
       refreshBtn.setSensitive(false);
       cancelBtn.setVisible(true);
       recipeRows.forEach((r) => r.setSensitive(false));
+      groupRows.forEach((g) => g.setSensitive(false));
       abortController = new AbortController();
       try {
         void updateConnectivity();
@@ -801,6 +843,8 @@ export async function startGui(chef: ChefInternal) {
         refreshBtn.setSensitive(true);
         cancelBtn.setVisible(false);
         recipeRows.forEach((r) => r.setSensitive(true));
+        groupRows.forEach((g) => g.setSensitive(true));
+        groupRows.forEach((g) => g.setSensitive(true));
         abortController = null;
         chef.isBusy = false;
         applyFilters();
@@ -900,6 +944,7 @@ export async function startGui(chef: ChefInternal) {
       statusLabel.removeCssClass("error");
       cancelBtn.setVisible(true);
       recipeRows.forEach((r) => r.setSensitive(false));
+      groupRows.forEach((g) => g.setSensitive(false));
 
       abortController = new AbortController();
       try {
@@ -936,6 +981,8 @@ export async function startGui(chef: ChefInternal) {
         updateAllBtn.setLabel(updatesOnly ? "Update Available" : "Update All");
         cancelBtn.setVisible(false);
         recipeRows.forEach((r) => r.setSensitive(true));
+        groupRows.forEach((g) => g.setSensitive(true));
+        groupRows.forEach((g) => g.setSensitive(true));
         abortController = null;
         chef.isBusy = false;
         applyFilters();
@@ -1115,7 +1162,8 @@ function createRecipeRow(
   setSensitive: (sensitive: boolean) => void;
   updateRunningStatus: (running: boolean) => void;
   updateStatusLabel: (text: string) => void;
-  setShowsGroupUpdate: (shows: boolean) => void;
+  setGrouped: () => void;
+  update: () => Promise<void>;
   updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
   cleanup: () => void; // Add cleanup function to disconnect signals
@@ -1245,12 +1293,14 @@ function createRecipeRow(
   let currentPage = 1;
   let isFetching = false;
 
-  // Whether this row owns the Update button of its group (see applyFilters)
-  let showsGroupUpdate = true;
-  let needsUpdate = false;
-  const setShowsGroupUpdate = (shows: boolean) => {
-    showsGroupUpdate = shows;
-    if (needsUpdate && runningCount === 0) updateBtn.setVisible(shows);
+  // Binaries of a package are updated from their group row (see createGroupRow)
+  let isGrouped = false;
+  const setGrouped = () => {
+    isGrouped = true;
+    updateBtn.setVisible(false);
+    nameLabel.setMarkup(`<span alpha="50%">↳</span> ${recipe.name}`);
+    // Left align so the arrows line up under the group name
+    nameLabel.setXalign(0);
   };
 
   const checkUpdate = async () => {
@@ -1285,12 +1335,11 @@ function createRecipeRow(
 
       if (installed) {
         const hasLatest = info.latestVersion && info.latestVersion !== "-";
-        needsUpdate = !!info.needsUpdate;
         if (info.needsUpdate) {
           updateAvailableLabel.setText("✨");
           updateBtn.addCssClass("success");
           updateBtn.setLabel("Update");
-          updateBtn.setVisible(showsGroupUpdate);
+          updateBtn.setVisible(!isGrouped);
           // Forcing allows versions too new for deno's minimum dependency age
           reinstallBtn.setLabel("Force Update");
           reinstallBtn.setVisible(true);
@@ -1371,7 +1420,6 @@ function createRecipeRow(
       updateBtn.removeCssClass("success");
       updateBtn.setVisible(false);
       reinstallBtn.setVisible(false);
-      needsUpdate = false;
     }
     // Always check for latest version regardless of installation status
     await checkUpdate();
@@ -1748,11 +1796,146 @@ function createRecipeRow(
     setSensitive,
     updateRunningStatus,
     updateStatusLabel,
-    setShowsGroupUpdate,
+    setGrouped,
+    update: () => onUpdateOrReinstall(false),
     updateStatus,
     updateStatusPromise,
     cleanup,
     // for eslint TODO: figure this out
     // deno-lint-ignore no-explicit-any
   } as any;
+}
+
+/**
+ * Header row for the binaries of one package, owning their shared Update button
+ */
+function createGroupRow(
+  chef: ChefInternal,
+  group: string,
+  provider: string,
+  groups: {
+    nameGroup: SizeGroup;
+    versionGroup: SizeGroup;
+    latestVersionGroup: SizeGroup;
+    statusGroup: SizeGroup;
+    actionsGroup: SizeGroup;
+  },
+  applyFilters: () => void,
+) {
+  // Reuse the recipe row layout so the columns line up with the binaries
+  const builder = new Builder();
+  builder.addFromString(RECIPE_ROW_UI_DATA);
+  const row = builder.get("recipe_row", ListBoxRow) ?? expect(
+    "missing recipe_row",
+  );
+  const nameLabel = builder.get("name_label", Label) ?? expect(
+    "missing name_label",
+  );
+  const versionLabel = builder.get("version_label", Label) ?? expect(
+    "missing version_label",
+  );
+  const latestVersionBox = builder.get("latest_version_box", Box) ?? expect(
+    "missing latest_version_box",
+  );
+  const latestVersionLabel = builder.get("latest_version_label", Label) ??
+    expect("missing latest_version_label");
+  const statusLabel = builder.get("status_label", Label) ?? expect(
+    "missing status_label",
+  );
+  const updateAvailableLabel = builder.get("update_available_label", Label) ??
+    expect("missing update_available_label");
+  const statusBox = builder.get("status_box", Box) ??
+    expect("missing status_box");
+  const actionBox = builder.get("action_box", Box) ??
+    expect("missing action_box");
+  const updateBtn = builder.get("update_btn", Button) ?? expect(
+    "missing update_btn",
+  );
+  for (
+    const id of [
+      "install_btn",
+      "run_btn",
+      "run_in_terminal_btn",
+      "more_btn",
+      "mute_btn",
+    ]
+  ) {
+    (builder.getWidget(id) ?? expect(`missing ${id}`)).setVisible(false);
+  }
+
+  nameLabel.setMarkup(
+    `<b>${group.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</b>`,
+  );
+  nameLabel.setXalign(0);
+  statusLabel.addCssClass("dim-label");
+  updateBtn.addCssClass("success");
+  groups.nameGroup.addWidget(nameLabel);
+  groups.versionGroup.addWidget(versionLabel);
+  groups.latestVersionGroup.addWidget(latestVersionBox);
+  groups.statusGroup.addWidget(statusBox);
+  groups.actionsGroup.addWidget(actionBox);
+
+  type Member = {
+    name: string;
+    row: ListBoxRow;
+    isInstalled: boolean;
+    hasUpdate: boolean;
+    latestVersion?: string;
+    isBusy: boolean;
+    update: () => Promise<void>;
+  };
+  let members: Member[] = [];
+  let sensitive = true;
+  let updating = false;
+
+  const refresh = (newMembers: Member[]) => {
+    members = newMembers;
+    row.setVisible(members.some((m) => m.row.getVisible()));
+
+    const installed = members.find((m) => m.isInstalled);
+    versionLabel.setText(
+      (installed && chef.getVersion(installed.name)) || "-",
+    );
+    const latest = members.find((m) => m.latestVersion)?.latestVersion;
+    latestVersionLabel.setText(latest ?? "Checking...");
+    if (latest) latestVersionLabel.removeCssClass("dim-label");
+    statusLabel.setText(`${members.length} binaries`);
+
+    const hasUpdate = members.some((m) => m.isInstalled && m.hasUpdate);
+    updateAvailableLabel.setText(hasUpdate ? "✨" : "  ");
+    updateBtn.setVisible(hasUpdate || updating);
+    updateBtn.setSensitive(
+      sensitive && !updating && !members.some((m) => m.isBusy),
+    );
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  updateBtn.onClick(async () => {
+    const leader = members.find((m) => m.isInstalled && m.hasUpdate);
+    if (!leader || updating || members.some((m) => m.isBusy)) return;
+    updating = true;
+    updateBtn.setLabel("Updating...");
+    updateBtn.setSensitive(false);
+    try {
+      await leader.update();
+    } finally {
+      updating = false;
+      updateBtn.setLabel("Update");
+      applyFilters();
+    }
+  });
+
+  return {
+    row,
+    group,
+    provider,
+    refresh,
+    setSensitive: (value: boolean) => {
+      sensitive = value;
+      updateBtn.setSensitive(
+        sensitive && !updating && !members.some((m) => m.isBusy),
+      );
+    },
+    cleanup: () => builder.unref(),
+  };
 }

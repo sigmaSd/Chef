@@ -282,6 +282,19 @@ export class BinaryUpdater {
         continue;
       }
 
+      // Binaries of one package are all installed by updating any of them
+      if (
+        recipe._group && !options.force &&
+        recipe._currentVersion === latestVersion
+      ) {
+        statusMessage(
+          "success",
+          `${info.name} ${latestVersion} installed with ${recipe._group}`,
+        );
+        updated++;
+        continue;
+      }
+
       try {
         console.log(
           `%c${Symbols.download} Updating ${info.name} (${
@@ -348,6 +361,17 @@ export class BinaryUpdater {
         });
         // Cached current version (from providers or versionCommand) is now stale
         recipe._currentVersion = latestVersion;
+        if (recipe._group) {
+          for (const sibling of this.recipes) {
+            if (
+              sibling !== recipe && sibling._group === recipe._group &&
+              sibling.provider === recipe.provider &&
+              sibling._currentVersion && sibling._currentVersion !== "-"
+            ) {
+              sibling._currentVersion = latestVersion;
+            }
+          }
+        }
         statusMessage(
           "success",
           `${info.name} ${latestVersion} installed successfully`,
