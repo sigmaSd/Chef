@@ -158,27 +158,8 @@ export class DesktopFileManager {
       // Fallback to generic icon if icon not found
     }
 
-    const baseName = this.scriptName.split("-").slice(0, -1).join("-") ||
-      this.scriptName;
-    const isLocal = this.chefPath.startsWith("file://");
-    const isStandardName = baseName === "chef" || baseName === "mod" ||
-      baseName === "default";
-
-    const displayName = isStandardName
-      ? (isLocal ? "Chef (Local)" : "Chef")
-      : `Chef (${baseName})`;
-
     const desktopPath = path.join(desktopDir, `${this.appId}.desktop`);
-    const content = `[Desktop Entry]
-Name=${displayName}
-Exec=deno run ${this.getConfigArg()}-A --minimum-dependency-age=0 ${this.chefPath} gui
-Type=Application
-Terminal=false
-Comment=Personal Package Manager
-Categories=System;
-Icon=${iconValue}`;
-
-    await Deno.writeTextFile(desktopPath, content);
+    await Deno.writeTextFile(desktopPath, this.guiDesktopContent(iconValue));
     await Deno.chmod(desktopPath, 0o755);
     console.log(
       `%cChef GUI installed as a desktop application`,
@@ -188,6 +169,92 @@ Icon=${iconValue}`;
       `%cDesktop file: ${desktopPath}`,
       `color: ${Colors.blueMarine}`,
     );
+  }
+
+  /**
+   * Point an already installed Chef GUI desktop file at the current launcher,
+   * so launching it from the app menu runs the same Chef version as the CLI
+   */
+  async refreshGui() {
+    if (Deno.build.os !== "linux") return;
+    const desktopPath = path.join(
+      Deno.env.get("HOME") ?? expect("HOME env var not set"),
+      ".local/share/applications",
+      `${this.appId}.desktop`,
+    );
+    let content: string;
+    try {
+      content = await Deno.readTextFile(desktopPath);
+    } catch {
+      return;
+    }
+    const iconValue = content.match(/^Icon=(.*)$/m)?.[1] ??
+      "package-x-generic";
+    const newContent = this.guiDesktopContent(iconValue);
+    if (newContent !== content) {
+      await Deno.writeTextFile(desktopPath, newContent);
+    }
+  }
+
+  private guiDesktopContent(iconValue: string): string {
+    const baseName = this.scriptName.split("-").slice(0, -1).join("-") ||
+      this.scriptName;
+    const isLocal = this.chefPath.startsWith("file://") &&
+      baseName !== "chefjsrdefault";
+    const isStandardName = baseName === "chef" || baseName === "mod" ||
+      baseName === "default" || baseName === "chefjsrdefault" ||
+      baseName === "cheflocaldefault";
+
+    const displayName = isStandardName
+      ? (isLocal ? "Chef (Local)" : "Chef")
+      : `Chef (${baseName})`;
+
+    // The default script pins the chef version and only the launcher installed
+    // by `deno install` bumps it, so launch through it to pick up updates
+    const launcher = baseName === "chefjsrdefault"
+      ? this.findLauncher()
+      : undefined;
+    const exec = launcher
+      ? `"${launcher}" gui`
+      : `deno run ${this.getConfigArg()}-A --minimum-dependency-age=0 ${this.chefPath} gui`;
+
+    return `[Desktop Entry]
+Name=${displayName}
+Exec=${exec}
+Type=Application
+Terminal=false
+Comment=Personal Package Manager
+Categories=System;
+Icon=${iconValue}`;
+  }
+
+  /**
+   * Find the script `deno install` created for chef, preferring one named chef
+   */
+  private findLauncher(): string | undefined {
+    const installRoot = Deno.env.get("DENO_INSTALL_ROOT") ??
+      path.join(
+        Deno.env.get("HOME") ?? expect("HOME env var not set"),
+        ".deno",
+      );
+    const binDir = path.join(installRoot, "bin");
+    const launchers: string[] = [];
+    try {
+      for (const entry of Deno.readDirSync(binDir)) {
+        if (!entry.isFile) continue;
+        const launcherPath = path.join(binDir, entry.name);
+        // Launchers are tiny shell scripts, skip real binaries like deno
+        if (Deno.statSync(launcherPath).size > 4096) continue;
+        const content = Deno.readTextFileSync(launcherPath);
+        if (/['"]jsr:@sigmasd\/chef(@[^'"\/]*)?['"]/.test(content)) {
+          launchers.push(launcherPath);
+        }
+      }
+    } catch {
+      return undefined;
+    }
+    return launchers.find((l) => path.basename(l) === "chef") ??
+      launchers.sort()[0];
   }
 
   private getConfigArg(): string {

@@ -799,6 +799,9 @@ export class ChefInternal {
    */
   start = async (args: string[]) => {
     await this.init();
+    await this.desktopManager.refreshGui().catch((e) =>
+      console.error("Failed to refresh Chef desktop file:", e)
+    );
 
     const handlers: CommandHandlers = {
       run: async (name: string, binArgs: string[]) => {
