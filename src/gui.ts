@@ -592,6 +592,14 @@ export async function startGui(chef: ChefInternal) {
       setGrouped: () => void;
       update: () => Promise<void>;
       installVersion: (version: string) => Promise<void>;
+      install: () => Promise<void>;
+      reinstall: () => Promise<void>;
+      remove: () => Promise<void>;
+      cancel: () => void;
+      openChangelog: () => void;
+      hasChangelog: boolean;
+      isRunning?: boolean;
+      busyStatus?: string;
       name: string;
       provider: string;
       group?: string;
@@ -727,7 +735,6 @@ export async function startGui(chef: ChefInternal) {
                 statusGroup,
                 actionsGroup,
               },
-              applyFilters,
             );
             groupRows.push(groupRow);
             expander.addRow(groupRow.row);
@@ -740,6 +747,11 @@ export async function startGui(chef: ChefInternal) {
             setGrouped,
             update,
             installVersion,
+            install,
+            reinstall,
+            remove,
+            cancel,
+            openChangelog,
             updateStatus,
             updateStatusPromise,
             cleanup,
@@ -777,7 +789,13 @@ export async function startGui(chef: ChefInternal) {
             setGrouped,
             update,
             installVersion,
+            install,
+            reinstall,
+            remove,
+            cancel,
+            openChangelog,
             updateStatus,
+            hasChangelog: !!recipe.changelog,
             name: recipe.name,
             provider: recipe.provider || "Chef apps",
             group: recipe._group,
@@ -1154,6 +1172,8 @@ function createRecipeRow(
     group?: string;
     expanderRow: ExpanderRow;
     isBusy: boolean;
+    isRunning?: boolean;
+    busyStatus?: string;
   }[],
   onStatusChanged: (
     isInstalled: boolean,
@@ -1169,6 +1189,11 @@ function createRecipeRow(
   setGrouped: () => void;
   update: () => Promise<void>;
   installVersion: (version: string) => Promise<void>;
+  install: () => Promise<void>;
+  reinstall: () => Promise<void>;
+  remove: () => Promise<void>;
+  cancel: () => void;
+  openChangelog: () => void;
   updateStatus: () => Promise<void>;
   updateStatusPromise: Promise<void>;
   cleanup: () => void; // Add cleanup function to disconnect signals
@@ -1264,7 +1289,7 @@ function createRecipeRow(
   };
 
   const updateStatusLabel = (text: string) => {
-    statusLabel.setText(text);
+    if (!isGrouped) statusLabel.setText(text);
   };
 
   const setGroupState = (sensitive: boolean, status?: string) => {
@@ -1275,6 +1300,7 @@ function createRecipeRow(
         (recipe._group && row.group === recipe._group)
       ) {
         row.isBusy = !sensitive;
+        row.busyStatus = sensitive ? undefined : status;
         row.setSensitive(sensitive);
         if (status) {
           row.updateStatusLabel(status);
@@ -1283,6 +1309,7 @@ function createRecipeRow(
         }
       }
     }
+    applyFilters();
   };
 
   nameLabel.setMarkup(recipe.name);
@@ -1306,6 +1333,11 @@ function createRecipeRow(
     latestVersionLabel.setVisible(true);
     latestVersionBtn.setVisible(false);
     updateAvailableLabel.setText("  ");
+    // Status, mute, install and the more menu act on the whole package too
+    statusLabel.setText("");
+    installBtn.setVisible(false);
+    muteBtn.setVisible(false);
+    moreBtn.setVisible(false);
     nameLabel.setMarkup(`<span alpha="50%">↳</span> ${recipe.name}`);
     // Left align so the arrows line up under the group name
     nameLabel.setXalign(0);
@@ -1397,6 +1429,9 @@ function createRecipeRow(
     }
 
     const isRunning = runningCount > 0;
+    const rowObj = getRowObj();
+    if (rowObj) rowObj.isRunning = isRunning;
+    applyFilters();
     if (isRunning) {
       statusLabel.setText("Running");
       statusLabel.addCssClass("success");
@@ -1413,7 +1448,9 @@ function createRecipeRow(
     if (rowObj?.isBusy) return;
     const installed = chef.isInstalled(recipe.name);
     if (lifecycleAbortController.signal.aborted) return;
-    statusLabel.setText(installed ? "Installed" : "Not Installed");
+    statusLabel.setText(
+      isGrouped ? "" : installed ? "Installed" : "Not Installed",
+    );
     const version = chef.getVersion(recipe.name);
     versionLabel.setText(isGrouped ? "" : version || "-");
 
@@ -1433,6 +1470,8 @@ function createRecipeRow(
     }
     // Always check for latest version regardless of installation status
     await checkUpdate();
+    // Siblings of a package change state when another binary is installed
+    void updateButtons();
   };
   const updateStatusPromise = updateStatus();
 
@@ -1443,7 +1482,7 @@ function createRecipeRow(
     if (rowObj) rowObj.isBusy = true;
     setGroupState(false, `Installing ${version}...`);
     statusLabel.removeCssClass("success");
-    cancelBtn.setVisible(true);
+    cancelBtn.setVisible(!isGrouped);
     rowAbortController = new AbortController();
     try {
       await chef.installOrUpdate(recipe.name, {
@@ -1494,8 +1533,8 @@ function createRecipeRow(
     const installed = chef.isInstalled(recipe.name);
     const isRunning = runningCount > 0;
 
-    installBtn.setVisible(!installed);
-    muteBtn.setVisible(installed);
+    installBtn.setVisible(!installed && !isGrouped);
+    muteBtn.setVisible(installed && !isGrouped);
     runBtn.setVisible(installed);
     runInTerminalBtn.setVisible(installed);
     killBtn.setVisible(isRunning);
@@ -1513,13 +1552,12 @@ function createRecipeRow(
     changelogBtn.setVisible(!!recipe.changelog);
 
     moreBtn.setVisible(
-      (installed && !isRunning) || (!!recipe.changelog),
+      !isGrouped && ((installed && !isRunning) || (!!recipe.changelog)),
     );
   };
   void updateButtons();
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  installBtn.onClick(async () => {
+  const install = async () => {
     const rowObj = getRowObj();
     if (rowObj?.isBusy) return;
 
@@ -1527,7 +1565,7 @@ function createRecipeRow(
     setGroupState(false, "Installing...");
     installBtn.setLabel("Installing...");
     statusLabel.removeCssClass("success");
-    cancelBtn.setVisible(true);
+    cancelBtn.setVisible(!isGrouped);
     rowAbortController = new AbortController();
     try {
       await chef.installOrUpdate(recipe.name, {
@@ -1559,10 +1597,11 @@ function createRecipeRow(
       if (rowObj) rowObj.isBusy = false;
       void updateButtons();
     }
-  });
-
+  };
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  removeBtn.onClick(async () => {
+  installBtn.onClick(install);
+
+  const remove = async () => {
     const rowObj = getRowObj();
     if (rowObj?.isBusy) return;
     if (rowObj) rowObj.isBusy = true;
@@ -1570,7 +1609,7 @@ function createRecipeRow(
     morePopover.popdown();
     setGroupState(false, "Removing...");
     statusLabel.removeCssClass("success");
-    cancelBtn.setVisible(true);
+    cancelBtn.setVisible(!isGrouped);
     rowAbortController = new AbortController();
     try {
       await chef.uninstall(recipe.name, { signal: rowAbortController.signal });
@@ -1596,7 +1635,9 @@ function createRecipeRow(
       if (rowObj) rowObj.isBusy = false;
       void updateButtons();
     }
-  });
+  };
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  removeBtn.onClick(remove);
 
   const onUpdateOrReinstall = async (force: boolean) => {
     const rowObj = getRowObj();
@@ -1613,7 +1654,7 @@ function createRecipeRow(
     const oldLabel = btn.getLabel();
     btn.setLabel(actionText);
     statusLabel.removeCssClass("success");
-    cancelBtn.setVisible(true);
+    cancelBtn.setVisible(!isGrouped);
     rowAbortController = new AbortController();
     try {
       // The user already saw the new version and chose it, so let providers
@@ -1634,10 +1675,12 @@ function createRecipeRow(
       } else {
         console.error(e);
         btn.setLabel("Failed");
-        statusLabel.setText(
-          `Error: ${e instanceof Error ? e.message : e}`,
-        );
-        statusLabel.addCssClass("error");
+        if (!isGrouped) {
+          statusLabel.setText(
+            `Error: ${e instanceof Error ? e.message : e}`,
+          );
+          statusLabel.addCssClass("error");
+        }
         globalStatusLabel.setText(
           `Error: ${e instanceof Error ? e.message : e}`,
         );
@@ -1661,11 +1704,12 @@ function createRecipeRow(
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   reinstallBtn.onClick(() => onUpdateOrReinstall(true));
 
-  cancelBtn.onClick(() => {
+  const cancel = () => {
     if (rowAbortController) {
       rowAbortController.abort();
     }
-  });
+  };
+  cancelBtn.onClick(cancel);
 
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   runBtn.onClick(async () => {
@@ -1690,22 +1734,7 @@ function createRecipeRow(
   });
 
   const muteKey = `${recipe.provider || "Chef apps"}/${recipe.name}`;
-  const updateMuteIcon = () => {
-    const muted = muteBtn.getActive();
-    muteBtn.setIconName(
-      muted
-        ? "notifications-disabled-symbolic"
-        : "preferences-system-notifications-symbolic",
-    );
-    muteBtn.setTooltipText(
-      muted
-        ? "Background update notifications muted"
-        : "Mute background update notifications",
-    );
-    // Only draw attention to muted rows
-    if (muted) muteBtn.removeCssClass("dim-label");
-    else muteBtn.addCssClass("dim-label");
-  };
+  const updateMuteIcon = () => styleMuteBtn(muteBtn);
   muteBtn.setActive(chef.getMutedUpdates().includes(muteKey));
   updateMuteIcon();
   muteBtn.onToggled(() => {
@@ -1716,8 +1745,7 @@ function createRecipeRow(
     updateMuteIcon();
   });
 
-  changelogBtn.onClick(() => {
-    morePopover.popdown();
+  const openChangelog = () => {
     const version = chef.getVersion(recipe.name);
     if (recipe.changelog && version) {
       const url = recipe.changelog({ latestVersion: version });
@@ -1729,6 +1757,10 @@ function createRecipeRow(
         : "xdg-open";
       new Deno.Command(command, { args: [url] }).spawn();
     }
+  };
+  changelogBtn.onClick(() => {
+    morePopover.popdown();
+    openChangelog();
   });
 
   // Cleanup function to disconnect signals and free resources
@@ -1748,12 +1780,34 @@ function createRecipeRow(
     setGrouped,
     update: () => onUpdateOrReinstall(false),
     installVersion,
+    install,
+    reinstall: () => onUpdateOrReinstall(true),
+    remove,
+    cancel,
+    openChangelog,
     updateStatus,
     updateStatusPromise,
     cleanup,
     // for eslint TODO: figure this out
     // deno-lint-ignore no-explicit-any
   } as any;
+}
+
+function styleMuteBtn(muteBtn: ToggleButton) {
+  const muted = muteBtn.getActive();
+  muteBtn.setIconName(
+    muted
+      ? "notifications-disabled-symbolic"
+      : "preferences-system-notifications-symbolic",
+  );
+  muteBtn.setTooltipText(
+    muted
+      ? "Background update notifications muted"
+      : "Mute background update notifications",
+  );
+  // Only draw attention to muted rows
+  if (muted) muteBtn.removeCssClass("dim-label");
+  else muteBtn.addCssClass("dim-label");
 }
 
 /**
@@ -1852,7 +1906,8 @@ function setupVersionPicker(
 }
 
 /**
- * Header row for the binaries of one package, owning their shared Update button
+ * Header row for the binaries of one package, owning everything that acts on
+ * the whole package: versions, status, mute, install, update and the more menu
  */
 function createGroupRow(
   chef: ChefInternal,
@@ -1866,7 +1921,6 @@ function createGroupRow(
     statusGroup: SizeGroup;
     actionsGroup: SizeGroup;
   },
-  applyFilters: () => void,
 ) {
   // Reuse the recipe row layout so the columns line up with the binaries
   const builder = new Builder();
@@ -1904,22 +1958,37 @@ function createGroupRow(
   );
   const updateAvailableLabel = builder.get("update_available_label", Label) ??
     expect("missing update_available_label");
+  const muteBtn = builder.get("mute_btn", ToggleButton) ??
+    expect("missing mute_btn");
   const statusBox = builder.get("status_box", Box) ??
     expect("missing status_box");
   const actionBox = builder.get("action_box", Box) ??
     expect("missing action_box");
+  const installBtn = builder.get("install_btn", Button) ?? expect(
+    "missing install_btn",
+  );
   const updateBtn = builder.get("update_btn", Button) ?? expect(
     "missing update_btn",
   );
-  for (
-    const id of [
-      "install_btn",
-      "run_btn",
-      "run_in_terminal_btn",
-      "more_btn",
-      "mute_btn",
-    ]
-  ) {
+  const cancelBtn = builder.get("cancel_btn", Button) ?? expect(
+    "missing cancel_btn",
+  );
+  const moreBtn = builder.get("more_btn", MenuButton) ?? expect(
+    "missing more_btn",
+  );
+  const morePopover = builder.get("more_popover", Popover) ?? expect(
+    "missing more_popover",
+  );
+  const reinstallBtn = builder.get("reinstall_btn", Button) ?? expect(
+    "missing reinstall_btn",
+  );
+  const changelogBtn = builder.get("changelog_btn", Button) ?? expect(
+    "missing changelog_btn",
+  );
+  const removeBtn = builder.get("remove_btn", Button) ?? expect(
+    "missing remove_btn",
+  );
+  for (const id of ["run_btn", "run_in_terminal_btn"]) {
     (builder.getWidget(id) ?? expect(`missing ${id}`)).setVisible(false);
   }
 
@@ -1927,7 +1996,6 @@ function createGroupRow(
     `<b>${group.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</b>`,
   );
   nameLabel.setXalign(0);
-  statusLabel.addCssClass("dim-label");
   updateBtn.addCssClass("success");
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
@@ -1942,37 +2010,67 @@ function createGroupRow(
     hasUpdate: boolean;
     latestVersion?: string;
     isBusy: boolean;
+    isRunning?: boolean;
+    busyStatus?: string;
+    hasChangelog: boolean;
     update: () => Promise<void>;
     installVersion: (version: string) => Promise<void>;
+    install: () => Promise<void>;
+    reinstall: () => Promise<void>;
+    remove: () => Promise<void>;
+    cancel: () => void;
+    openChangelog: () => void;
   };
   let members: Member[] = [];
   let sensitive = true;
-  let updating = false;
   const lifecycleAbortController = new AbortController();
 
-  // Installing any binary installs the whole package, so pick through one
+  // Any binary acts for the whole package, prefer an installed one
+  const leader = () => members.find((m) => m.isInstalled) ?? members[0];
+  const muteKeys = () => members.map((m) => `${provider}/${m.name}`);
+
   setupVersionPicker(
     { versionsPopover, versionsSearch, versionsList, loadMoreBtn },
     (page) =>
-      chef.getVersions(members[0]?.name ?? expect("group has no binaries"), {
+      chef.getVersions(leader()?.name ?? expect("group has no binaries"), {
         page,
         signal: lifecycleAbortController.signal,
       }),
-    (version) => {
-      const leader = members.find((m) => m.isInstalled) ?? members[0];
-      if (leader) void leader.installVersion(version);
-    },
+    (version) => void leader()?.installVersion(version),
     group,
     lifecycleAbortController.signal,
   );
 
+  const syncSensitivity = () => {
+    const enabled = sensitive && !members.some((m) => m.isBusy);
+    for (
+      const btn of [
+        installBtn,
+        updateBtn,
+        reinstallBtn,
+        removeBtn,
+        changelogBtn,
+      ]
+    ) {
+      btn.setSensitive(enabled);
+    }
+  };
+
+  // Set from refresh, so ignore the toggled signal it triggers
+  let syncingMute = false;
   const refresh = (newMembers: Member[]) => {
     members = newMembers;
     row.setVisible(members.some((m) => m.row.getVisible()));
 
-    const installed = members.find((m) => m.isInstalled);
+    const installedMember = members.find((m) => m.isInstalled);
+    const installed = !!installedMember;
+    const busy = members.find((m) => m.isBusy);
+    const running = members.some((m) => m.isRunning);
+    const hasUpdate = members.some((m) => m.isInstalled && m.hasUpdate);
+    const hasChangelog = members.some((m) => m.hasChangelog);
+
     versionLabel.setText(
-      (installed && chef.getVersion(installed.name)) || "-",
+      (installedMember && chef.getVersion(installedMember.name)) || "-",
     );
     const latest = members.find((m) => m.latestVersion)?.latestVersion;
     latestVersionLabel.setText(latest ?? "Checking...");
@@ -1983,30 +2081,68 @@ function createGroupRow(
     }
     latestVersionBtn.setVisible(hasVersions && !!latest);
     latestVersionLabel.setVisible(!(hasVersions && latest));
-    statusLabel.setText(`${members.length} binaries`);
 
-    const hasUpdate = members.some((m) => m.isInstalled && m.hasUpdate);
-    updateAvailableLabel.setText(hasUpdate ? "✨" : "  ");
-    updateBtn.setVisible(hasUpdate || updating);
-    updateBtn.setSensitive(
-      sensitive && !updating && !members.some((m) => m.isBusy),
+    statusLabel.setText(
+      busy?.busyStatus ?? (installed ? "Installed" : "Not Installed"),
     );
+    if (installed && !busy) {
+      statusLabel.addCssClass("success");
+      statusLabel.removeCssClass("dim-label");
+    } else {
+      statusLabel.removeCssClass("success");
+      if (installed) statusLabel.removeCssClass("dim-label");
+      else statusLabel.addCssClass("dim-label");
+    }
+    updateAvailableLabel.setText(hasUpdate ? "✨" : "  ");
+
+    muteBtn.setVisible(installed);
+    const muted = new Set(chef.getMutedUpdates());
+    syncingMute = true;
+    muteBtn.setActive(
+      members.length > 0 && muteKeys().every((k) => muted.has(k)),
+    );
+    syncingMute = false;
+    styleMuteBtn(muteBtn);
+
+    // Like single binaries, don't replace the package while one is running
+    installBtn.setVisible(!installed && !busy);
+    updateBtn.setVisible(hasUpdate && !running && !busy);
+    cancelBtn.setVisible(!!busy);
+    reinstallBtn.setLabel(hasUpdate ? "Force Update" : "Reinstall");
+    reinstallBtn.setVisible(installed && !running);
+    removeBtn.setVisible(installed && !running);
+    changelogBtn.setVisible(hasChangelog);
+    moreBtn.setVisible((installed && !running) || hasChangelog);
+    syncSensitivity();
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  updateBtn.onClick(async () => {
-    const leader = members.find((m) => m.isInstalled && m.hasUpdate);
-    if (!leader || updating || members.some((m) => m.isBusy)) return;
-    updating = true;
-    updateBtn.setLabel("Updating...");
-    updateBtn.setSensitive(false);
-    try {
-      await leader.update();
-    } finally {
-      updating = false;
-      updateBtn.setLabel("Update");
-      applyFilters();
+  muteBtn.onToggled(() => {
+    if (syncingMute) return;
+    const muted = new Set(chef.getMutedUpdates());
+    for (const key of muteKeys()) {
+      if (muteBtn.getActive()) muted.add(key);
+      else muted.delete(key);
     }
+    chef.setMutedUpdates([...muted]);
+    styleMuteBtn(muteBtn);
+  });
+
+  installBtn.onClick(() => void leader()?.install());
+  updateBtn.onClick(() =>
+    void members.find((m) => m.isInstalled && m.hasUpdate)?.update()
+  );
+  cancelBtn.onClick(() => members.find((m) => m.isBusy)?.cancel());
+  reinstallBtn.onClick(() => {
+    morePopover.popdown();
+    void leader()?.reinstall();
+  });
+  removeBtn.onClick(() => {
+    morePopover.popdown();
+    void leader()?.remove();
+  });
+  changelogBtn.onClick(() => {
+    morePopover.popdown();
+    members.find((m) => m.hasChangelog)?.openChangelog();
   });
 
   return {
@@ -2016,9 +2152,7 @@ function createGroupRow(
     refresh,
     setSensitive: (value: boolean) => {
       sensitive = value;
-      updateBtn.setSensitive(
-        sensitive && !updating && !members.some((m) => m.isBusy),
-      );
+      syncSensitivity();
     },
     cleanup: () => {
       lifecycleAbortController.abort();

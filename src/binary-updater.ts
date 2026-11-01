@@ -361,12 +361,12 @@ export class BinaryUpdater {
         });
         // Cached current version (from providers or versionCommand) is now stale
         recipe._currentVersion = latestVersion;
+        // A group is one package, so its other binaries came with this one
         if (recipe._group) {
           for (const sibling of this.recipes) {
             if (
               sibling !== recipe && sibling._group === recipe._group &&
-              sibling.provider === recipe.provider &&
-              sibling._currentVersion && sibling._currentVersion !== "-"
+              sibling.provider === recipe.provider
             ) {
               sibling._currentVersion = latestVersion;
             }
