@@ -7,6 +7,7 @@ import {
   Builder,
   Button,
   CheckButton,
+  CssProvider,
   Entry,
   EventControllerKey,
   ExpanderRow,
@@ -23,6 +24,8 @@ import {
   SearchBar,
   SearchEntry,
   SizeGroup,
+  StyleContext,
+  StyleProviderPriority,
   TextView,
   ToggleButton,
   ViewStack,
@@ -88,6 +91,9 @@ export async function startGui(chef: ChefInternal) {
     const headerRow = builder.get("header_row", ListBoxRow) ?? expect(
       "missing header_row",
     );
+    // Recipe names are left aligned, keep their column title with them
+    (builder.get("header_name", Label) ?? expect("missing header_name"))
+      .setXalign(0);
     const editorEntry = builder.get("editor_entry", Entry) ?? expect(
       "missing editor_entry",
     );
@@ -812,6 +818,12 @@ export async function startGui(chef: ChefInternal) {
         }
       }
 
+      for (const g of groupRows) {
+        recipeRows.findLast((r) =>
+          r.provider === g.provider && r.group === g.group
+        )?.row.addCssClass("package-last");
+      }
+
       // Wait for all rows to finish checking updates
       await Promise.all(
         recipeRows.map((r) => r.updateStatusPromise),
@@ -1132,6 +1144,14 @@ export async function startGui(chef: ChefInternal) {
       }
     }, 60 * 60 * 1000);
 
+    const cssProvider = new CssProvider();
+    cssProvider.loadFromData(PACKAGE_CSS);
+    StyleContext.addProviderForDisplay(
+      window.getDisplay(),
+      cssProvider,
+      StyleProviderPriority.APPLICATION,
+    );
+
     window.maximize();
     window.present();
   });
@@ -1313,6 +1333,8 @@ function createRecipeRow(
   };
 
   nameLabel.setMarkup(recipe.name);
+  // Left aligned so package rows and their binaries line up with the rest
+  nameLabel.setXalign(0);
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
   groups.latestVersionGroup.addWidget(latestVersionBox);
@@ -1326,6 +1348,7 @@ function createRecipeRow(
   let isGrouped = false;
   const setGrouped = () => {
     isGrouped = true;
+    row.addCssClass("package-binary");
     updateBtn.setVisible(false);
     // The group row shows the shared versions, the version picker and ✨
     versionLabel.setText("");
@@ -1339,8 +1362,6 @@ function createRecipeRow(
     muteBtn.setVisible(false);
     moreBtn.setVisible(false);
     nameLabel.setMarkup(`<span alpha="50%">↳</span> ${recipe.name}`);
-    // Left align so the arrows line up under the group name
-    nameLabel.setXalign(0);
   };
 
   const checkUpdate = async () => {
@@ -1997,6 +2018,7 @@ function createGroupRow(
   );
   nameLabel.setXalign(0);
   updateBtn.addCssClass("success");
+  row.addCssClass("package-row");
   groups.nameGroup.addWidget(nameLabel);
   groups.versionGroup.addWidget(versionLabel);
   groups.latestVersionGroup.addWidget(latestVersionBox);
@@ -2160,3 +2182,14 @@ function createGroupRow(
     },
   };
 }
+
+// Drop the separators inside a package so it reads as one block, keeping the
+// ones above its header row and below its last binary
+const PACKAGE_CSS = `
+  row.package-row, row.package-binary:not(.package-last) {
+    border-bottom-width: 0;
+  }
+  row.package-binary {
+    border-top-width: 0;
+  }
+`;
